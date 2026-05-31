@@ -1,26 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap');
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+html {
+  scroll-behavior: smooth;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html[data-theme="dark"], html:not([data-theme]) {
+  --navy: #0b0e1a;
+  --navy2: #111526;
+  --navy3: #181d35;
+  --purple: #6c4ef2;
+  --purple2: #8b6ff7;
+  --gold: #f0b429;
+  --gold2: #ffd166;
+  --text: #e8eaf6;
+  --muted: #8b90b8;
+  --card: #161b30;
+  --card2: #1c2240;
+  --border: rgba(108, 78, 242, 0.18);
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html[data-theme="light"] {
+  --navy: #f0f2ff;
+  --navy2: #e4e7f7;
+  --navy3: #d8dcf0;
+  --purple: #6c4ef2;
+  --purple2: #5538d4;
+  --gold: #c47f0a;
+  --gold2: #f0b429;
+  --text: #0f1120;
+  --muted: #555a7a;
+  --card: #ffffff;
+  --card2: #eceffe;
+  --border: rgba(108, 78, 242, 0.15);
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--navy);
+  color: var(--text);
+  font-family: var(--font-body), sans-serif;
+  overflow-x: hidden;
+  transition: background 0.3s ease, color 0.3s ease;
 }

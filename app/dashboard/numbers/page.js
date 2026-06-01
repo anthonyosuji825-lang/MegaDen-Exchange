@@ -48,16 +48,14 @@ export default function BuyNumbers() {
   const [hoveredCountry, setHoveredCountry] = useState(null)
   const [hoveredService, setHoveredService] = useState(null)
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  useEffect(() => { setMounted(true) }, [])
 
   const filtered = countries.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.code.toLowerCase().includes(search.toLowerCase())
   )
 
- const handleOrder = async () => {
+  const handleOrder = async () => {
     if (!selectedCountry || !selectedService) return
     setOrdering(true)
     const supabase = createClient()
@@ -80,10 +78,7 @@ export default function BuyNumbers() {
       return
     }
 
-    await supabase
-      .from('profiles')
-      .update({ wallet_balance: balance - price })
-      .eq('id', user.id)
+    await supabase.from('profiles').update({ wallet_balance: balance - price }).eq('id', user.id)
 
     await supabase.from('orders').insert({
       user_id: user.id,
@@ -113,26 +108,19 @@ export default function BuyNumbers() {
           from { opacity: 0; transform: translateY(16px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes scaleIn {
           from { opacity: 0; transform: scale(0.95); }
           to { opacity: 1; transform: scale(1); }
         }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes successPop {
           0% { transform: scale(0); opacity: 0; }
           70% { transform: scale(1.15); }
           100% { transform: scale(1); opacity: 1; }
         }
+
         .country-card {
           transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
         }
@@ -140,12 +128,10 @@ export default function BuyNumbers() {
           transform: translateY(-2px);
           box-shadow: 0 8px 24px rgba(108,78,242,0.15);
         }
-        .service-card {
+        .service-chip {
           transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
         }
-        .service-card:hover {
-          transform: translateY(-2px);
-        }
+        .service-chip:hover { transform: translateY(-2px); }
         .buy-btn {
           transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
         }
@@ -153,36 +139,75 @@ export default function BuyNumbers() {
           transform: translateY(-2px);
           box-shadow: 0 8px 24px rgba(108,78,242,0.35);
         }
-        .buy-btn:active:not(:disabled) {
-          transform: translateY(0);
-        }
+        .buy-btn:active:not(:disabled) { transform: translateY(0); }
         .search-input:focus {
           border-color: var(--purple) !important;
           box-shadow: 0 0 0 3px rgba(108,78,242,0.12);
         }
-        .back-btn {
-          transition: background 0.18s, transform 0.18s;
+        .back-btn { transition: background 0.18s, transform 0.18s; }
+        .back-btn:hover { background: var(--card2) !important; transform: translateX(-2px); }
+
+        /* COUNTRY GRID — 2 cols on mobile, 3+ on wider screens */
+        .country-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 0.55rem;
         }
-        .back-btn:hover {
-          background: var(--card2) !important;
-          transform: translateX(-2px);
+        /* SERVICE GRID — 2 cols always, wraps nicely */
+        .service-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 0.55rem;
+        }
+
+        @media (min-width: 480px) {
+          .country-grid { grid-template-columns: repeat(2, 1fr); gap: 0.65rem; }
+          .service-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        @media (min-width: 640px) {
+          .country-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (min-width: 900px) {
+          .country-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+
+        /* On very small screens tighten flag text */
+        @media (max-width: 360px) {
+          .country-name { font-size: 0.72rem !important; }
+          .country-price { font-size: 0.65rem !important; }
+          .country-card { padding: 0.65rem 0.6rem !important; }
+          .country-flag { font-size: 1.25rem !important; }
         }
       `}</style>
 
       {/* HEADER */}
-      <div style={{ padding: '1.1rem 1.4rem', display: 'flex', alignItems: 'center', gap: '0.9rem', position: 'sticky', top: 0, zIndex: 100, background: 'var(--navy)', backdropFilter: 'blur(16px)', borderBottom: '1px solid var(--border)' }}>
-        <Link href="/dashboard" className="back-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none' }}>
+      <div style={{
+        padding: '1rem 1.1rem',
+        display: 'flex', alignItems: 'center', gap: '0.9rem',
+        position: 'sticky', top: 0, zIndex: 100,
+        background: 'rgba(11,14,26,0.95)',
+        backdropFilter: 'blur(16px)',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        <Link href="/dashboard" className="back-btn" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 36, height: 36, borderRadius: '10px',
+          background: 'var(--card)', border: '1px solid var(--border)',
+          color: 'var(--text)', textDecoration: 'none', flexShrink: 0,
+        }}>
           <BackIcon />
         </Link>
-        <div style={{ animation: mounted ? 'fadeSlideIn 0.4s ease' : 'none' }}>
+        <div style={{ animation: mounted ? 'fadeSlideIn 0.4s ease' : 'none', minWidth: 0 }}>
           <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem', color: 'var(--text)' }}>Foreign Numbers</div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Buy virtual numbers from 40+ countries</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Buy virtual numbers from 40+ countries</div>
         </div>
       </div>
 
-      <div style={{ padding: '1.2rem 1.4rem' }}>
+      {/* BODY */}
+      <div style={{ padding: '1.1rem 1rem', maxWidth: '680px', margin: '0 auto' }}>
 
         {success ? (
+          /* SUCCESS STATE */
           <div style={{ textAlign: 'center', padding: '3rem 1rem', animation: 'fadeIn 0.4s ease' }}>
             <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(29,158,117,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.2rem', color: '#34d399', animation: 'successPop 0.5s cubic-bezier(0.175,0.885,0.32,1.275)' }}>
               <CheckIcon size={36} />
@@ -193,20 +218,25 @@ export default function BuyNumbers() {
               {selectedCountry?.flag} {selectedCountry?.name} · {selectedService?.name}
             </div>
             <br />
-            <button onClick={() => { setSuccess(false); setSelectedCountry(null); setSelectedService(null) }} className="buy-btn" style={{ padding: '0.75rem 1.8rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '12px', fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}>
+            <button
+              onClick={() => { setSuccess(false); setSelectedCountry(null); setSelectedService(null) }}
+              className="buy-btn"
+              style={{ padding: '0.75rem 1.8rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '12px', fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}>
               Buy Another
             </button>
           </div>
         ) : (
           <>
-          {error && (
-  <div style={{ background: 'rgba(220,50,50,0.1)', border: '1px solid rgba(220,50,50,0.3)', color: '#ff6b6b', borderRadius: '12px', padding: '0.8rem 1rem', fontSize: '0.84rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-    <span>{error}</span>
-    <button onClick={() => setError('')} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '1rem' }}>×</button>
-  </div>
-)}
+            {/* ERROR BANNER */}
+            {error && (
+              <div style={{ background: 'rgba(220,50,50,0.1)', border: '1px solid rgba(220,50,50,0.3)', color: '#ff6b6b', borderRadius: '12px', padding: '0.8rem 1rem', fontSize: '0.84rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                <span>{error}</span>
+                <button onClick={() => setError('')} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '1.1rem', flexShrink: 0 }}>×</button>
+              </div>
+            )}
+
             {/* SEARCH */}
-            <div style={{ position: 'relative', marginBottom: '1.4rem', animation: mounted ? 'fadeSlideIn 0.35s ease 0.05s both' : 'none' }}>
+            <div style={{ position: 'relative', marginBottom: '1.2rem', animation: mounted ? 'fadeSlideIn 0.35s ease 0.05s both' : 'none' }}>
               <div style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }}>
                 <SearchIcon size={16} />
               </div>
@@ -219,14 +249,19 @@ export default function BuyNumbers() {
               />
             </div>
 
-            {/* STEP 1 */}
-            <div style={{ marginBottom: '1.6rem', animation: mounted ? 'fadeSlideIn 0.4s ease 0.1s both' : 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.9rem' }}>
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: '#fff' }}>1</div>
-                <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)' }}>Select Country</span>
-                {selectedCountry && <span style={{ fontSize: '0.75rem', color: '#34d399', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><CheckIcon size={12} /> {selectedCountry.flag} {selectedCountry.name}</span>}
+            {/* STEP 1 — SELECT COUNTRY */}
+            <div style={{ marginBottom: '1.5rem', animation: mounted ? 'fadeSlideIn 0.4s ease 0.1s both' : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
+                <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>1</div>
+                <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>Select Country</span>
+                {selectedCountry && (
+                  <span style={{ fontSize: '0.72rem', color: '#34d399', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                    <CheckIcon size={12} /> {selectedCountry.flag} {selectedCountry.name}
+                  </span>
+                )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem' }}>
+
+              <div className="country-grid">
                 {filtered.map((c, i) => {
                   const isSelected = selectedCountry?.code === c.code
                   return (
@@ -237,55 +272,68 @@ export default function BuyNumbers() {
                       onMouseEnter={() => setHoveredCountry(c.code)}
                       onMouseLeave={() => setHoveredCountry(null)}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: '0.7rem',
-                        padding: '0.8rem 0.9rem',
+                        display: 'flex', alignItems: 'center', gap: '0.55rem',
+                        padding: '0.75rem 0.8rem',
                         background: isSelected ? 'rgba(108,78,242,0.1)' : hoveredCountry === c.code ? 'var(--card2)' : 'var(--card)',
                         border: `1px solid ${isSelected ? 'var(--purple)' : 'var(--border)'}`,
                         borderRadius: '12px', cursor: 'pointer', textAlign: 'left',
-                        animation: mounted ? `fadeSlideIn 0.35s ease ${0.05 * i}s both` : 'none',
+                        animation: mounted ? `fadeSlideIn 0.35s ease ${Math.min(i * 0.03, 0.3)}s both` : 'none',
+                        width: '100%',
                       }}
                     >
-                      <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{c.flag}</span>
+                      <span className="country-flag" style={{ fontSize: '1.4rem', lineHeight: 1, flexShrink: 0 }}>{c.flag}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.79rem', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--gold)', fontWeight: 600, marginTop: '0.1rem' }}>₦{c.price}</div>
+                        <div className="country-name" style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                        <div className="country-price" style={{ fontSize: '0.68rem', color: 'var(--gold)', fontWeight: 600, marginTop: '0.1rem' }}>₦{c.price}</div>
                       </div>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: isSelected ? 'var(--purple)' : 'transparent', border: isSelected ? 'none' : '1.5px solid var(--border)', flexShrink: 0, transition: 'background 0.2s' }} />
+                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: isSelected ? 'var(--purple)' : 'transparent', border: isSelected ? 'none' : '1.5px solid var(--border)', flexShrink: 0, transition: 'background 0.2s' }} />
                     </button>
                   )
                 })}
               </div>
+
+              {filtered.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                  No countries found for "{search}"
+                </div>
+              )}
             </div>
 
-            {/* STEP 2 */}
+            {/* STEP 2 — SELECT SERVICE */}
             {selectedCountry && (
-              <div style={{ marginBottom: '1.6rem', animation: 'fadeSlideIn 0.35s ease both' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.9rem' }}>
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: '#fff' }}>2</div>
-                  <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)' }}>Select Service</span>
-                  {selectedService && <span style={{ fontSize: '0.75rem', color: '#34d399', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><CheckIcon size={12} /> {selectedService.name}</span>}
+              <div style={{ marginBottom: '1.5rem', animation: 'fadeSlideIn 0.35s ease both' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>2</div>
+                  <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>Select Service</span>
+                  {selectedService && (
+                    <span style={{ fontSize: '0.72rem', color: '#34d399', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                      <CheckIcon size={12} /> {selectedService.name}
+                    </span>
+                  )}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem' }}>
+
+                <div className="service-grid">
                   {services.map((s, i) => {
                     const isSelected = selectedService?.id === s.id
                     return (
                       <button
                         key={s.id}
-                        className="service-card"
+                        className="service-chip"
                         onClick={() => setSelectedService(s)}
                         onMouseEnter={() => setHoveredService(s.id)}
                         onMouseLeave={() => setHoveredService(null)}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: '0.7rem',
-                          padding: '0.78rem 1rem',
+                          display: 'flex', alignItems: 'center', gap: '0.55rem',
+                          padding: '0.72rem 0.85rem',
                           background: isSelected ? 'rgba(108,78,242,0.1)' : hoveredService === s.id ? 'var(--card2)' : 'var(--card)',
                           border: `1px solid ${isSelected ? 'var(--purple)' : 'var(--border)'}`,
                           borderRadius: '12px', cursor: 'pointer',
                           animation: `fadeSlideIn 0.3s ease ${0.04 * i}s both`,
+                          width: '100%',
                         }}
                       >
-                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: s.color, flexShrink: 0, boxShadow: isSelected ? `0 0 8px ${s.color}88` : 'none', transition: 'box-shadow 0.2s' }} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text)' }}>{s.name}</span>
+                        <div style={{ width: 9, height: 9, borderRadius: '50%', background: s.color, flexShrink: 0, boxShadow: isSelected ? `0 0 8px ${s.color}88` : 'none', transition: 'box-shadow 0.2s' }} />
+                        <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
                       </button>
                     )
                   })}
@@ -295,21 +343,21 @@ export default function BuyNumbers() {
 
             {/* ORDER SUMMARY */}
             {selectedCountry && selectedService && (
-              <div style={{ background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '1.2rem', marginBottom: '1rem', animation: 'scaleIn 0.3s ease both' }}>
-                <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', marginBottom: '0.9rem' }}>Order Summary</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                    <span style={{ color: 'var(--muted)' }}>Country</span>
-                    <span style={{ color: 'var(--text)', fontWeight: 500 }}>{selectedCountry.flag} {selectedCountry.name}</span>
+              <div style={{ background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '1.1rem', marginBottom: '0.9rem', animation: 'scaleIn 0.3s ease both' }}>
+                <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', marginBottom: '0.85rem' }}>Order Summary</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', gap: '0.5rem' }}>
+                    <span style={{ color: 'var(--muted)', flexShrink: 0 }}>Country</span>
+                    <span style={{ color: 'var(--text)', fontWeight: 500, textAlign: 'right' }}>{selectedCountry.flag} {selectedCountry.name}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                    <span style={{ color: 'var(--muted)' }}>Service</span>
-                    <span style={{ color: 'var(--text)', fontWeight: 500 }}>
-                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: selectedService.color, marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', gap: '0.5rem' }}>
+                    <span style={{ color: 'var(--muted)', flexShrink: 0 }}>Service</span>
+                    <span style={{ color: 'var(--text)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: selectedService.color, flexShrink: 0 }} />
                       {selectedService.name}
                     </span>
                   </div>
-                  <div style={{ height: 1, background: 'var(--border)', margin: '0.2rem 0' }} />
+                  <div style={{ height: 1, background: 'var(--border)', margin: '0.15rem 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.92rem' }}>
                     <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Total</span>
                     <span style={{ color: 'var(--gold)', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>₦{selectedCountry.price}</span>

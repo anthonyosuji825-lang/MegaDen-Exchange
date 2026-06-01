@@ -1,4 +1,5 @@
 'use client'
+import LoadingScreen from '@/components/LoadingScreen'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -92,16 +93,7 @@ export default function Dashboard() {
     router.push('/')
   }
 
-  if (loading) return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.4rem', fontWeight: 800, color: 'var(--text)' }}>
-          Mega<span style={{ color: 'var(--gold)' }}>Den</span>
-        </div>
-        <div style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>Loading...</div>
-      </div>
-    </main>
-  )
+  if (loading) return <LoadingScreen />
 
   const firstName = profile?.full_name?.split(' ')[0] || 'User'
   const hour = new Date().getHours()

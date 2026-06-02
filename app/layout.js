@@ -17,11 +17,11 @@ export const metadata = {
   title: 'MegaDen Exchange — Foreign Numbers & Social Media Logs',
   description: 'Buy verified foreign virtual numbers, social media logs, and boost your online presence. Fast, secure and affordable.',
   keywords: 'foreign numbers, social media accounts, virtual numbers, account boosting, buy logs',
-  metadataBase: new URL('https://megaden.megad.name.ng'),
+  metadataBase: new URL('https://megad.name.ng'),
   openGraph: {
     title: 'MegaDen Exchange',
     description: 'Buy foreign numbers, social media logs & boost your online presence.',
-    url: 'https://megaden.megad.name.ng',
+    url: 'https://megad.name.ng',
     siteName: 'MegaDen Exchange',
     type: 'website',
   },

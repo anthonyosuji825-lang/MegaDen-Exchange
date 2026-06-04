@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import LoadingScreen from '@/component/LoadingScreen'
 
 export default function Wallet() {
   const [profile, setProfile] = useState(null)
@@ -52,23 +53,28 @@ export default function Wallet() {
         currency: 'NGN',
         ref: reference,
         onClose: function() { setFunding(false) },
-        callback: function(response) {
+        callback: async function(response) {
           if (response.status === 'success') {
+            // Wait a moment for webhook to process
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            // Re-fetch updated balance from DB (webhook has credited it)
             const supabaseInner = createClient()
-            const newBalance = (profile?.wallet_balance || 0) + Number(amount)
-            supabaseInner.from('profiles').update({ wallet_balance: newBalance }).eq('id', user.id).then(() => {
-              supabaseInner.from('transactions').insert({
-                user_id: user.id,
-                type: 'credit',
-                amount: Number(amount),
-                description: `Wallet funding via ${payMethod}`,
-                reference: response.reference,
-              }).then(() => {
-                setProfile(p => ({ ...p, wallet_balance: newBalance }))
-                setFunding(false)
-                setSuccess(true)
-              })
-            })
+            const { data: updatedProfile } = await supabaseInner
+              .from('profiles')
+              .select('wallet_balance')
+              .eq('id', user.id)
+              .single()
+            setProfile(p => ({ ...p, wallet_balance: updatedProfile?.wallet_balance || p.wallet_balance }))
+            // Re-fetch transactions
+            const { data: txData } = await supabaseInner
+              .from('transactions')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: false })
+              .limit(10)
+            setTransactions(txData || [])
+            setFunding(false)
+            setSuccess(true)
           } else {
             setFunding(false)
           }
@@ -81,11 +87,7 @@ export default function Wallet() {
     }
   }
 
-  if (loading) return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Loading wallet...</div>
-    </main>
-  )
+  if (loading) return <LoadingScreen />
 
   return (
     <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2rem' }}>

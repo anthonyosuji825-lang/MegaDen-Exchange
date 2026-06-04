@@ -4,8 +4,12 @@ export function proxy(request) {
   const { pathname } = request.nextUrl
 
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) {
-    const token = request.cookies.get('sb-fodnpyqimdthddydylxu-auth-token')
-    if (!token) {
+    const cookies = request.cookies.getAll()
+    const hasSession = cookies.some(c => 
+      c.name.startsWith('sb-') && 
+      (c.name.includes('auth-token') || c.name.includes('session'))
+    )
+    if (!hasSession) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
   }

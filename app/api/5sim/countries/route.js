@@ -13,41 +13,43 @@ export async function GET(request) {
           'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
           'Accept': 'application/json',
         },
-        next: { revalidate: 300 } // cache for 5 minutes
+        next: { revalidate: 300 }
       }
     )
 
     if (!res.ok) throw new Error('Failed to fetch from 5SIM')
     const data = await res.json()
 
-    // Transform 5SIM response into clean country list
-    const countries = []
-    for (const [country, services] of Object.entries(data)) {
-      const serviceData = services[service]
-      if (!serviceData) continue
+    // 5SIM response: { "whatsapp": { "country": { "operator": { cost, count } } } }
+    const serviceData = data[service]
+    if (!serviceData) return NextResponse.json({ countries: [] })
 
-      // Get cheapest operator
+    const countries = []
+
+    for (const [country, operators] of Object.entries(serviceData)) {
       let cheapestPrice = Infinity
       let totalQty = 0
-      for (const [operator, info] of Object.entries(serviceData)) {
+
+      for (const [operator, info] of Object.entries(operators)) {
         if (info.cost < cheapestPrice) cheapestPrice = info.cost
         totalQty += info.count
       }
 
       if (totalQty === 0) continue // skip out of stock
+      if (cheapestPrice === Infinity) continue
 
       countries.push({
         code: country,
         name: formatCountryName(country),
         flag: getFlag(country),
         price_usd: cheapestPrice,
-        price_ngn: Math.ceil(cheapestPrice * 1600 * 3.5), // markup: USD rate × 3.5x
+        price_ngn: Math.ceil(cheapestPrice * 1600 * 3.5),
         stock: totalQty,
       })
     }
 
-    // Sort by popularity (Nigeria users prefer these)
-    const preferred = ['usa', 'uk', 'russia', 'ukraine', 'canada', 'indonesia', 'india']
+    // Sort preferred countries first
+    const preferred = ['usa', 'uk', 'russia', 'ukraine', 'canada', 'indonesia', 'india', 'nigeria', 'ghana']
     countries.sort((a, b) => {
       const ai = preferred.indexOf(a.code)
       const bi = preferred.indexOf(b.code)
@@ -90,8 +92,24 @@ function formatCountryName(code) {
     newzealand: 'New Zealand', southafrica: 'South Africa',
     morocco: 'Morocco', ethiopia: 'Ethiopia', tanzania: 'Tanzania',
     uganda: 'Uganda', senegal: 'Senegal', cameroon: 'Cameroon',
+    afghanistan: 'Afghanistan', albania: 'Albania', algeria: 'Algeria',
+    angola: 'Angola', belarus: 'Belarus', bolivia: 'Bolivia',
+    bosniaandherzegovina: 'Bosnia & Herzegovina', chile: 'Chile',
+    costarica: 'Costa Rica', cuba: 'Cuba', dominicanrepublic: 'Dominican Republic',
+    ecuador: 'Ecuador', elsalvador: 'El Salvador', guatemala: 'Guatemala',
+    haiti: 'Haiti', honduras: 'Honduras', iraq: 'Iraq',
+    iran: 'Iran', israel: 'Israel', jamaica: 'Jamaica',
+    jordan: 'Jordan', kuwait: 'Kuwait', lebanon: 'Lebanon',
+    libya: 'Libya', madagascar: 'Madagascar', mongolia: 'Mongolia',
+    mozambique: 'Mozambique', namibia: 'Namibia', nepal: 'Nepal',
+    nicaragua: 'Nicaragua', oman: 'Oman', panama: 'Panama',
+    paraguay: 'Paraguay', peru: 'Peru', qatar: 'Qatar',
+    saudiarabia: 'Saudi Arabia', srilanka: 'Sri Lanka', sudan: 'Sudan',
+    syria: 'Syria', tunisia: 'Tunisia', turkey: 'Turkey',
+    uae: 'UAE', uruguay: 'Uruguay', venezuela: 'Venezuela',
+    yemen: 'Yemen', zambia: 'Zambia', zimbabwe: 'Zimbabwe',
   }
-  return names[code] || code.charAt(0).toUpperCase() + code.slice(1)
+  return names[code] || code.charAt(0).toUpperCase() + code.slice(1).replace(/([a-z])([A-Z])/g, '$1 $2')
 }
 
 function getFlag(code) {
@@ -112,7 +130,17 @@ function getFlag(code) {
     portugal: '🇵🇹', denmark: '🇩🇰', finland: '🇫🇮', ireland: '🇮🇪',
     newzealand: '🇳🇿', southafrica: '🇿🇦', morocco: '🇲🇦',
     ethiopia: '🇪🇹', tanzania: '🇹🇿', uganda: '🇺🇬', senegal: '🇸🇳',
-    cameroon: '🇨🇲', skyroam: '🌐',
+    cameroon: '🇨🇲', afghanistan: '🇦🇫', albania: '🇦🇱', algeria: '🇩🇿',
+    angola: '🇦🇴', belarus: '🇧🇾', bolivia: '🇧🇴', chile: '🇨🇱',
+    cuba: '🇨🇺', ecuador: '🇪🇨', guatemala: '🇬🇹', haiti: '🇭🇹',
+    honduras: '🇭🇳', iraq: '🇮🇶', iran: '🇮🇷', israel: '🇮🇱',
+    jamaica: '🇯🇲', jordan: '🇯🇴', kuwait: '🇰🇼', lebanon: '🇱🇧',
+    libya: '🇱🇾', mongolia: '🇲🇳', nepal: '🇳🇵', nicaragua: '🇳🇮',
+    oman: '🇴🇲', panama: '🇵🇦', paraguay: '🇵🇾', peru: '🇵🇪',
+    qatar: '🇶🇦', saudiarabia: '🇸🇦', srilanka: '🇱🇰', sudan: '🇸🇩',
+    syria: '🇸🇾', tunisia: '🇹🇳', turkey: '🇹🇷', uae: '🇦🇪',
+    uruguay: '🇺🇾', venezuela: '🇻🇪', yemen: '🇾🇪', zambia: '🇿🇲',
+    zimbabwe: '🇿🇼',
   }
   return flags[code] || '🌍'
 }

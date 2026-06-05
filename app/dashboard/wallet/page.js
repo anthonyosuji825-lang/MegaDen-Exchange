@@ -32,6 +32,26 @@ export default function Wallet() {
 
   const quickAmounts = [500, 1000, 2000, 5000, 10000, 20000]
 
+  const handlePaymentSuccess = async (user) => {
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    const supabaseInner = createClient()
+    const { data: updatedProfile } = await supabaseInner
+      .from('profiles')
+      .select('wallet_balance')
+      .eq('id', user.id)
+      .single()
+    setProfile(p => ({ ...p, wallet_balance: updatedProfile?.wallet_balance || p.wallet_balance }))
+    const { data: txData } = await supabaseInner
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10)
+    setTransactions(txData || [])
+    setFunding(false)
+    setSuccess(true)
+  }
+
   const handleFund = async () => {
     if (!amount || !payMethod || Number(amount) < 100) return
     setFunding(true)
@@ -53,28 +73,9 @@ export default function Wallet() {
         currency: 'NGN',
         ref: reference,
         onClose: function() { setFunding(false) },
-        callback: async function(response) {
+        callback: function(response) {
           if (response.status === 'success') {
-            // Wait a moment for webhook to process
-            await new Promise(resolve => setTimeout(resolve, 2000))
-            // Re-fetch updated balance from DB (webhook has credited it)
-            const supabaseInner = createClient()
-            const { data: updatedProfile } = await supabaseInner
-              .from('profiles')
-              .select('wallet_balance')
-              .eq('id', user.id)
-              .single()
-            setProfile(p => ({ ...p, wallet_balance: updatedProfile?.wallet_balance || p.wallet_balance }))
-            // Re-fetch transactions
-            const { data: txData } = await supabaseInner
-              .from('transactions')
-              .select('*')
-              .eq('user_id', user.id)
-              .order('created_at', { ascending: false })
-              .limit(10)
-            setTransactions(txData || [])
-            setFunding(false)
-            setSuccess(true)
+            handlePaymentSuccess(user)
           } else {
             setFunding(false)
           }

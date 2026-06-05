@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import LoadingScreen from '@/component/LoadingScreen'
+import LoadingScreen from '@/components/LoadingScreen'
 
 export default function Wallet() {
   const [profile, setProfile] = useState(null)

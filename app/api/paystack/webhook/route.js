@@ -1,3 +1,4 @@
+// app/api/paystack/webhook/route.js
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
@@ -24,15 +25,13 @@ export async function POST(request) {
 
     const event = JSON.parse(body)
 
-    // Only handle successful charges
     if (event.event === 'charge.success') {
       const { data } = event
       const email = data.customer.email
-      const amount = data.amount / 100 // Convert from kobo to naira
+      const amount = data.amount / 100
       const reference = data.reference
-      const metadata = data.metadata || {}
 
-      // Check if this transaction has already been processed
+      // Check for duplicate transaction
       const { data: existing } = await supabase
         .from('transactions')
         .select('id')
@@ -50,16 +49,24 @@ export async function POST(request) {
         .eq('email', email)
         .single()
 
+      // ✅ FIX #10: Return 200 on soft errors so Paystack doesn't keep retrying
       if (!profile) {
-        return NextResponse.json({ error: 'User not found' }, { status: 404 })
+        console.error('Webhook: user not found for email:', email)
+        return NextResponse.json({ message: 'User not found' }, { status: 200 })
       }
 
-      // Credit wallet
-      const newBalance = (profile.wallet_balance || 0) + amount
-      await supabase
-        .from('profiles')
-        .update({ wallet_balance: newBalance })
-        .eq('id', profile.id)
+      // ✅ Use atomic RPC for credit — consistent with the rest of the codebase
+      const { error: creditError } = await supabase
+        .rpc('credit_wallet_balance', {
+          p_user_id: profile.id,
+          p_amount: amount,
+        })
+
+      if (creditError) {
+        console.error('Webhook: failed to credit wallet:', creditError)
+        // Return 500 here so Paystack WILL retry — this is a real failure
+        return NextResponse.json({ error: 'Failed to credit wallet' }, { status: 500 })
+      }
 
       // Record transaction
       await supabase.from('transactions').insert({

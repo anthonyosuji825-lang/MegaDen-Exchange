@@ -1,18 +1,75 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import { createServerClient } from '@supabase/ssr'
 import Link from 'next/link'
+import LoadingScreen from '@/components/LoadingScreen'
 
 const services = [
-  { id: 'whatsapp', name: 'WhatsApp', color: '#25d366' },
-  { id: 'telegram', name: 'Telegram', color: '#0088cc' },
-  { id: 'facebook', name: 'Facebook', color: '#1877f2' },
-  { id: 'instagram', name: 'Instagram', color: '#e1306c' },
-  { id: 'tiktok', name: 'TikTok', color: '#ff0050' },
-  { id: 'gmail', name: 'Gmail', color: '#ea4335' },
-  { id: 'twitter', name: 'Twitter / X', color: '#1da1f2' },
-  { id: 'any', name: 'Any SMS', color: '#6c4ef2' },
+  { id: 'whatsapp',   name: 'WhatsApp',    color: '#25d366' },
+  { id: 'telegram',   name: 'Telegram',    color: '#0088cc' },
+  { id: 'facebook',   name: 'Facebook',    color: '#1877f2' },
+  { id: 'instagram',  name: 'Instagram',   color: '#e1306c' },
+  { id: 'tiktok',     name: 'TikTok',      color: '#ff0050' },
+  { id: 'gmail',      name: 'Gmail',       color: '#ea4335' },
+  { id: 'twitter',    name: 'Twitter / X', color: '#e7e7e7' },
+  { id: 'any',        name: 'Any SMS',     color: '#6c4ef2' },
 ]
+
+const ServiceIcon = ({ id, size = 26 }) => {
+  const icons = {
+    whatsapp: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#25d366">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+      </svg>
+    ),
+    telegram: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#0088cc">
+        <path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0a12 12 0 00-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+      </svg>
+    ),
+    facebook: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#1877f2">
+        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+      </svg>
+    ),
+    instagram: (
+      <svg width={size} height={size} viewBox="0 0 24 24">
+        <defs>
+          <linearGradient id="ig2" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#f09433"/>
+            <stop offset="25%" stopColor="#e6683c"/>
+            <stop offset="50%" stopColor="#dc2743"/>
+            <stop offset="75%" stopColor="#cc2366"/>
+            <stop offset="100%" stopColor="#bc1888"/>
+          </linearGradient>
+        </defs>
+        <path fill="url(#ig2)" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+      </svg>
+    ),
+    tiktok: (
+      <svg width={size} height={size} viewBox="0 0 24 24">
+        <path fill="#ff0050" d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.32 6.32 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.79 1.52V6.75a4.85 4.85 0 01-1.02-.06z"/>
+      </svg>
+    ),
+    gmail: (
+      <svg width={size} height={size} viewBox="0 0 24 24">
+        <path fill="#ea4335" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 010 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.907 1.528-1.148C21.69 2.28 24 3.434 24 5.457z"/>
+      </svg>
+    ),
+    twitter: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#e7e7e7">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    ),
+    any: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#6c4ef2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+    ),
+  }
+  return icons[id] || null
+}
 
 export default function BuyNumbers() {
   const [search, setSearch] = useState('')
@@ -29,6 +86,7 @@ export default function BuyNumbers() {
   const [purchased, setPurchased] = useState(null)
   const [sms, setSms] = useState([])
   const [countdown, setCountdown] = useState(0)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -48,6 +106,7 @@ export default function BuyNumbers() {
     setLoadingCountries(true)
     setCountries([])
     setSelectedCountry(null)
+    setError('')
     try {
       const res = await fetch(`/api/5sim/countries?service=${serviceId}`)
       const data = await res.json()
@@ -64,6 +123,7 @@ export default function BuyNumbers() {
     fetchCountries(service.id)
   }
 
+  // Countdown + SMS polling after purchase
   useEffect(() => {
     if (!purchased) return
     setCountdown(purchased.expires_in)
@@ -90,6 +150,7 @@ export default function BuyNumbers() {
     c.code.toLowerCase().includes(search.toLowerCase())
   )
 
+  // ✅ FIX: No longer sends userId or priceNgn from client
   const handleOrder = async () => {
     if (!selectedCountry || !selectedService || !user) return
     setOrdering(true)
@@ -100,8 +161,7 @@ export default function BuyNumbers() {
       body: JSON.stringify({
         country: selectedCountry.code,
         service: selectedService.id,
-        userId: user.id,
-        priceNgn: selectedCountry.price_ngn,
+        // ✅ userId and priceNgn removed — server reads from session and 5SIM API
       })
     })
     const data = await res.json()
@@ -110,23 +170,44 @@ export default function BuyNumbers() {
       setOrdering(false)
       return
     }
-    setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) - selectedCountry.price_ngn }))
+    // ✅ Use server-returned price_ngn, not client-side price
+    setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) - data.price_ngn }))
     setPurchased({
       phone: data.phone,
       fivesim_id: data.fivesim_id,
       order_id: data.order_id,
       expires_in: data.expires_in,
+      price_ngn: data.price_ngn,
       country: selectedCountry,
       service: selectedService,
     })
     setOrdering(false)
   }
 
+  // ✅ FIX: Sends JSON body (not query params) + handles errors properly
   const handleCancel = async () => {
     if (!purchased) return
-    await fetch(`/api/5sim/sms?id=${purchased.fivesim_id}&order_id=${purchased.order_id}&user_id=${user.id}&amount=${purchased.country.price_ngn}`, {
-      method: 'DELETE'
-    })
+    try {
+      const res = await fetch('/api/5sim/sms', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fivesimId: purchased.fivesim_id,
+          orderId: purchased.order_id,
+          userId: user.id,
+          amount: purchased.price_ngn,
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Cancel failed. Contact support.')
+        return
+      }
+      setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + purchased.price_ngn }))
+    } catch (err) {
+      setError('Cancel failed. Contact support.')
+      return
+    }
     setPurchased(null)
     setSms([])
     setSelectedCountry(null)
@@ -134,195 +215,463 @@ export default function BuyNumbers() {
     setCountries([])
   }
 
-  const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  const copyPhone = () => {
+    if (!purchased?.phone) return
+    navigator.clipboard.writeText(purchased.phone)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
-  if (pageLoading) return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.2rem', fontWeight: 800, color: 'var(--text)' }}>Loading...</div>
-      </div>
-    </main>
-  )
+  const formatCountdown = (s) => {
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return `${m}:${sec.toString().padStart(2, '0')}`
+  }
+
+  const hasBalance = (profile?.wallet_balance || 0) >= (selectedCountry?.price_ngn || 0)
+
+  if (pageLoading) return <LoadingScreen />
 
   return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2rem' }}>
+    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '5rem' }}>
       <style>{`
-        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes scaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+          from { opacity: 0; transform: scale(0.94); }
+          to   { opacity: 1; transform: scale(1); }
+        }
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-        .service-chip { transition: transform 0.18s, border-color 0.18s, background 0.18s; cursor: pointer; }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+        @keyframes shimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes smsReveal {
+          from { opacity: 0; transform: translateY(10px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes glow {
+          0%, 100% { box-shadow: 0 0 12px rgba(108,78,242,0.3); }
+          50%       { box-shadow: 0 0 28px rgba(108,78,242,0.6); }
+        }
+
+        * { box-sizing: border-box; }
+
+        .service-chip {
+          transition: transform 0.15s ease, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+        }
         .service-chip:hover { transform: translateY(-2px); }
-        .country-card { transition: transform 0.18s, border-color 0.18s, background 0.18s; cursor: pointer; }
-        .country-card:hover { transform: translateY(-2px); }
-        .buy-btn { transition: transform 0.18s, box-shadow 0.18s; }
-        .buy-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(108,78,242,0.4); }
-        .back-btn { transition: background 0.18s, transform 0.18s; }
+        .service-chip:active { transform: scale(0.97); }
+
+        .country-card {
+          transition: transform 0.15s ease, border-color 0.15s, background 0.15s;
+        }
+        .country-card:hover { transform: translateY(-1px); }
+        .country-card:active { transform: scale(0.98); }
+
+        .buy-btn {
+          transition: transform 0.18s ease, box-shadow 0.18s, background 0.18s;
+        }
+        .buy-btn:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 32px rgba(108,78,242,0.45);
+        }
+        .buy-btn:active:not(:disabled) { transform: scale(0.98); }
+
+        .back-btn {
+          transition: background 0.15s, transform 0.15s;
+        }
         .back-btn:hover { background: var(--card2) !important; transform: translateX(-2px); }
-        .service-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
-        .country-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
-        @media (min-width: 480px) { .country-grid { grid-template-columns: repeat(3, 1fr); } }
+
+        .copy-btn {
+          transition: background 0.15s, transform 0.15s;
+        }
+        .copy-btn:hover { transform: scale(1.05); }
+        .copy-btn:active { transform: scale(0.95); }
+
+        .cancel-btn {
+          transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+        }
+        .cancel-btn:hover {
+          background: rgba(244,63,94,0.08) !important;
+          border-color: rgba(244,63,94,0.4) !important;
+          color: #f43f5e !important;
+          transform: translateY(-1px);
+        }
+
+        .search-input:focus {
+          border-color: var(--purple) !important;
+          box-shadow: 0 0 0 3px rgba(108,78,242,0.12);
+        }
+
+        .progress-ring {
+          transform: rotate(-90deg);
+          transform-origin: 50% 50%;
+        }
+
+        .number-display {
+          background: linear-gradient(135deg, rgba(108,78,242,0.08) 0%, rgba(192,120,26,0.06) 100%);
+          border: 1px solid rgba(108,78,242,0.25);
+          animation: glow 3s ease infinite;
+        }
+
+        @media (max-width: 380px) {
+          .service-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .country-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
-      {/* HEADER */}
-      <div style={{ padding: '1.1rem 1.4rem', display: 'flex', alignItems: 'center', gap: '0.9rem', position: 'sticky', top: 0, zIndex: 100, background: 'var(--navy)', backdropFilter: 'blur(16px)', borderBottom: '1px solid var(--border)' }}>
-        <Link href="/dashboard" className="back-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none' }}>
+      {/* ── STICKY HEADER ── */}
+      <div style={{
+        padding: '1rem 1.2rem',
+        display: 'flex', alignItems: 'center', gap: '0.85rem',
+        position: 'sticky', top: 0, zIndex: 100,
+        background: 'rgba(var(--navy-rgb, 10,10,30), 0.92)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        <Link href="/dashboard" className="back-btn" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 36, height: 36, borderRadius: '10px',
+          background: 'var(--card)', border: '1px solid var(--border)',
+          color: 'var(--text)', textDecoration: 'none', flexShrink: 0,
+        }}>
           <BackIcon />
         </Link>
-        <div style={{ animation: mounted ? 'fadeSlideIn 0.4s ease' : 'none' }}>
-          <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem', color: 'var(--text)' }}>Foreign Numbers</div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-            {profile && <span style={{ color: 'var(--gold)', fontWeight: 600 }}>₦{(profile.wallet_balance || 0).toLocaleString()}</span>} available
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem', color: 'var(--text)', letterSpacing: '-0.02em' }}>
+            Virtual Numbers
           </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.05rem' }}>
+            Instant delivery · 20-min window
+          </div>
+        </div>
+
+        {/* Wallet pill */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '0.4rem',
+          padding: '0.35rem 0.75rem',
+          background: 'var(--card)', border: '1px solid var(--border)',
+          borderRadius: '20px', flexShrink: 0,
+        }}>
+          <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>BAL</span>
+          <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.82rem', color: 'var(--gold)' }}>
+            ₦{(profile?.wallet_balance || 0).toLocaleString()}
+          </span>
         </div>
       </div>
 
-      <div style={{ padding: '1.2rem 1.4rem' }}>
+      <div style={{ padding: '1.2rem', maxWidth: 480, margin: '0 auto' }}>
 
-        {/* ERROR */}
-        {error && (
-          <div style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.25)', color: '#f43f5e', borderRadius: '12px', padding: '0.8rem 1rem', fontSize: '0.84rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>{error}</span>
-            <button onClick={() => setError('')} style={{ background: 'none', border: 'none', color: '#f43f5e', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}>×</button>
-          </div>
-        )}
-
-        {/* PURCHASED — NUMBER WAITING FOR OTP */}
+        {/* ── PURCHASED: ACTIVE NUMBER VIEW ── */}
         {purchased ? (
-          <div style={{ animation: 'fadeSlideIn 0.4s ease' }}>
+          <div style={{ animation: 'scaleIn 0.35s ease both' }}>
 
-            {/* Number display card */}
-            <div style={{ background: 'linear-gradient(135deg, #1a0a5e, #6c4ef2)', borderRadius: '20px', padding: '1.8rem', marginBottom: '1.2rem', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Your Number</div>
-              <div style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.8rem', fontWeight: 800, color: '#fff', letterSpacing: 2, marginBottom: '0.5rem' }}>{purchased.phone}</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#25d366', display: 'inline-block', animation: 'pulse 2s infinite' }} />
-                {purchased.service.name} · {purchased.country.flag} {purchased.country.name}
+            {/* Active number card */}
+            <div className="number-display" style={{
+              borderRadius: '20px', padding: '1.5rem',
+              marginBottom: '1rem', position: 'relative', overflow: 'hidden',
+            }}>
+              {/* Service badge */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <div style={{
+                    width: 10, height: 10, borderRadius: '50%',
+                    background: purchased.service.color,
+                    boxShadow: `0 0 10px ${purchased.service.color}`,
+                    animation: sms.length === 0 ? 'pulse 2s ease infinite' : 'none',
+                  }} />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>
+                    {purchased.service.name} · {purchased.country.flag} {purchased.country.name}
+                  </span>
+                </div>
+
+                {/* Countdown */}
+                {sms.length === 0 && countdown > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={countdown < 120 ? '#f43f5e' : 'var(--muted)'} strokeWidth="2" strokeLinecap="round">
+                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <span style={{
+                      fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.82rem',
+                      color: countdown < 120 ? '#f43f5e' : 'var(--muted)',
+                    }}>
+                      {formatCountdown(countdown)}
+                    </span>
+                  </div>
+                )}
+                {sms.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#34d399', fontSize: '0.75rem', fontWeight: 600 }}>
+                    <CheckIcon size={12} color="#34d399" /> Received
+                  </div>
+                )}
               </div>
+
+              {/* Phone number */}
+              <div style={{ marginBottom: '1.2rem' }}>
+                <div style={{ fontSize: '0.65rem', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                  Your Number
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                  <span style={{
+                    fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.5rem',
+                    color: 'var(--text)', letterSpacing: '0.02em', flex: 1,
+                  }}>
+                    {purchased.phone}
+                  </span>
+                  <button onClick={copyPhone} className="copy-btn" style={{
+                    display: 'flex', alignItems: 'center', gap: '0.35rem',
+                    padding: '0.45rem 0.85rem',
+                    background: copied ? 'rgba(52,211,153,0.12)' : 'var(--card)',
+                    border: `1px solid ${copied ? 'rgba(52,211,153,0.4)' : 'var(--border)'}`,
+                    borderRadius: '10px', cursor: 'pointer',
+                    color: copied ? '#34d399' : 'var(--text)', fontSize: '0.75rem', fontWeight: 600,
+                  }}>
+                    {copied ? <><CheckIcon size={12} color="#34d399" /> Copied</> : <><CopyIcon /> Copy</>}
+                  </button>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              {sms.length === 0 && (
+                <div style={{ height: 3, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', borderRadius: 99,
+                    background: countdown < 120 ? '#f43f5e' : 'var(--purple)',
+                    width: `${(countdown / (purchased.expires_in || 1200)) * 100}%`,
+                    transition: 'width 1s linear, background 0.5s',
+                  }} />
+                </div>
+              )}
             </div>
 
             {/* SMS received */}
             {sms.length > 0 ? (
-              <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '16px', padding: '1.4rem', marginBottom: '1.2rem', animation: 'scaleIn 0.4s ease' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem' }}>
-                  <CheckIcon size={18} color="#10b981" />
-                  <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.9rem', color: '#10b981' }}>OTP Received!</span>
+              <div style={{
+                background: 'rgba(52,211,153,0.07)',
+                border: '1px solid rgba(52,211,153,0.25)',
+                borderRadius: '16px', padding: '1.2rem',
+                marginBottom: '1rem', animation: 'smsReveal 0.4s ease both',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 8px #34d399' }} />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#34d399', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                    SMS Received
+                  </span>
                 </div>
-                {sms.map((msg, i) => (
-                  <div key={i} style={{ background: 'rgba(16,185,129,0.06)', borderRadius: '10px', padding: '0.8rem', marginBottom: i < sms.length - 1 ? '0.5rem' : 0 }}>
-                    <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.6rem', color: '#10b981', letterSpacing: 3, marginBottom: '0.3rem' }}>{msg.code}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', lineHeight: 1.5 }}>{msg.text}</div>
+                {sms.map((s, i) => (
+                  <div key={i}>
+                    {s.code && (
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                          Verification Code
+                        </div>
+                        <div style={{
+                          fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: '2rem',
+                          color: 'var(--text)', letterSpacing: '0.15em',
+                        }}>
+                          {s.code}
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.5 }}>{s.text}</div>
                   </div>
                 ))}
-                <button onClick={() => { setPurchased(null); setSms([]); setSelectedService(null); setSelectedCountry(null); setCountries([]) }}
-                  style={{ marginTop: '1rem', width: '100%', padding: '0.75rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: '10px', fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
-                  Buy Another Number
-                </button>
+              </div>
+            ) : countdown === 0 ? (
+              <div style={{
+                background: 'rgba(244,63,94,0.07)',
+                border: '1px solid rgba(244,63,94,0.2)',
+                borderRadius: '14px', padding: '1rem',
+                marginBottom: '1rem', textAlign: 'center',
+                fontSize: '0.82rem', color: '#f43f5e',
+              }}>
+                ⏱ Time expired — no SMS received.
               </div>
             ) : (
-              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '16px', padding: '1.4rem', marginBottom: '1.2rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 1.2s linear infinite', color: 'var(--purple2)' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                    <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: '0.88rem', color: 'var(--text)' }}>Waiting for OTP...</span>
-                  </div>
-                  <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.95rem', color: countdown < 60 ? '#f43f5e' : 'var(--gold)' }}>
-                    {formatTime(countdown)}
-                  </div>
+              <div style={{
+                background: 'var(--card)', border: '1px solid var(--border)',
+                borderRadius: '14px', padding: '1rem',
+                marginBottom: '1rem', textAlign: 'center',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 1.2s linear infinite' }}>
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                  </svg>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>Waiting for SMS…</span>
                 </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.6, marginBottom: '1rem' }}>
-                  Use this number on <strong style={{ color: 'var(--text)' }}>{purchased.service.name}</strong> to receive your verification code. This number expires in {formatTime(countdown)}.
-                </div>
-                <div style={{ display: 'flex', gap: '0.6rem' }}>
-                  <button onClick={() => navigator.clipboard.writeText(purchased.phone)}
-                    style={{ flex: 1, padding: '0.65rem', background: 'rgba(108,78,242,0.1)', border: '1px solid var(--purple)', borderRadius: '10px', color: 'var(--purple2)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                    📋 Copy Number
-                  </button>
-                  <button onClick={handleCancel}
-                    style={{ flex: 1, padding: '0.65rem', background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.25)', borderRadius: '10px', color: '#f43f5e', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                    ✕ Cancel & Refund
-                  </button>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>
+                  Send a verification code to {purchased.phone}
                 </div>
               </div>
             )}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '0.7rem' }}>
+              {sms.length === 0 && countdown > 0 && (
+                <button onClick={handleCancel} className="cancel-btn" style={{
+                  flex: 1, padding: '0.85rem',
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px', cursor: 'pointer',
+                  color: 'var(--muted)', fontSize: '0.85rem', fontWeight: 600,
+                  fontFamily: 'Outfit, sans-serif',
+                }}>
+                  Cancel & Refund
+                </button>
+              )}
+              <button onClick={() => {
+                setPurchased(null); setSms([])
+                setSelectedCountry(null); setSelectedService(null); setCountries([])
+              }} className="buy-btn" style={{
+                flex: 1, padding: '0.85rem',
+                background: 'var(--purple)', color: '#fff', border: 'none',
+                borderRadius: '12px', cursor: 'pointer',
+                fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem', fontWeight: 700,
+              }}>
+                Buy Another
+              </button>
+            </div>
+
+            {error && (
+              <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.25)', borderRadius: '10px', fontSize: '0.78rem', color: '#f43f5e' }}>
+                {error}
+              </div>
+            )}
           </div>
+
         ) : (
           <>
-            {/* STEP 1 — SELECT SERVICE */}
-            <div style={{ marginBottom: '1.5rem', animation: mounted ? 'fadeSlideIn 0.4s ease 0.05s both' : 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.85rem' }}>
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>1</div>
-                <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>Select Service</span>
+            {/* ── STEP 1: SERVICE SELECTION ── */}
+            <div style={{ marginBottom: '1.5rem', animation: mounted ? 'fadeSlideIn 0.35s ease 0.05s both' : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', marginBottom: '0.85rem' }}>
+                <StepBadge n={1} done={!!selectedService} />
+                <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)' }}>
+                  Select Service
+                </span>
                 {selectedService && (
-                  <span style={{ fontSize: '0.72rem', color: '#34d399', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                    <CheckIcon size={12} /> {selectedService.name}
+                  <span style={{ fontSize: '0.72rem', color: '#34d399', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <CheckIcon size={11} color="#34d399" />
+                    <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: selectedService.color }} />
+                    {selectedService.name}
                   </span>
                 )}
               </div>
-              <div className="service-grid">
+
+              <div className="service-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
                 {services.map((s, i) => {
                   const isSelected = selectedService?.id === s.id
                   return (
                     <button key={s.id} className="service-chip"
                       onClick={() => handleServiceSelect(s)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.8rem 0.9rem', background: isSelected ? 'rgba(108,78,242,0.1)' : 'var(--card)', border: `1px solid ${isSelected ? 'var(--purple)' : 'var(--border)'}`, borderRadius: '12px', cursor: 'pointer', animation: mounted ? `fadeSlideIn 0.3s ease ${0.04 * i}s both` : 'none', width: '100%', boxShadow: isSelected ? `0 0 0 1px var(--purple)` : 'none' }}>
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: s.color, flexShrink: 0, boxShadow: isSelected ? `0 0 8px ${s.color}` : 'none', transition: 'box-shadow 0.2s' }} />
-                      <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center',
+                        gap: '0.5rem', padding: '1rem 0.4rem',
+                        background: isSelected ? `${s.color}15` : 'var(--card)',
+                        border: `1.5px solid ${isSelected ? s.color : 'var(--border)'}`,
+                        borderRadius: '14px', cursor: 'pointer',
+                        boxShadow: isSelected ? `0 4px 16px ${s.color}33` : 'none',
+                        animation: mounted ? `fadeSlideIn 0.3s ease ${0.04 * i}s both` : 'none',
+                      }}>
+                      <div style={{ filter: isSelected ? 'none' : 'grayscale(20%) opacity(0.85)', transition: 'filter 0.2s' }}>
+                        <ServiceIcon id={s.id} size={26} />
+                      </div>
+                      <span style={{
+                        fontSize: '0.62rem', fontWeight: 600,
+                        color: isSelected ? s.color : 'var(--muted)',
+                        textAlign: 'center', lineHeight: 1.2,
+                        whiteSpace: 'nowrap', overflow: 'hidden',
+                        textOverflow: 'ellipsis', width: '100%',
+                      }}>
+                        {s.name.replace(' / X', '')}
+                      </span>
                     </button>
                   )
                 })}
               </div>
             </div>
 
-            {/* STEP 2 — SELECT COUNTRY */}
+            {/* ── STEP 2: COUNTRY SELECTION ── */}
             {selectedService && (
               <div style={{ marginBottom: '1.5rem', animation: 'fadeSlideIn 0.35s ease both' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>2</div>
-                  <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>Select Country</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', marginBottom: '0.85rem' }}>
+                  <StepBadge n={2} done={!!selectedCountry} />
+                  <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)' }}>
+                    Select Country
+                  </span>
                   {selectedCountry && (
-                    <span style={{ fontSize: '0.72rem', color: '#34d399', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                      <CheckIcon size={12} /> {selectedCountry.flag} {selectedCountry.name}
+                    <span style={{ fontSize: '0.72rem', color: '#34d399', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <CheckIcon size={11} color="#34d399" />
+                      {selectedCountry.flag} {selectedCountry.name}
                     </span>
                   )}
                 </div>
 
                 {/* Search */}
-                <div style={{ position: 'relative', marginBottom: '0.8rem' }}>
+                <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
                   <div style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }}>
-                    <SearchIcon size={15} />
+                    <SearchIcon size={14} />
                   </div>
-                  <input placeholder="Search country..." value={search} onChange={e => setSearch(e.target.value)}
-                    style={{ width: '100%', padding: '0.72rem 1rem 0.72rem 2.4rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', color: 'var(--text)', fontSize: '0.86rem', outline: 'none', fontFamily: 'Inter, sans-serif', transition: 'border-color 0.2s' }} />
+                  <input
+                    className="search-input"
+                    placeholder="Search country…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    style={{
+                      width: '100%', padding: '0.7rem 1rem 0.7rem 2.4rem',
+                      background: 'var(--card)', border: '1px solid var(--border)',
+                      borderRadius: '12px', color: 'var(--text)', fontSize: '0.85rem',
+                      outline: 'none', fontFamily: 'Inter, sans-serif',
+                      transition: 'border-color 0.2s, box-shadow 0.2s',
+                    }} />
                 </div>
 
                 {loadingCountries ? (
-                  <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--muted)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '2.5rem', color: 'var(--muted)', fontSize: '0.82rem' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
                       <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
                     </svg>
-                    Loading countries for {selectedService.name}...
+                    Loading countries…
                   </div>
                 ) : (
-                  <div className="country-grid">
+                  <div className="country-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', maxHeight: 340, overflowY: 'auto', paddingRight: 2 }}>
                     {filtered.map((c, i) => {
                       const isSelected = selectedCountry?.code === c.code
                       return (
                         <button key={c.code} className="country-card"
                           onClick={() => setSelectedCountry(c)}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.75rem 0.8rem', background: isSelected ? 'rgba(108,78,242,0.1)' : 'var(--card)', border: `1px solid ${isSelected ? 'var(--purple)' : 'var(--border)'}`, borderRadius: '12px', cursor: 'pointer', textAlign: 'left', animation: mounted ? `fadeSlideIn 0.35s ease ${Math.min(i * 0.03, 0.3)}s both` : 'none', width: '100%' }}>
-                          <span style={{ fontSize: '1.4rem', lineHeight: 1, flexShrink: 0 }}>{c.flag}</span>
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '0.6rem',
+                            padding: '0.7rem 0.8rem',
+                            background: isSelected ? 'rgba(108,78,242,0.1)' : 'var(--card)',
+                            border: `1.5px solid ${isSelected ? 'var(--purple)' : 'var(--border)'}`,
+                            borderRadius: '12px', cursor: 'pointer', textAlign: 'left',
+                            animation: mounted ? `fadeSlideIn 0.3s ease ${Math.min(i * 0.025, 0.25)}s both` : 'none',
+                          }}>
+                          <span style={{ fontSize: '1.3rem', lineHeight: 1, flexShrink: 0 }}>{c.flag}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--gold)', fontWeight: 600, marginTop: '0.1rem' }}>₦{c.price_ngn?.toLocaleString()}</div>
+                            <div style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {c.name}
+                            </div>
+                            <div style={{ fontSize: '0.67rem', color: 'var(--gold)', fontWeight: 700, marginTop: '0.1rem' }}>
+                              ₦{c.price_ngn?.toLocaleString()}
+                            </div>
                           </div>
-                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: isSelected ? 'var(--purple)' : 'transparent', border: isSelected ? 'none' : '1.5px solid var(--border)', flexShrink: 0, transition: 'background 0.2s' }} />
+                          {isSelected && (
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--purple)', flexShrink: 0 }} />
+                          )}
                         </button>
                       )
                     })}
                     {filtered.length === 0 && !loadingCountries && (
-                      <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                      <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: '0.82rem' }}>
                         No countries found for "{search}"
                       </div>
                     )}
@@ -331,58 +680,96 @@ export default function BuyNumbers() {
               </div>
             )}
 
-            {/* ORDER SUMMARY */}
+            {/* ── ORDER SUMMARY + BUY ── */}
             {selectedCountry && selectedService && (
-              <div style={{ background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: '16px', padding: '1.1rem', marginBottom: '0.9rem', animation: 'scaleIn 0.3s ease both' }}>
-                <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', marginBottom: '0.85rem' }}>Order Summary</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', gap: '0.5rem' }}>
-                    <span style={{ color: 'var(--muted)', flexShrink: 0 }}>Service</span>
-                    <span style={{ color: 'var(--text)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: selectedService.color }} />
-                      {selectedService.name}
-                    </span>
+              <div style={{ animation: 'scaleIn 0.3s ease both' }}>
+                {/* Summary card */}
+                <div style={{
+                  background: 'var(--card)', border: '1px solid var(--border)',
+                  borderRadius: '16px', padding: '1rem', marginBottom: '0.75rem',
+                }}>
+                  <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.82rem', color: 'var(--text)', marginBottom: '0.75rem' }}>
+                    Order Summary
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', gap: '0.5rem' }}>
-                    <span style={{ color: 'var(--muted)', flexShrink: 0 }}>Country</span>
-                    <span style={{ color: 'var(--text)', fontWeight: 500 }}>{selectedCountry.flag} {selectedCountry.name}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', gap: '0.5rem' }}>
-                    <span style={{ color: 'var(--muted)', flexShrink: 0 }}>Wallet</span>
-                    <span style={{ color: (profile?.wallet_balance || 0) >= selectedCountry.price_ngn ? '#10b981' : '#f43f5e', fontWeight: 600 }}>₦{(profile?.wallet_balance || 0).toLocaleString()}</span>
-                  </div>
-                  <div style={{ height: 1, background: 'var(--border)', margin: '0.15rem 0' }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.92rem' }}>
-                    <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Total</span>
-                    <span style={{ color: 'var(--gold)', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>₦{selectedCountry.price_ngn?.toLocaleString()}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    <SummaryRow label="Service">
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <ServiceIcon id={selectedService.id} size={14} />
+                        {selectedService.name}
+                      </span>
+                    </SummaryRow>
+                    <SummaryRow label="Country">
+                      {selectedCountry.flag} {selectedCountry.name}
+                    </SummaryRow>
+                    <SummaryRow label="Balance">
+                      <span style={{ color: hasBalance ? '#10b981' : '#f43f5e', fontWeight: 700 }}>
+                        ₦{(profile?.wallet_balance || 0).toLocaleString()}
+                      </span>
+                    </SummaryRow>
+                    <div style={{ height: 1, background: 'var(--border)', margin: '0.1rem 0' }} />
+                    <SummaryRow label="Total" bold>
+                      <span style={{ color: 'var(--gold)', fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem' }}>
+                        ₦{selectedCountry.price_ngn?.toLocaleString()}
+                      </span>
+                    </SummaryRow>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* INSUFFICIENT BALANCE */}
-            {selectedCountry && selectedService && (profile?.wallet_balance || 0) < selectedCountry.price_ngn && (
-              <div style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.25)', borderRadius: '12px', padding: '0.8rem 1rem', fontSize: '0.82rem', color: '#f43f5e', marginBottom: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Insufficient balance.</span>
-                <Link href="/dashboard/wallet" style={{ color: '#f43f5e', fontWeight: 700, textDecoration: 'none', fontSize: '0.78rem' }}>Fund Wallet →</Link>
-              </div>
-            )}
+                {/* Insufficient balance warning */}
+                {!hasBalance && (
+                  <div style={{
+                    background: 'rgba(244,63,94,0.07)',
+                    border: '1px solid rgba(244,63,94,0.2)',
+                    borderRadius: '12px', padding: '0.75rem 1rem',
+                    fontSize: '0.8rem', color: '#f43f5e',
+                    marginBottom: '0.75rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <span>Insufficient balance</span>
+                    <Link href="/dashboard/wallet" style={{ color: '#f43f5e', fontWeight: 700, textDecoration: 'none', fontSize: '0.75rem' }}>
+                      Fund Wallet →
+                    </Link>
+                  </div>
+                )}
 
-            {/* BUY BUTTON */}
-            {selectedCountry && selectedService && (
-              <button onClick={handleOrder}
-                disabled={ordering || (profile?.wallet_balance || 0) < selectedCountry.price_ngn}
-                className="buy-btn"
-                style={{ width: '100%', padding: '0.95rem', background: ordering ? 'var(--purple2)' : 'var(--purple)', color: '#fff', border: 'none', borderRadius: '12px', fontFamily: 'Outfit, sans-serif', fontSize: '0.95rem', fontWeight: 700, cursor: ordering || (profile?.wallet_balance || 0) < selectedCountry.price_ngn ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', animation: 'scaleIn 0.3s ease both', opacity: (profile?.wallet_balance || 0) < selectedCountry.price_ngn ? 0.5 : 1 }}>
-                {ordering ? (
-                  <>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                    </svg>
-                    Getting your number...
-                  </>
-                ) : `Buy Number — ₦${selectedCountry.price_ngn?.toLocaleString()}`}
-              </button>
+                {/* Error */}
+                {error && (
+                  <div style={{
+                    background: 'rgba(244,63,94,0.07)', border: '1px solid rgba(244,63,94,0.2)',
+                    borderRadius: '12px', padding: '0.75rem 1rem',
+                    fontSize: '0.8rem', color: '#f43f5e', marginBottom: '0.75rem',
+                  }}>
+                    {error}
+                  </div>
+                )}
+
+                {/* Buy button */}
+                <button
+                  onClick={handleOrder}
+                  disabled={ordering || !hasBalance}
+                  className="buy-btn"
+                  style={{
+                    width: '100%', padding: '1rem',
+                    background: !hasBalance ? 'var(--card2)' : ordering ? 'var(--purple2)' : 'var(--purple)',
+                    color: !hasBalance ? 'var(--muted)' : '#fff',
+                    border: 'none', borderRadius: '14px',
+                    fontFamily: 'Outfit, sans-serif', fontSize: '0.95rem', fontWeight: 700,
+                    cursor: ordering || !hasBalance ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem',
+                    opacity: !hasBalance ? 0.6 : 1,
+                  }}>
+                  {ordering ? (
+                    <>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                      </svg>
+                      Getting your number…
+                    </>
+                  ) : (
+                    `Buy Number — ₦${selectedCountry.price_ngn?.toLocaleString()}`
+                  )}
+                </button>
+              </div>
             )}
           </>
         )}
@@ -391,6 +778,42 @@ export default function BuyNumbers() {
   )
 }
 
-function BackIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg> }
-function SearchIcon({ size = 18 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> }
-function CheckIcon({ size = 24, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> }
+// ── Small reusable components ──
+
+function StepBadge({ n, done }) {
+  return (
+    <div style={{
+      width: 22, height: 22, borderRadius: '50%',
+      background: done ? '#34d399' : 'var(--purple)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0, transition: 'background 0.3s',
+    }}>
+      {done
+        ? <CheckIcon size={11} color="#fff" />
+        : <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#fff' }}>{n}</span>
+      }
+    </div>
+  )
+}
+
+function SummaryRow({ label, children, bold }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', gap: '0.5rem' }}>
+      <span style={{ color: 'var(--muted)', flexShrink: 0, fontWeight: bold ? 600 : 400 }}>{label}</span>
+      <span style={{ color: 'var(--text)', fontWeight: bold ? 700 : 500, textAlign: 'right' }}>{children}</span>
+    </div>
+  )
+}
+
+function BackIcon() {
+  return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+}
+function SearchIcon({ size = 16 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+}
+function CheckIcon({ size = 14, color = 'currentColor' }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+}
+function CopyIcon() {
+  return <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+}

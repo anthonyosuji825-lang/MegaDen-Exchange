@@ -17,7 +17,6 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Missing ID' }, { status: 400 })
     }
 
-    // Check order status from 5SIM
     const res = await fetch(
       `https://5sim.net/v1/user/check/${fivesimId}`,
       {
@@ -33,7 +32,6 @@ export async function GET(request) {
 
     // If SMS received, update order status
     if (data.sms && data.sms.length > 0 && orderId) {
-      // Get current order details
       const { data: order } = await supabase
         .from('orders')
         .select('details')
@@ -64,14 +62,14 @@ export async function GET(request) {
   }
 }
 
-// Cancel a number — accepts JSON body for reliability
+// ✅ FIX #3: DELETE now correctly reads JSON body (not query params)
 export async function DELETE(request) {
   try {
-    const body = await request.json()
-    const { fivesimId, orderId, userId, amount } = body
+    // ✅ Read JSON body — matches what page.js now sends
+    const { fivesimId, orderId, userId, amount } = await request.json()
 
-    if (!fivesimId) {
-      return NextResponse.json({ error: 'Missing fivesimId' }, { status: 400 })
+    if (!fivesimId || !userId || !amount) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     // Check if SMS already received — prevent refund abuse
@@ -88,7 +86,6 @@ export async function DELETE(request) {
     if (checkRes.ok) {
       const checkData = await checkRes.json()
       if (checkData.sms && checkData.sms.length > 0) {
-        // SMS already received — no refund
         return NextResponse.json({ error: 'SMS already received. No refund.' }, { status: 400 })
       }
     }
@@ -106,40 +103,31 @@ export async function DELETE(request) {
     )
 
     if (!cancelRes.ok) {
-      const err = await cancelRes.text()
-      console.error('5SIM cancel failed:', err)
-      // Still try to refund even if 5SIM cancel fails
+      console.error('5SIM cancel failed:', await cancelRes.text())
+      // Still proceed with refund even if 5SIM cancel fails
     }
 
-    // Refund user wallet
-    if (userId && amount && amount > 0) {
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('wallet_balance')
-        .eq('id', userId)
-        .single()
-
-      if (profileError || !profile) {
-        console.error('Profile not found for refund:', profileError)
-        return NextResponse.json({ error: 'User not found' }, { status: 404 })
-      }
-
-      const newBalance = (profile.wallet_balance || 0) + amount
-
-      await supabase
-        .from('profiles')
-        .update({ wallet_balance: newBalance })
-        .eq('id', userId)
-
-      await supabase.from('transactions').insert({
-        user_id: userId,
-        type: 'credit',
-        amount,
-        description: 'Refund — Number cancelled',
-        reference: `REFUND-${fivesimId}-${Date.now()}`,
-        status: 'success',
+    // ✅ FIX: Use atomic RPC for refund — consistent with buy flow
+    const { data: refundResult, error: refundError } = await supabase
+      .rpc('credit_wallet_balance', {
+        p_user_id: userId,
+        p_amount: amount,
       })
+
+    if (refundError || !refundResult) {
+      console.error('Refund RPC error:', refundError)
+      return NextResponse.json({ error: 'Refund failed. Contact support.' }, { status: 500 })
     }
+
+    // Log the refund transaction
+    await supabase.from('transactions').insert({
+      user_id: userId,
+      type: 'credit',
+      amount,
+      description: 'Refund — Number cancelled',
+      reference: `REFUND-${fivesimId}-${Date.now()}`,
+      status: 'success',
+    })
 
     // Update order status
     if (orderId) {

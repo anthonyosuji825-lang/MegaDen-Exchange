@@ -215,7 +215,7 @@ export default function BuyNumbers() {
       body: JSON.stringify({
         country: selectedCountry.code,
         service: selectedService.id,
-        // ✅ userId and priceNgn removed — server reads from session and 5SIM API
+        price_ngn: selectedCountry.price_ngn,
       })
     })
     const data = await res.json()

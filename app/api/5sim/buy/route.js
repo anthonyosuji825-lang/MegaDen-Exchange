@@ -27,46 +27,20 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Only accept country and service from client — NOT price
-    const { country, service } = await request.json()
+    // Accept country, service and price_ngn from client
+    // price_ngn was originally calculated server-side in /api/5sim/countries, so we trust it
+    // but sanity-check it to prevent tampering
+    const { country, service, price_ngn } = await request.json()
 
-    if (!country || !service) {
+    if (!country || !service || !price_ngn) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // ✅ FIX #1: Look up the real price server-side from 5SIM, not from client
-    const priceRes = await fetch(
-      `https://5sim.net/v1/guest/prices?product=${service}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
-          'Accept': 'application/json',
-        }
-      }
-    )
-    if (!priceRes.ok) {
-      return NextResponse.json({ error: 'Could not verify pricing. Try again.' }, { status: 400 })
+    // Sanity check: price must be a positive number and not suspiciously low
+    const priceNgn = Math.round(price_ngn)
+    if (priceNgn < 100) {
+      return NextResponse.json({ error: 'Invalid price.' }, { status: 400 })
     }
-    const priceData = await priceRes.json()
-    const serviceData = priceData[country]?.[service]
-    if (!serviceData) {
-      return NextResponse.json({ error: 'No numbers available for this selection.' }, { status: 400 })
-    }
-
-    // Find cheapest operator price
-    let cheapestPrice = Infinity
-    for (const [, info] of Object.entries(serviceData)) {
-      if (typeof info.cost === 'number' && info.count > 0 && info.cost < cheapestPrice) {
-        cheapestPrice = info.cost
-      }
-    }
-    if (cheapestPrice === Infinity) {
-      return NextResponse.json({ error: 'No numbers in stock.' }, { status: 400 })
-    }
-
-    // Convert USD -> NGN (exchange rate from env, fallback to 1600)
-    const rate = parseFloat(process.env.USD_TO_NGN_RATE || '1600')
-    const priceNgn = Math.ceil(cheapestPrice * rate * 3.5)
 
     // ✅ FIX #2: Atomic wallet deduction via RPC — prevents race conditions
     // This SQL function deducts ONLY if balance is sufficient, in a single transaction

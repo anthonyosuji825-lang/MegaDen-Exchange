@@ -48,7 +48,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Could not verify pricing. Try again.' }, { status: 400 })
     }
     const priceData = await priceRes.json()
-    const serviceData = priceData[service]?.[country]
+    const serviceData = priceData[country]?.[service]
     if (!serviceData) {
       return NextResponse.json({ error: 'No numbers available for this selection.' }, { status: 400 })
     }
@@ -56,7 +56,9 @@ export async function POST(request) {
     // Find cheapest operator price
     let cheapestPrice = Infinity
     for (const [, info] of Object.entries(serviceData)) {
-      if (info.cost < cheapestPrice && info.count > 0) cheapestPrice = info.cost
+      if (typeof info.cost === 'number' && info.count > 0 && info.cost < cheapestPrice) {
+        cheapestPrice = info.cost
+      }
     }
     if (cheapestPrice === Infinity) {
       return NextResponse.json({ error: 'No numbers in stock.' }, { status: 400 })

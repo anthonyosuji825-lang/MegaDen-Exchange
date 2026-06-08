@@ -26,15 +26,29 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { service_id, link, quantity, price_ngn, package_name, platform } = await request.json()
+    const { service_id, link, quantity, price_ngn, package_name, platform, package_id } = await request.json()
 
-    if (!service_id || !link || !quantity || !price_ngn) {
+    if (!service_id || !link || !quantity || !price_ngn || !package_id) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Sanity check price
+    // Validate price server-side — check Supabase first, fall back to a minimum check
+    const { data: priceRow } = await supabaseAdmin
+      .from('boost_prices')
+      .select('price')
+      .eq('package_id', package_id)
+      .single()
+
+    const expectedPrice = priceRow?.price ?? null
+
+    // If we have a saved price, make sure client isn't sending less
+    if (expectedPrice !== null && Number(price_ngn) < expectedPrice) {
+      return NextResponse.json({ error: 'Invalid price. Please refresh and try again.' }, { status: 400 })
+    }
+
+    // Sanity check
     if (price_ngn < 100) {
-      return NextResponse.json({ error: 'Invalid price' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid price.' }, { status: 400 })
     }
 
     // Check & deduct wallet

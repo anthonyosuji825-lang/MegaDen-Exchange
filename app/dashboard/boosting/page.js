@@ -1,9 +1,10 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 
-const boostingServices = [
+// Default packages — service_id and quantity never change, only price can be overridden from Supabase
+const DEFAULT_SERVICES = [
   {
     id: 'instagram', name: 'Instagram', color: '#e1306c',
     packages: [
@@ -113,6 +114,7 @@ const PlatformIcon = ({ id, size = 26 }) => {
 
 export default function Boosting() {
   const [profile, setProfile] = useState(null)
+  const [boostingServices, setBoostingServices] = useState(DEFAULT_SERVICES)
   const [selectedPlatform, setSelectedPlatform] = useState(null)
   const [selectedPackage, setSelectedPackage] = useState(null)
   const [link, setLink] = useState('')
@@ -125,9 +127,31 @@ export default function Boosting() {
   useEffect(() => {
     setMounted(true)
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) supabase.from('profiles').select('wallet_balance').eq('id', user.id).single().then(({ data }) => setProfile(data))
-    })
+
+    // Load profile + live prices in parallel
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      const [profileRes, pricesRes] = await Promise.all([
+        user ? supabase.from('profiles').select('wallet_balance').eq('id', user.id).single() : Promise.resolve({ data: null }),
+        supabase.from('boost_prices').select('package_id, price'),
+      ])
+
+      if (profileRes.data) setProfile(profileRes.data)
+
+      // Merge live prices over defaults
+      if (pricesRes.data?.length) {
+        const priceMap = {}
+        pricesRes.data.forEach(p => { priceMap[p.package_id] = p.price })
+        setBoostingServices(DEFAULT_SERVICES.map(platform => ({
+          ...platform,
+          packages: platform.packages.map(pkg => ({
+            ...pkg,
+            price: priceMap[pkg.id] ?? pkg.price,
+          }))
+        })))
+      }
+    }
+    load()
   }, [])
 
   const handleOrder = async () => {
@@ -143,6 +167,7 @@ export default function Boosting() {
         link: link.trim(),
         quantity: selectedPackage.quantity,
         price_ngn: selectedPackage.price,
+        package_id: selectedPackage.id,
         package_name: selectedPackage.name,
         platform: selectedPlatform.name,
       })

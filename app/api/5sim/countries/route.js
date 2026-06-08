@@ -1,24 +1,40 @@
 // app/api/5sim/countries/route.js
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const service = searchParams.get('service') || 'whatsapp'
 
-    const res = await fetch(
-      `https://5sim.net/v1/guest/prices?product=${service}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
-          'Accept': 'application/json',
-        },
-        next: { revalidate: 300 }
-      }
-    )
+    // Fetch 5sim data + app settings in parallel
+    const [res, settingsRes] = await Promise.all([
+      fetch(
+        `https://5sim.net/v1/guest/prices?product=${service}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
+            'Accept': 'application/json',
+          },
+          next: { revalidate: 300 }
+        }
+      ),
+      supabaseAdmin.from('app_settings').select('key, value'),
+    ])
 
     if (!res.ok) throw new Error('Failed to fetch from 5SIM')
     const data = await res.json()
+
+    // Read live settings, fall back to defaults
+    const settingsMap = {}
+    ;(settingsRes.data || []).forEach(s => { settingsMap[s.key] = s.value })
+    const rate = parseFloat(settingsMap.usd_to_ngn_rate || process.env.USD_TO_NGN_RATE || '1600')
+    const multiplier = parseFloat(settingsMap.markup_multiplier || '3.5')
 
     // 5SIM response: { "whatsapp": { "country": { "operator": { cost, count } } } }
     const serviceData = data[service]
@@ -43,7 +59,7 @@ export async function GET(request) {
         name: formatCountryName(country),
         flag: getFlag(country),
         price_usd: cheapestPrice,
-        price_ngn: Math.ceil(cheapestPrice * 1600 * 3.5),
+        price_ngn: Math.ceil(cheapestPrice * rate * multiplier),
         stock: totalQty,
       })
     }

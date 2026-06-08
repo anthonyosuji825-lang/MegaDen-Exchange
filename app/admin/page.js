@@ -71,8 +71,11 @@ export default function AdminPanel() {
   const [orders, setOrders] = useState([])
   const [vpnKeys, setVpnKeys] = useState([])
 
-  // Boost prices
-  const [boostPrices, setBoostPrices] = useState({})
+  // Settings
+  const [settings, setSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5' })
+  const [editedSettings, setEditedSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5' })
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
   const [editedPrices, setEditedPrices] = useState({})
   const [savingPrices, setSavingPrices] = useState(false)
   const [pricesSaved, setPricesSaved] = useState(false)
@@ -105,11 +108,12 @@ export default function AdminPanel() {
       const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
       if (!profile?.is_admin) { router.push('/dashboard'); return }
 
-      const [usersRes, ordersRes, vpnRes, pricesRes] = await Promise.all([
+      const [usersRes, ordersRes, vpnRes, pricesRes, settingsRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
         supabase.from('vpn_keys').select('*').order('created_at', { ascending: false }),
         supabase.from('boost_prices').select('*'),
+        supabase.from('app_settings').select('*'),
       ])
 
       const allUsers = usersRes.data || []
@@ -118,16 +122,28 @@ export default function AdminPanel() {
       const savedPrices = {}
       ;(pricesRes.data || []).forEach(p => { savedPrices[p.package_id] = p.price })
 
+      // Load settings
+      const settingsMap = {}
+      ;(settingsRes.data || []).forEach(s => { settingsMap[s.key] = s.value })
+      if (Object.keys(settingsMap).length) {
+        setSettings(settingsMap)
+        setEditedSettings(settingsMap)
+      }
+
+      // Get real auth user count via profiles (fallback) 
+      // Count all profiles + any auth users without profiles
+      const { count: authCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
+
       setUsers(allUsers)
       setOrders(allOrders)
       setVpnKeys(allVpnKeys)
       setBoostPrices(savedPrices)
       setEditedPrices(savedPrices)
       setStats({
-        users: allUsers.length,
+        users: authCount || allUsers.length,
         orders: allOrders.length,
         revenue: allOrders.filter(o => o.status === 'completed').reduce((sum, o) => sum + (o.amount || 0), 0),
-        pending: allOrders.filter(o => o.status === 'pending').length,
+        pending: allOrders.filter(o => o.status === 'pending' || o.status === 'processing').length,
       })
       setLoading(false)
     }
@@ -145,6 +161,17 @@ export default function AdminPanel() {
     setSavingPrices(false)
     setPricesSaved(true)
     setTimeout(() => setPricesSaved(false), 2500)
+  }
+
+  const saveSettings = async () => {
+    setSavingSettings(true)
+    const supabase = createClient()
+    const upserts = Object.entries(editedSettings).map(([key, value]) => ({ key, value }))
+    await supabase.from('app_settings').upsert(upserts, { onConflict: 'key' })
+    setSettings({ ...editedSettings })
+    setSavingSettings(false)
+    setSettingsSaved(true)
+    setTimeout(() => setSettingsSaved(false), 2500)
   }
 
   const updateOrderStatus = async (orderId, status) => {
@@ -224,6 +251,7 @@ export default function AdminPanel() {
     { id: 'orders',   label: 'Orders',    icon: <PackageIcon /> },
     { id: 'boost',    label: 'Prices',    icon: <MoneyIcon /> },
     { id: 'vpn',      label: 'VPN',       icon: <VpnIcon /> },
+    { id: 'settings', label: 'Settings',  icon: <SettingsIcon /> },
   ]
 
   if (loading) return (
@@ -608,15 +636,74 @@ export default function AdminPanel() {
             </div>
           </div>
         )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === 'settings' && (
+          <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+              <div>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)' }}>App Settings</div>
+                <div style={{ fontSize:'0.7rem', color:'var(--muted)', marginTop:'0.1rem' }}>Control number pricing and app behaviour</div>
+              </div>
+              <button className="action-btn" onClick={saveSettings} disabled={savingSettings}
+                style={{ padding:'0.5rem 1rem', background: settingsSaved ? 'rgba(29,158,117,0.2)' : 'var(--purple)', border:`1px solid ${settingsSaved ? 'rgba(29,158,117,0.4)' : 'transparent'}`, borderRadius:'10px', color: settingsSaved ? '#34d399' : '#fff', fontSize:'0.78rem', fontWeight:700, fontFamily:'Outfit, sans-serif', minWidth:80 }}>
+                {savingSettings ? 'Saving...' : settingsSaved ? '✓ Saved' : 'Save'}
+              </button>
+            </div>
+
+            {/* Number pricing */}
+            <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginBottom:'1rem' }}>
+              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.85rem', color:'var(--text)', marginBottom:'0.3rem' }}>Virtual Number Pricing</div>
+              <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'1rem' }}>
+                Final price = 5sim USD price × Exchange Rate × Markup. Adjust to control your margins.
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'0.8rem' }}>
+                <div>
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>USD → NGN Exchange Rate</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                    <input type="number" value={editedSettings.usd_to_ngn_rate}
+                      onChange={e => setEditedSettings(s => ({ ...s, usd_to_ngn_rate: e.target.value }))}
+                      style={{ flex:1, padding:'0.7rem 0.9rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--gold)', fontSize:'1rem', fontWeight:700, fontFamily:'Outfit, sans-serif', outline:'none' }} />
+                    <span style={{ fontSize:'0.75rem', color:'var(--muted)', whiteSpace:'nowrap' }}>NGN per $1</span>
+                  </div>
+                  <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.3rem' }}>Current: ₦{Number(settings.usd_to_ngn_rate).toLocaleString()} per $1</div>
+                </div>
+                <div>
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Markup Multiplier</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                    <input type="number" step="0.1" value={editedSettings.markup_multiplier}
+                      onChange={e => setEditedSettings(s => ({ ...s, markup_multiplier: e.target.value }))}
+                      style={{ flex:1, padding:'0.7rem 0.9rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--gold)', fontSize:'1rem', fontWeight:700, fontFamily:'Outfit, sans-serif', outline:'none' }} />
+                    <span style={{ fontSize:'0.75rem', color:'var(--muted)', whiteSpace:'nowrap' }}>× multiplier</span>
+                  </div>
+                  <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.3rem' }}>Current: {settings.markup_multiplier}× markup</div>
+                </div>
+              </div>
+
+              {/* Live preview */}
+              <div style={{ marginTop:'1rem', padding:'0.8rem', background:'rgba(108,78,242,0.06)', border:'1px solid rgba(108,78,242,0.15)', borderRadius:'10px' }}>
+                <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'0.3rem' }}>Price Preview (example: $0.15 number)</div>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'1.1rem', color:'var(--gold)' }}>
+                  ₦{Math.ceil(0.15 * Number(editedSettings.usd_to_ngn_rate) * Number(editedSettings.markup_multiplier)).toLocaleString()}
+                </div>
+                <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.1rem' }}>$0.15 × {editedSettings.usd_to_ngn_rate} × {editedSettings.markup_multiplier}</div>
+              </div>
+            </div>
+
+            <div style={{ padding:'0.9rem', background:'rgba(108,78,242,0.06)', border:'1px solid rgba(108,78,242,0.2)', borderRadius:'12px', fontSize:'0.75rem', color:'var(--muted)', lineHeight:1.6 }}>
+              💡 <strong style={{ color:'var(--text)' }}>How it works:</strong> Settings are saved to Supabase <code style={{ background:'var(--card2)', padding:'0.1rem 0.3rem', borderRadius:'4px' }}>app_settings</code> table and read live by your number buy route. Changes apply immediately — no redeployment needed.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* BOTTOM NAV */}
-      <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'var(--navy)', backdropFilter:'blur(12px)', borderTop:'1px solid var(--border)', padding:'0.7rem 1rem 0.9rem', display:'flex', justifyContent:'space-around', zIndex:100 }}>
+      <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'var(--navy)', backdropFilter:'blur(12px)', borderTop:'1px solid var(--border)', padding:'0.6rem 0.5rem 0.9rem', display:'flex', justifyContent:'space-around', zIndex:100 }}>
         {tabs.map(tab => (
           <button key={tab.id} className="tab-btn" onClick={() => setActiveTab(tab.id)}
-            style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.22rem', background:'transparent', border:'none', padding:'0.3rem 0.8rem', borderRadius:'10px' }}>
+            style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.22rem', background:'transparent', border:'none', padding:'0.3rem 0.5rem', borderRadius:'10px' }}>
             <div style={{ color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', transition:'color 0.15s' }}>{tab.icon}</div>
-            <span style={{ fontSize:'0.62rem', color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', fontWeight: activeTab === tab.id ? 700 : 400, transition:'color 0.15s' }}>{tab.label}</span>
+            <span style={{ fontSize:'0.58rem', color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', fontWeight: activeTab === tab.id ? 700 : 400, transition:'color 0.15s' }}>{tab.label}</span>
           </button>
         ))}
       </div>
@@ -630,3 +717,4 @@ function PackageIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" 
 function MoneyIcon()   { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> }
 function ClockIcon()   { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> }
 function VpnIcon()     { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> }
+function SettingsIcon(){ return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> }

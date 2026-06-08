@@ -76,6 +76,7 @@ export default function AdminPanel() {
   const [editedSettings, setEditedSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
+  const [boostPrices, setBoostPrices] = useState({})
   const [editedPrices, setEditedPrices] = useState({})
   const [savingPrices, setSavingPrices] = useState(false)
   const [pricesSaved, setPricesSaved] = useState(false)

@@ -1,7 +1,8 @@
 // app/auth/callback/route.js
-// Required for Google & Apple OAuth to work with Supabase
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -13,9 +14,8 @@ export async function GET(request) {
   const code = searchParams.get('code')
 
   if (code) {
-    const { createServerClient } = await import('@supabase/ssr')
-    const { cookies } = await import('next/headers')
-    const cookieStore = cookies()
+    // ✅ FIX: await cookies() for Next.js 15+
+    const cookieStore = await cookies()
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,

@@ -57,6 +57,9 @@ const DEFAULT_BOOST_PACKAGES = [
 
 const vpnProviders = ['NordVPN', 'ExpressVPN', 'Surfshark', 'CyberGhost']
 const vpnPlans = ['1 Month', '6 Months', '1 Year']
+const subServices = ['Spotify', 'Netflix', 'YouTube Premium', 'Canva Pro', 'ChatGPT Plus']
+const subPlans = ['1 Month', '3 Months', '6 Months', '1 Year']
+const subServiceIds = { 'Spotify': 'spotify', 'Netflix': 'netflix', 'YouTube Premium': 'youtube', 'Canva Pro': 'canva', 'ChatGPT Plus': 'chatgpt' }
 const platforms = [...new Set(DEFAULT_BOOST_PACKAGES.map(p => p.platform))]
 
 export default function AdminPanel() {
@@ -70,6 +73,7 @@ export default function AdminPanel() {
   const [users, setUsers] = useState([])
   const [orders, setOrders] = useState([])
   const [vpnKeys, setVpnKeys] = useState([])
+  const [subKeys, setSubKeys] = useState([])
 
   // Settings
   const [settings, setSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5' })
@@ -87,6 +91,12 @@ export default function AdminPanel() {
   const [vpnForm, setVpnForm] = useState({ provider: 'NordVPN', plan: '1 Month', key: '' })
   const [savingVpn, setSavingVpn] = useState(false)
   const [vpnBulk, setVpnBulk] = useState('')
+
+  // Subscription form
+  const [showSubForm, setShowSubForm] = useState(false)
+  const [subForm, setSubForm] = useState({ service: 'Spotify', plan: '1 Month', key: '' })
+  const [savingSub, setSavingSub] = useState(false)
+  const [subBulk, setSubBulk] = useState('')
 
   // Balance edit
   const [editingBalance, setEditingBalance] = useState(null)
@@ -109,10 +119,11 @@ export default function AdminPanel() {
       const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
       if (!profile?.is_admin) { router.push('/dashboard'); return }
 
-      const [usersRes, ordersRes, vpnRes, pricesRes, settingsRes] = await Promise.all([
+      const [usersRes, ordersRes, vpnRes, subRes, pricesRes, settingsRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
         supabase.from('vpn_keys').select('*').order('created_at', { ascending: false }),
+        supabase.from('subscription_keys').select('*').order('created_at', { ascending: false }),
         supabase.from('boost_prices').select('*'),
         supabase.from('app_settings').select('*'),
       ])
@@ -120,6 +131,7 @@ export default function AdminPanel() {
       const allUsers = usersRes.data || []
       const allOrders = ordersRes.data || []
       const allVpnKeys = vpnRes.data || []
+      const allSubKeys = subRes.data || []
       const savedPrices = {}
       ;(pricesRes.data || []).forEach(p => { savedPrices[p.package_id] = p.price })
 
@@ -138,6 +150,7 @@ export default function AdminPanel() {
       setUsers(allUsers)
       setOrders(allOrders)
       setVpnKeys(allVpnKeys)
+      setSubKeys(allSubKeys)
       setBoostPrices(savedPrices)
       setEditedPrices(savedPrices)
       setStats({
@@ -216,6 +229,32 @@ export default function AdminPanel() {
     setVpnKeys(prev => prev.filter(k => k.id !== id))
   }
 
+  const saveSubKey = async () => {
+    setSavingSub(true)
+    const supabase = createClient()
+    const keys = subBulk
+      ? subBulk.split('\n').map(k => k.trim()).filter(k => k.length > 0)
+      : [subForm.key.trim()]
+    await supabase.from('subscription_keys').insert(keys.map(k => ({
+      service_id: subServiceIds[subForm.service],
+      plan: subForm.plan,
+      key: k,
+      is_used: false
+    })))
+    const { data } = await supabase.from('subscription_keys').select('*').order('created_at', { ascending: false })
+    setSubKeys(data || [])
+    setSavingSub(false)
+    setShowSubForm(false)
+    setSubForm({ service: 'Spotify', plan: '1 Month', key: '' })
+    setSubBulk('')
+  }
+
+  const deleteSubKey = async (id) => {
+    const supabase = createClient()
+    await supabase.from('subscription_keys').delete().eq('id', id)
+    setSubKeys(prev => prev.filter(k => k.id !== id))
+  }
+
   const deliverOrder = async (order) => {
     if (!deliveryKey.trim()) return
     setDelivering(true)
@@ -252,6 +291,7 @@ export default function AdminPanel() {
     { id: 'orders',   label: 'Orders',    icon: <PackageIcon /> },
     { id: 'boost',    label: 'Prices',    icon: <MoneyIcon /> },
     { id: 'vpn',      label: 'VPN',       icon: <VpnIcon /> },
+    { id: 'subs',     label: 'Subs',      icon: <SubsIcon /> },
     { id: 'settings', label: 'Settings',  icon: <SettingsIcon /> },
   ]
 
@@ -638,6 +678,108 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* SUBSCRIPTIONS TAB */}
+        {activeTab === 'subs' && (
+          <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+              <div>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)' }}>Digital Subscriptions</div>
+                <div style={{ fontSize:'0.7rem', color:'var(--muted)', marginTop:'0.1rem' }}>{subKeys.filter(k=>!k.is_used).length} available · {subKeys.filter(k=>k.is_used).length} used</div>
+              </div>
+              <button className="action-btn" onClick={() => setShowSubForm(!showSubForm)}
+                style={{ padding:'0.5rem 1rem', background:'var(--purple)', border:'none', borderRadius:'10px', color:'#fff', fontSize:'0.78rem', fontWeight:700, fontFamily:'Outfit, sans-serif' }}>
+                + Add Keys
+              </button>
+            </div>
+
+            {/* Stock overview */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'0.6rem', marginBottom:'1rem' }}>
+              {subServices.map(s => {
+                const id = subServiceIds[s]
+                const avail = subKeys.filter(k => k.service_id === id && !k.is_used).length
+                const used = subKeys.filter(k => k.service_id === id && k.is_used).length
+                return (
+                  <div key={s} style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'14px', padding:'0.9rem' }}>
+                    <div style={{ fontSize:'0.75rem', fontWeight:700, color:'var(--text)', marginBottom:'0.4rem' }}>{s}</div>
+                    <div style={{ display:'flex', gap:'0.8rem' }}>
+                      <div><div style={{ fontSize:'1rem', fontWeight:800, color:'#34d399', fontFamily:'Outfit, sans-serif' }}>{avail}</div><div style={{ fontSize:'0.62rem', color:'var(--muted)' }}>available</div></div>
+                      <div><div style={{ fontSize:'1rem', fontWeight:800, color:'var(--muted)', fontFamily:'Outfit, sans-serif' }}>{used}</div><div style={{ fontSize:'0.62rem', color:'var(--muted)' }}>used</div></div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Add keys form */}
+            {showSubForm && (
+              <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginBottom:'1rem', animation:'scaleIn 0.25s ease' }}>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.85rem', color:'var(--text)', marginBottom:'0.9rem' }}>Add Subscription Keys</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:'0.7rem' }}>
+                  <div>
+                    <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Service</label>
+                    <select value={subForm.service} onChange={e => setSubForm(f => ({ ...f, service: e.target.value }))} style={selectStyle}>
+                      {subServices.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Plan</label>
+                    <select value={subForm.plan} onChange={e => setSubForm(f => ({ ...f, plan: e.target.value }))} style={selectStyle}>
+                      {subPlans.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Single Key</label>
+                    <input value={subForm.key} onChange={e => setSubForm(f => ({ ...f, key: e.target.value }))} placeholder="Paste single key here..." style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Bulk Keys (one per line)</label>
+                    <textarea value={subBulk} onChange={e => setSubBulk(e.target.value)} placeholder={"key1\nkey2\nkey3"} rows={4}
+                      style={{ ...inputStyle, resize:'vertical', lineHeight:1.6 }} />
+                    {subBulk && <div style={{ fontSize:'0.68rem', color:'var(--purple2)', marginTop:'0.3rem' }}>{subBulk.split('\n').filter(k=>k.trim()).length} keys ready to add</div>}
+                  </div>
+                  <div style={{ display:'flex', gap:'0.6rem' }}>
+                    <button className="action-btn" onClick={saveSubKey} disabled={savingSub || (!subForm.key.trim() && !subBulk.trim())}
+                      style={{ flex:1, padding:'0.65rem', background:'var(--purple)', border:'none', borderRadius:'10px', color:'#fff', fontSize:'0.82rem', fontWeight:700, fontFamily:'Outfit, sans-serif', opacity: (!subForm.key.trim() && !subBulk.trim()) ? 0.5 : 1 }}>
+                      {savingSub ? 'Saving...' : 'Save Keys'}
+                    </button>
+                    <button className="action-btn" onClick={() => { setShowSubForm(false); setSubBulk('') }}
+                      style={{ padding:'0.65rem 1rem', background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--muted)', fontSize:'0.82rem', fontWeight:600 }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Keys list */}
+            <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem' }}>
+              {subKeys.map(k => (
+                <div key={k.id} className="row-item" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'14px', padding:'0.8rem 1rem' }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'0.2rem' }}>
+                      <span style={{ fontSize:'0.78rem', fontWeight:700, color:'var(--text)' }}>{k.service_id}</span>
+                      <span style={{ fontSize:'0.65rem', background:'var(--card2)', color:'var(--muted)', borderRadius:'50px', padding:'0.1rem 0.4rem' }}>{k.plan}</span>
+                      <span style={{ fontSize:'0.65rem', borderRadius:'50px', padding:'0.1rem 0.4rem', background: k.is_used ? 'rgba(220,50,50,0.1)' : 'rgba(29,158,117,0.1)', color: k.is_used ? '#ff6b6b' : '#34d399' }}>
+                        {k.is_used ? 'used' : 'available'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize:'0.7rem', color:'var(--muted)', fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{k.key}</div>
+                  </div>
+                  {!k.is_used && (
+                    <button className="action-btn" onClick={() => deleteSubKey(k.id)}
+                      style={{ marginLeft:'0.8rem', padding:'0.35rem 0.7rem', background:'rgba(220,50,50,0.1)', border:'1px solid rgba(220,50,50,0.3)', borderRadius:'8px', color:'#ff6b6b', fontSize:'0.68rem', fontWeight:600, flexShrink:0 }}>
+                      Delete
+                    </button>
+                  )}
+                </div>
+              ))}
+              {subKeys.length === 0 && (
+                <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'2rem', textAlign:'center', color:'var(--muted)', fontSize:'0.82rem' }}>No subscription keys yet. Add your first keys above!</div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* SETTINGS TAB */}
         {activeTab === 'settings' && (
           <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
@@ -718,4 +860,5 @@ function PackageIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" 
 function MoneyIcon()   { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> }
 function ClockIcon()   { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> }
 function VpnIcon()     { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> }
+function SubsIcon()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> }
 function SettingsIcon(){ return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> }

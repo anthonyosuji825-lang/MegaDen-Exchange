@@ -28,6 +28,7 @@ export default function Dashboard() {
     const next = theme === 'dark' ? 'light' : 'dark'
     setTheme(next)
     document.documentElement.setAttribute('data-theme', next)
+    try { localStorage.setItem('megaden-theme', next) } catch(e) {}
   }
 
   useEffect(() => {
@@ -142,7 +143,7 @@ export default function Dashboard() {
   const row1Actions = [
     { label: 'Fund Wallet', href: '/dashboard/wallet', icon: <WalletIcon size={18} color="#8b6ff7" />, bg: 'rgba(108,78,242,0.12)' },
     { label: 'Buy Number', href: '/dashboard/numbers', icon: <PhoneIcon size={18} color="#10b981" />, bg: 'rgba(16,185,129,0.12)' },
-    { label: 'Buy Logs', href: '/dashboard/logs', icon: <LogsIcon size={18} color="#4687ff" />, bg: 'rgba(70,135,255,0.12)' },
+    { label: 'Subscriptions', href: '/dashboard/subscriptions', icon: <SubsIcon size={18} color="#4687ff" />, bg: 'rgba(70,135,255,0.12)' },
     { label: 'Boosting', href: '/dashboard/boosting', icon: <BoostIcon size={18} color="#f43f5e" />, bg: 'rgba(244,63,94,0.12)' },
   ]
 
@@ -155,7 +156,7 @@ export default function Dashboard() {
 
   const services = [
     { title: 'Foreign Numbers', desc: 'USA, UK, Canada & 40+ countries', icon: <PhoneIcon size={22} color="#8b6ff7" />, bg: 'rgba(108,78,242,0.12)', href: '/dashboard/numbers', badge: 'HOT', badgeBg: 'rgba(108,78,242,0.12)', badgeColor: '#8b6ff7' },
-    { title: 'Social Media Logs', desc: 'FB, IG, TikTok, Gmail & more', icon: <LogsIcon size={22} color="#f0b429" />, bg: 'rgba(240,180,41,0.12)', href: '/dashboard/logs' },
+    { title: 'Digital Subscriptions', desc: 'Spotify, Netflix, Canva, ChatGPT & more', icon: <SubsIcon size={22} color="#f0b429" />, bg: 'rgba(240,180,41,0.12)', href: '/dashboard/subscriptions', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
     { title: 'Account Boosting', desc: 'Grow your online presence fast', icon: <BoostIcon size={22} color="#10b981" />, bg: 'rgba(16,185,129,0.12)', href: '/dashboard/boosting' },
     { title: 'VPN Subscriptions', desc: 'NordVPN, ExpressVPN & more', icon: <VpnIcon size={22} color="#4687ff" />, bg: 'rgba(70,135,255,0.12)', href: '/dashboard/vpn', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
   ]
@@ -476,7 +477,7 @@ export default function Dashboard() {
 // ── ICONS ──
 function WalletIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/><path d="M2 10h20"/></svg> }
 function PhoneIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1"/></svg> }
-function LogsIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> }
+function SubsIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> }
 function BoostIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> }
 function VpnIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> }
 function ReferIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> }

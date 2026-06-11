@@ -50,22 +50,22 @@ export default function Login() {
         @keyframes spin { to{transform:rotate(360deg)} }
         .auth-input {
           width:100%; padding:0.78rem 1rem 0.78rem 2.6rem;
-          background:rgba(255,255,255,0.04); border:1px solid var(--border);
+          background:var(--navy2); border:1px solid var(--border);
           border-radius:12px; color:var(--text); font-size:0.92rem;
           outline:none; font-family:'Inter',sans-serif;
           transition:border-color 0.2s,box-shadow 0.2s,background 0.2s;
         }
-        .auth-input:focus { border-color:var(--purple); background:rgba(108,78,242,0.06); box-shadow:0 0 0 3px rgba(108,78,242,0.12); }
+        .auth-input:focus { border-color:var(--purple); background:var(--card2); box-shadow:0 0 0 3px rgba(108,78,242,0.12); }
         .auth-input::placeholder { color:var(--muted); opacity:0.6; }
         .social-btn {
           flex:1; display:flex; align-items:center; justify-content:center; gap:0.6rem;
           padding:0.78rem 0.5rem;
-          background:rgba(255,255,255,0.04); border:1px solid var(--border);
+          background:var(--navy2); border:1px solid var(--border);
           border-radius:12px; color:var(--text); font-family:'Inter',sans-serif;
           font-size:0.85rem; font-weight:600; cursor:pointer;
           transition:background 0.2s,border-color 0.2s,transform 0.15s,box-shadow 0.15s;
         }
-        .social-btn:hover { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.2); transform:translateY(-1px); box-shadow:0 4px 16px rgba(0,0,0,0.2); }
+        .social-btn:hover { background:var(--card2); border-color:var(--purple); transform:translateY(-1px); box-shadow:0 4px 16px rgba(108,78,242,0.15); }
         .social-btn:active { transform:scale(0.98); }
         .social-btn:disabled { opacity:0.6; cursor:not-allowed; }
         .submit-btn {
@@ -106,10 +106,10 @@ export default function Login() {
 
       {/* Card */}
       <div className="auth-card" style={{
-        background:'rgba(22,27,48,0.75)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
-        border:'1px solid rgba(108,78,242,0.22)', borderRadius:'24px', padding:'2rem',
+        background:'var(--card)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
+        border:'1px solid var(--border)', borderRadius:'24px', padding:'2rem',
         width:'100%', maxWidth:'420px', position:'relative', zIndex:1,
-        boxShadow:'0 24px 64px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)',
+        boxShadow:'0 24px 64px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.06)',
       }}>
         <div style={{ position:'absolute', top:0, left:'8%', right:'8%', height:'1px', background:'linear-gradient(90deg, transparent, rgba(108,78,242,0.5), rgba(240,180,41,0.3), transparent)' }} />
 

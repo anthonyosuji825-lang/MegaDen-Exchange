@@ -18,6 +18,9 @@ html[data-theme="dark"], html:not([data-theme]) {
   --card: #161b30;
   --card2: #1c2240;
   --border: rgba(108, 78, 242, 0.18);
+  --header-bg: rgba(11, 14, 26, 0.9);
+  --header-text: #e8eaf6;
+  --header-muted: #8b90b8;
   --font-heading: 'Outfit', sans-serif;
   --font-body: 'Inter', sans-serif;
 }
@@ -35,6 +38,9 @@ html[data-theme="light"] {
   --card: #ffffff;
   --card2: #eceffe;
   --border: rgba(108, 78, 242, 0.15);
+  --header-bg: rgba(255, 255, 255, 0.95);
+  --header-text: #0f1120;
+  --header-muted: #555a7a;
   --font-heading: 'Outfit', sans-serif;
   --font-body: 'Inter', sans-serif;
 }

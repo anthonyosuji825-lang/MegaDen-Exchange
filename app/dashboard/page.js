@@ -17,6 +17,8 @@ export default function Dashboard() {
   const [theme, setTheme] = useState('dark')
   const [notifications, setNotifications] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
+  const [showGreeting, setShowGreeting] = useState(false)
+  const [greetingLeaving, setGreetingLeaving] = useState(false)
   const timerRef = useRef(null)
   const notifRef = useRef(null)
 
@@ -45,6 +47,9 @@ export default function Dashboard() {
         .order('created_at', { ascending: false }).limit(20)
       setNotifications(notifData || [])
       setLoading(false)
+      setTimeout(() => setShowGreeting(true), 300)
+      setTimeout(() => setGreetingLeaving(true), 3000)
+      setTimeout(() => { setShowGreeting(false); setGreetingLeaving(false) }, 3500)
     }
     load()
   }, [router])
@@ -174,6 +179,8 @@ export default function Dashboard() {
       <style>{`
         @keyframes slideProgress { from{width:0%} to{width:100%} }
         @keyframes notifSlideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes greetIn { from{opacity:0;transform:translateY(18px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes greetOut { from{opacity:1;transform:translateY(0) scale(1)} to{opacity:0;transform:translateY(-14px) scale(0.97)} }
         .prog-bar { position:absolute; bottom:0; left:0; height:3px; width:0; border-radius:0 2px 2px 0; background:linear-gradient(90deg,rgba(255,255,255,0.3),rgba(255,255,255,0.75)); }
         .prog-bar.go { animation: slideProgress 10s linear forwards; }
         .w-act:hover { background: rgba(255,255,255,0.18) !important; }
@@ -184,12 +191,26 @@ export default function Dashboard() {
       `}</style>
 
       {/* TOP BAR */}
-      <div style={{ padding: '1.1rem 1.25rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, background: 'rgba(11,14,26,0.9)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '1.1rem 1.25rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, background: 'var(--header-bg)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <LogoMark size={30} />
-          <div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>{greeting},</div>
-            <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>{firstName} 👋</div>
+          <div style={{ position: 'relative', overflow: 'hidden', minWidth: 120 }}>
+            {showGreeting && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0,
+                animation: greetingLeaving
+                  ? 'greetOut 0.45s cubic-bezier(0.4,0,1,1) forwards'
+                  : 'greetIn 0.5s cubic-bezier(0.22,1,0.36,1) forwards',
+                pointerEvents: 'none',
+              }}>
+                <div style={{ fontSize: '0.68rem', color: 'var(--header-muted)' }}>{greeting},</div>
+                <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.9rem', color: 'var(--header-text)', whiteSpace: 'nowrap' }}>{firstName} 👋</div>
+              </div>
+            )}
+            <div style={{ opacity: showGreeting ? 0 : 1, transition: 'opacity 0.4s ease' }}>
+              <div style={{ fontSize: '0.68rem', color: 'var(--header-muted)', letterSpacing: '0.02em' }}>Welcome to</div>
+              <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '0.92rem', color: 'var(--header-text)' }}>Mega<span style={{ color: 'var(--gold)' }}>Den</span></div>
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

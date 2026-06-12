@@ -41,11 +41,13 @@ export default function SignUp() {
     if (signUpError) { setError(signUpError.message); setLoading(false); return }
     if (data.user) {
       const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase()
+      const refParam = new URLSearchParams(window.location.search).get('ref')
       await supabase.from('profiles').insert({
         id: data.user.id,
         full_name: form.full_name,
         email: form.email,
         referral_code: referralCode,
+        referred_by: refParam || null,
         wallet_balance: 0
       })
       router.push('/dashboard')

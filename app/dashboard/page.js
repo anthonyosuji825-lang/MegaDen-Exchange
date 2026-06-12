@@ -14,6 +14,7 @@ export default function Dashboard() {
   const [balanceHidden, setBalanceHidden] = useState(false)
   const [activeTab, setActiveTab] = useState('home')
   const [showAllActions, setShowAllActions] = useState(false)
+  const [showSupportMenu, setShowSupportMenu] = useState(false)
   const [theme, setTheme] = useState('dark')
   const [notifications, setNotifications] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
@@ -151,7 +152,7 @@ export default function Dashboard() {
     { label: 'VPN', href: '/dashboard/vpn', icon: <VpnIcon size={18} color="#8b6ff7" />, bg: 'rgba(108,78,242,0.12)' },
     { label: 'Refer & Earn', href: '/dashboard/referral', icon: <ReferIcon size={18} color="#f0b429" />, bg: 'rgba(240,180,41,0.12)' },
     { label: 'View History', href: '/dashboard/orders', icon: <HistoryIcon size={18} color="#f0b429" />, bg: 'rgba(240,180,41,0.12)' },
-    { label: 'Track Order', href: '/dashboard/orders/track', icon: <TrackIcon size={18} color="#10b981" />, bg: 'rgba(16,185,129,0.12)' },
+    { label: 'Support', icon: <SupportIcon size={18} color="#10b981" />, bg: 'rgba(16,185,129,0.12)', isSupport: true },
   ]
 
   const services = [
@@ -390,10 +391,17 @@ export default function Dashboard() {
               </Link>
             ))}
             {showAllActions && row2Actions.map(a => (
-              <Link key={a.label} href={a.href} className="qa" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '0.8rem 0.15rem', textDecoration: 'none', transition: 'border-color 0.2s, background 0.2s' }}>
-                <div style={{ width: 38, height: 38, borderRadius: 11, background: a.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{a.icon}</div>
-                <span style={{ fontSize: '0.57rem', color: 'var(--text)', fontWeight: 600, textAlign: 'center', lineHeight: 1.25 }}>{a.label}</span>
-              </Link>
+              a.isSupport ? (
+                <button key={a.label} onClick={() => setShowSupportMenu(true)} className="qa" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '0.8rem 0.15rem', cursor: 'pointer', transition: 'border-color 0.2s, background 0.2s' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 11, background: a.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{a.icon}</div>
+                  <span style={{ fontSize: '0.57rem', color: 'var(--text)', fontWeight: 600, textAlign: 'center', lineHeight: 1.25 }}>{a.label}</span>
+                </button>
+              ) : (
+                <Link key={a.label} href={a.href} className="qa" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '0.8rem 0.15rem', textDecoration: 'none', transition: 'border-color 0.2s, background 0.2s' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 11, background: a.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{a.icon}</div>
+                  <span style={{ fontSize: '0.57rem', color: 'var(--text)', fontWeight: 600, textAlign: 'center', lineHeight: 1.25 }}>{a.label}</span>
+                </Link>
+              )
             ))}
           </div>
         </div>
@@ -470,6 +478,48 @@ export default function Dashboard() {
           </Link>
         ))}
       </div>
+
+      {/* SUPPORT MENU MODAL */}
+      {showSupportMenu && (
+        <div onClick={() => setShowSupportMenu(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(8,10,22,0.7)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1.2rem' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: '1.4rem', width: '100%', maxWidth: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.45)' }}>
+            <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.1rem', color: 'var(--text)', marginBottom: '0.3rem' }}>Need Help?</div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1.2rem' }}>Reach us through any of these channels</div>
+
+            <a href="https://wa.me/17656822078" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none', marginBottom: '0.7rem' }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SupportIcon size={18} color="#10b981" /></div>
+              <div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>WhatsApp Support</div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Chat directly with our team</div>
+              </div>
+            </a>
+
+            <a href="https://whatsapp.com/channel/0029Vb6NItO3gvWZxYJHZN17" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none', marginBottom: '0.7rem' }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SupportIcon size={18} color="#10b981" /></div>
+              <div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>WhatsApp Channel</div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Get updates & announcements</div>
+              </div>
+            </a>
+
+            <a href="https://t.me/+3cblEJBfh1owOTJk" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none', marginBottom: '0.7rem' }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(70,135,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SupportIcon size={18} color="#4687ff" /></div>
+              <div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>Telegram Channel</div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Join our Telegram community</div>
+              </div>
+            </a>
+
+            <Link href="/dashboard/help" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none' }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(240,180,41,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><HelpIcon size={18} color="#f0b429" /></div>
+              <div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>Help Center</div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>FAQs & answers to common questions</div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
@@ -482,7 +532,8 @@ function BoostIcon({ size = 20, color = 'currentColor' }) { return <svg width={s
 function VpnIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> }
 function ReferIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> }
 function HistoryIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> }
-function TrackIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> }
+function SupportIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> }
+function HelpIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12" y2="17"/></svg> }
 function HomeIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> }
 function PackageIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> }
 function UserIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> }

@@ -26,23 +26,66 @@ html[data-theme="dark"], html:not([data-theme]) {
 }
 
 html[data-theme="light"] {
-  --navy: #f0f2ff;
-  --navy2: #e4e7f7;
-  --navy3: #d8dcf0;
+  --navy: #f6f5fb;
+  --navy2: #ffffff;
+  --navy3: #ece9f8;
   --purple: #6c4ef2;
-  --purple2: #5538d4;
-  --gold: #c47f0a;
-  --gold2: #f0b429;
-  --text: #0f1120;
-  --muted: #555a7a;
+  --purple2: #5a3de0;
+  --gold: #b3790a;
+  --gold2: #d99a1f;
+  --text: #1a1c2e;
+  --muted: #6b6f94;
   --card: #ffffff;
-  --card2: #eceffe;
-  --border: rgba(108, 78, 242, 0.15);
-  --header-bg: rgba(255, 255, 255, 0.95);
-  --header-text: #0f1120;
-  --header-muted: #555a7a;
+  --card2: #f4f2fc;
+  --border: rgba(108, 78, 242, 0.12);
+  --header-bg: rgba(246, 245, 251, 0.85);
+  --header-text: #1a1c2e;
+  --header-muted: #6b6f94;
   --font-heading: 'Outfit', sans-serif;
   --font-body: 'Inter', sans-serif;
+
+  --shadow-sm: 0 1px 3px rgba(40, 30, 90, 0.06), 0 1px 2px rgba(40, 30, 90, 0.04);
+  --shadow-md: 0 4px 16px rgba(40, 30, 90, 0.08), 0 2px 6px rgba(40, 30, 90, 0.05);
+  --shadow-lg: 0 12px 32px rgba(40, 30, 90, 0.10), 0 4px 12px rgba(40, 30, 90, 0.06);
+  --premium-glow: radial-gradient(circle at 85% -10%, rgba(240, 180, 41, 0.10) 0%, transparent 55%);
+}
+
+html[data-theme="dark"], html:not([data-theme]) {
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --premium-glow: radial-gradient(circle at 85% -10%, rgba(240, 180, 41, 0.16) 0%, transparent 55%);
+}
+
+/* ── Premium light-mode refinements ── */
+html[data-theme="light"] body {
+  background: linear-gradient(160deg, #f8f7fc 0%, #f3f1fa 40%, #f6f5fb 100%);
+}
+
+/* Give flat cards subtle elevation + premium border in light mode */
+html[data-theme="light"] .premium-card,
+html[data-theme="light"] [style*="background: var(--card)"],
+html[data-theme="light"] [style*="background:var(--card)"] {
+  box-shadow: var(--shadow-sm);
+}
+
+/* Sharper, richer borders for inputs/cards on white */
+html[data-theme="light"] {
+  --input-border: rgba(108, 78, 242, 0.18);
+}
+
+/* Buttons & primary actions get a touch more depth in light mode */
+html[data-theme="light"] .save-btn,
+html[data-theme="light"] .modal-submit,
+html[data-theme="light"] .submit-btn,
+html[data-theme="light"] .buy-btn {
+  box-shadow: 0 4px 14px rgba(108, 78, 242, 0.22);
+}
+
+/* Active/verified pills need a touch more contrast on white */
+html[data-theme="light"] .verified-pill {
+  background: rgba(16, 163, 74, 0.08) !important;
+  border-color: rgba(16, 163, 74, 0.22) !important;
 }
 
 * {

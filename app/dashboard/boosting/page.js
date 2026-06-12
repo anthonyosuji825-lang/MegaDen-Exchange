@@ -26,8 +26,8 @@ const DEFAULT_SERVICES = [
       { id: 'tt_f1k',  name: '1,000 Followers',  price: 1200,  delivery: '24hrs', desc: 'Real-looking',       service_id: 10127, quantity: 1000  },
       { id: 'tt_f5k',  name: '5,000 Followers',  price: 5000,  delivery: '48hrs', desc: 'Gradual delivery',   service_id: 10127, quantity: 5000  },
       { id: 'tt_f10k', name: '10,000 Followers', price: 9500,  delivery: '72hrs', desc: 'Best value',         service_id: 10127, quantity: 10000 },
-      { id: 'tt_l1k',  name: '1,000 Likes',      price: 600,   delivery: '6hrs',  desc: 'Per video',          service_id: 10238, quantity: 1000  },
-      { id: 'tt_l5k',  name: '5,000 Likes',      price: 2500,  delivery: '12hrs', desc: 'Per video',          service_id: 10238, quantity: 5000  },
+      { id: 'tt_l1k',  name: '1,000 Likes',      price: 600,   delivery: '6hrs',  desc: 'Per video',          service_id: 10022, quantity: 1000  },
+      { id: 'tt_l5k',  name: '5,000 Likes',      price: 2500,  delivery: '12hrs', desc: 'Per video',          service_id: 10022, quantity: 5000  },
       { id: 'tt_v50k', name: '50,000 Views',     price: 1000,  delivery: '6hrs',  desc: 'Video views',        service_id: 10238, quantity: 50000 },
       { id: 'tt_v500k',name: '500,000 Views',    price: 8000,  delivery: '48hrs', desc: 'Viral boost',        service_id: 10238, quantity: 500000},
     ]

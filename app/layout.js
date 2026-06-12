@@ -33,14 +33,22 @@ export const metadata = {
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
-    apple: '/favicon.svg',
-  }
+    apple: '/icons/apple-touch-icon.png',
+  },
+  manifest: '/manifest.json',
+}
+
+export const viewport = {
+  themeColor: '#0b0e1a',
 }
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning className={`${outfit.variable} ${inter.variable}`}>
       <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="MegaDen" />
         <script src="https://js.paystack.co/v1/inline.js" async defer></script>
         {/* Theme persistence — runs before paint to prevent flash */}
         <script dangerouslySetInnerHTML={{ __html: `
@@ -50,6 +58,16 @@ export default function RootLayout({ children }) {
               document.documentElement.setAttribute('data-theme', theme);
             } catch(e) {}
           })();
+        `}} />
+        {/* Register service worker for PWA */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                console.warn('SW registration failed:', err);
+              });
+            });
+          }
         `}} />
       </head>
       <body>{children}</body>

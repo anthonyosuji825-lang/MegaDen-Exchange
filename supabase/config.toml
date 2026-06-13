@@ -20,3 +20,14 @@ entrypoint = "./functions/sync-boost-orders/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/sync-boost-orders/*.html" ]
+
+[functions.expire-vpn-accounts]
+enabled = true
+verify_jwt = true
+import_map = "./functions/expire-vpn-accounts/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/expire-vpn-accounts/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/expire-vpn-accounts/*.html" ]

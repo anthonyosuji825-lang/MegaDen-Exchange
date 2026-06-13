@@ -9,9 +9,27 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
+const VPN_API_URL = 'https://api.vpnresellers.com/v3'
+const VPN_API_TOKEN = process.env.VPNRESELLERS_API_TOKEN
+
+// Period in days for each plan
+const PERIOD_DAYS = {
+  '1m': 30,
+  '3m': 90,
+  '6m': 180,
+  '12m': 365,
+}
+
+const PRICE_KEYS = {
+  '1m': 'vpn_price_1m',
+  '3m': 'vpn_price_3m',
+  '6m': 'vpn_price_6m',
+  '12m': 'vpn_price_12m',
+}
+
 export async function POST(request) {
   try {
-    // Auth — verify user is logged in
+    // Auth
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -23,13 +41,25 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { provider, plan, price, plan_id } = await request.json()
+    const { plan, server_id } = await request.json()
 
-    if (!provider || !plan || !price || !plan_id) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    if (!plan || !PERIOD_DAYS[plan]) {
+      return NextResponse.json({ error: 'Invalid plan selected' }, { status: 400 })
     }
 
-    // Check wallet balance
+    // Get retail price from app_settings
+    const { data: priceRow } = await supabaseAdmin
+      .from('app_settings')
+      .select('value')
+      .eq('key', PRICE_KEYS[plan])
+      .single()
+
+    const priceNgn = parseFloat(priceRow?.value)
+    if (!priceNgn || priceNgn < 100) {
+      return NextResponse.json({ error: 'VPN plan pricing not configured. Contact support.' }, { status: 500 })
+    }
+
+    // Check & deduct wallet
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('wallet_balance')
@@ -37,51 +67,96 @@ export async function POST(request) {
       .single()
 
     const balance = profile?.wallet_balance || 0
-    if (balance < price) {
-      return NextResponse.json({ error: 'Insufficient wallet balance. Please fund your wallet.' }, { status: 400 })
+    if (balance < priceNgn) {
+      return NextResponse.json({ error: 'Insufficient wallet balance' }, { status: 400 })
     }
 
-    // Find an available VPN key for this provider + plan
-    const { data: vpnKey } = await supabaseAdmin
-      .from('vpn_keys')
-      .select('*')
-      .eq('provider', provider)
-      .eq('plan', plan)
-      .eq('is_used', false)
-      .limit(1)
-      .single()
-
-    if (!vpnKey) {
-      return NextResponse.json({ error: 'Out of stock. Please check back soon or contact support.' }, { status: 400 })
-    }
-
-    // Mark key as used
-    await supabaseAdmin
-      .from('vpn_keys')
-      .update({ is_used: true, used_by: user.id, used_at: new Date().toISOString() })
-      .eq('id', vpnKey.id)
-
-    // Deduct wallet balance
     await supabaseAdmin
       .from('profiles')
-      .update({ wallet_balance: balance - price })
+      .update({ wallet_balance: balance - priceNgn })
       .eq('id', user.id)
 
-    // Save order as completed (instant delivery)
+    // Generate unique username/password for the VPN account
+    const vpnUsername = `mgd${user.id.slice(0, 8)}${Date.now().toString().slice(-5)}`
+    const vpnPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-4).toUpperCase()
+
+    // Create the VPN account via VPNresellers API
+    const createRes = await fetch(`${VPN_API_URL}/accounts`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${VPN_API_TOKEN}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username: vpnUsername, password: vpnPassword }),
+    })
+
+    if (!createRes.ok) {
+      // Refund wallet on failure
+      await supabaseAdmin
+        .from('profiles')
+        .update({ wallet_balance: balance })
+        .eq('id', user.id)
+
+      const errData = await createRes.json().catch(() => ({}))
+      console.error('VPNresellers create account error:', errData)
+
+      if (createRes.status === 402) {
+        return NextResponse.json({ error: 'VPN service temporarily unavailable. Please try again later.' }, { status: 503 })
+      }
+      return NextResponse.json({ error: 'Failed to create VPN account. Please try again.' }, { status: 500 })
+    }
+
+    const createData = await createRes.json()
+    const vpnAccountId = createData.data.id
+
+    // Fetch a config file (.ovpn) for the selected server (default to first available if not provided)
+    let chosenServerId = server_id
+    if (!chosenServerId) {
+      const serversRes = await fetch(`${VPN_API_URL}/servers`, {
+        headers: { 'Authorization': `Bearer ${VPN_API_TOKEN}`, 'Accept': 'application/json' },
+      })
+      if (serversRes.ok) {
+        const serversData = await serversRes.json()
+        chosenServerId = serversData.data?.[0]?.id
+      }
+    }
+
+    let ovpnConfig = null
+    let ovpnFileName = null
+    if (chosenServerId) {
+      const configRes = await fetch(`${VPN_API_URL}/configuration?server_id=${chosenServerId}`, {
+        headers: { 'Authorization': `Bearer ${VPN_API_TOKEN}`, 'Accept': 'application/json' },
+      })
+      if (configRes.ok) {
+        const configData = await configRes.json()
+        ovpnConfig = configData.data?.file_body || null
+        ovpnFileName = configData.data?.file_name || 'megaden-vpn.ovpn'
+      }
+    }
+
+    const periodDays = PERIOD_DAYS[plan]
+    const expiresAt = new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString()
+
+    // Save order
     const { data: order } = await supabaseAdmin
       .from('orders')
       .insert({
         user_id: user.id,
         product_type: 'vpn',
-        product_name: `${provider} VPN - ${plan}`,
-        amount: price,
-        status: 'completed',
+        product_name: `VPN — ${plan.toUpperCase()} Plan`,
+        amount: priceNgn,
+        status: 'active',
         details: {
-          provider,
+          vpn_account_id: vpnAccountId,
+          vpn_username: vpnUsername,
+          vpn_password: vpnPassword,
+          server_id: chosenServerId,
+          ovpn_config: ovpnConfig,
+          ovpn_filename: ovpnFileName,
           plan,
-          plan_id,
-          vpn_key: vpnKey.key,
-          vpn_key_id: vpnKey.id,
+          period_days: periodDays,
+          expires_at: expiresAt,
         }
       })
       .select()
@@ -91,22 +166,24 @@ export async function POST(request) {
     await supabaseAdmin.from('transactions').insert({
       user_id: user.id,
       type: 'debit',
-      amount: price,
-      description: `${provider} VPN - ${plan}`,
-      reference: `VPN-${order.id}-${Date.now()}`,
+      amount: priceNgn,
+      description: `VPN ${plan.toUpperCase()} Plan`,
+      reference: `VPN-${vpnAccountId}-${Date.now()}`,
       status: 'success',
     })
 
     return NextResponse.json({
       success: true,
-      key: vpnKey.key,
-      provider,
-      plan,
       order_id: order.id,
+      vpn_username: vpnUsername,
+      vpn_password: vpnPassword,
+      ovpn_config: ovpnConfig,
+      ovpn_filename: ovpnFileName,
+      expires_at: expiresAt,
     })
 
   } catch (error) {
     console.error('VPN buy error:', error)
-    return NextResponse.json({ error: 'Failed to process order. Please try again.' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to purchase VPN' }, { status: 500 })
   }
 }

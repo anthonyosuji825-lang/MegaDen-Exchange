@@ -9,6 +9,7 @@ html[data-theme="dark"], html:not([data-theme]) {
   --navy: #0b0e1a;
   --navy2: #111526;
   --navy3: #181d35;
+  --navy-rgb: 11, 14, 26;
   --purple: #6c4ef2;
   --purple2: #8b6ff7;
   --gold: #f0b429;
@@ -29,6 +30,7 @@ html[data-theme="light"] {
   --navy: #f6f5fb;
   --navy2: #ffffff;
   --navy3: #ece9f8;
+  --navy-rgb: 246, 245, 251;
   --purple: #6c4ef2;
   --purple2: #5a3de0;
   --gold: #b3790a;
@@ -100,4 +102,44 @@ body {
   font-family: var(--font-body), sans-serif;
   overflow-x: hidden;
   transition: background 0.3s ease, color 0.3s ease;
+}
+/* ── Bottom nav light mode fix ── */
+html[data-theme="light"] [style*="rgba(11,14,26,0.94)"] {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-top: 1px solid rgba(108, 78, 242, 0.12) !important;
+}
+
+/* ── Sticky header light mode fix ── */
+html[data-theme="light"] [style*="rgba(11, 14, 26, 0.9)"],
+html[data-theme="light"] [style*="rgba(11,14,26,0.9)"] {
+  background: rgba(246, 245, 251, 0.94) !important;
+}
+
+/* ── Nav icon/label color in light mode ── */
+html[data-theme="light"] [style*="color: var(--muted)"] svg,
+html[data-theme="light"] [style*="color:var(--muted)"] svg {
+  color: #6b6f94;
+}
+
+/* ── Profile premium card light mode ── */
+html[data-theme="light"] .premium-card {
+  background: linear-gradient(160deg, rgba(108,78,242,0.08) 0%, rgba(246,245,251,0.9) 55%) !important;
+  border: 1px solid rgba(108,78,242,0.15) !important;
+}
+
+/* ── Header nav dark bg pages (numbers, boost, vpn etc.) ── */
+html[data-theme="light"] [style*="background: var(--navy)"][style*="position: sticky"],
+html[data-theme="light"] [style*="background:var(--navy)"][style*="sticky"] {
+  background: rgba(246, 245, 251, 0.94) !important;
+}
+
+/* ── Auth pages card fix (login, signup, forgot-password) ── */
+html[data-theme="light"] [style*="rgba(22,27,48"] {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(108, 78, 242, 0.18) !important;
+}
+
+html[data-theme="light"] [style*="rgba(22, 27, 48"] {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(108, 78, 242, 0.18) !important;
 }

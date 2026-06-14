@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import BottomNav from '@/components/BottomNav'
 
 export default function Orders() {
   const [orders, setOrders] = useState([])
@@ -148,6 +149,7 @@ export default function Orders() {
           </div>
         )}
       </div>
+    <BottomNav />
     </main>
   )
 }

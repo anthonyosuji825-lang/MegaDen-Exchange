@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import LoadingScreen from '@/components/LoadingScreen'
+import BottomNav from '@/components/BottomNav'
 
 export default function Wallet() {
   const [profile, setProfile] = useState(null)
@@ -258,6 +259,7 @@ export default function Wallet() {
         </div>
 
       </div>
+    <BottomNav />
     </main>
   )
 }

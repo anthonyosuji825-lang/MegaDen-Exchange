@@ -28,7 +28,7 @@ const stats = [
 
 const services = [
   { icon: <PhoneIcon />, title: 'Foreign Numbers', desc: 'Real virtual numbers from USA, UK, Canada & 40+ countries for any SMS verification.', tag: '40+ Countries', color: 'rgba(108,78,242,0.12)', tagColor: 'var(--purple2)' },
-  { icon: <LogIcon />, title: 'Social Media Logs', desc: 'Verified accounts across all major platforms ΓÇö Facebook, Instagram, TikTok, Gmail & more.', tag: 'All Platforms', color: 'rgba(240,180,41,0.1)', tagColor: 'var(--gold)' },
+  { icon: <LogIcon />, title: 'Social Media Logs', desc: 'Verified accounts across all major platforms — Facebook, Instagram, TikTok, Gmail & more.', tag: 'All Platforms', color: 'rgba(240,180,41,0.1)', tagColor: 'var(--gold)' },
   { icon: <BoostIcon />, title: 'Account Boosting', desc: 'Grow your social media presence with real follower boosts and engagement packages.', tag: 'All Platforms', color: 'rgba(29,158,117,0.1)', tagColor: '#34d399' },
 ]
 
@@ -47,7 +47,7 @@ const platforms = [
 
 const steps = [
   { num: '01', title: 'Create Your Account', desc: 'Sign up in seconds. Your account comes with a built-in wallet and full order history.' },
-  { num: '02', title: 'Fund Your Wallet', desc: 'Top up via Paystack or Flutterwave ΓÇö card, bank transfer, or USSD.' },
+  { num: '02', title: 'Fund Your Wallet', desc: 'Top up via Paystack or Flutterwave — card, bank transfer, or USSD.' },
   { num: '03', title: 'Browse & Purchase', desc: 'Pick your desired numbers, social media logs, or boosting package instantly.' },
   { num: '04', title: 'Instant Delivery', desc: 'Receive your purchase directly in your dashboard. No waiting, no stress.' },
 ]
@@ -125,7 +125,7 @@ export default function Home() {
           to { opacity: 1; transform: translateY(0); }
         }
 
-        /* NAV LINKS ΓÇö hidden on mobile */
+        /* NAV LINKS — hidden on mobile */
         .nav-links-desktop { display: flex; }
         .nav-auth-desktop { display: flex; }
         .hamburger { display: none; }
@@ -337,7 +337,7 @@ export default function Home() {
             Log In
           </Link>
           <Link href="/signup" onClick={() => setMenuOpen(false)} className="btn-primary" style={{ padding: '0.85rem', fontSize: '1rem', textAlign: 'center', borderRadius: '12px' }}>
-            Get Started ΓåÆ
+            Get Started →
           </Link>
         </div>
       </div>
@@ -369,13 +369,13 @@ export default function Home() {
 
         {/* Subtext */}
         <p className="hero-sub" style={{ color: 'var(--muted)', fontSize: '1.05rem', maxWidth: '520px', lineHeight: 1.75, marginBottom: '2rem', fontFamily: 'Inter, sans-serif', fontWeight: 400, animation: mounted ? 'fadeUp 0.6s ease 0.2s both' : 'none' }}>
-          Buy verified foreign virtual numbers, social media logs, and boost your online presence ΓÇö fast, secure, and affordable.
+          Buy verified foreign virtual numbers, social media logs, and boost your online presence — fast, secure, and affordable.
         </p>
 
         {/* CTAs */}
         <div className="hero-btns" style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '3rem', animation: mounted ? 'fadeUp 0.6s ease 0.3s both' : 'none', width: '100%', maxWidth: '360px' }}>
           <Link href="/signup" className="btn-primary" style={{ padding: '0.85rem 2rem', fontSize: '0.95rem', flex: 1, textAlign: 'center' }}>
-            Start Shopping ΓåÆ
+            Start Shopping →
           </Link>
           <a href="#services" className="btn-outline" style={{ padding: '0.85rem 2rem', fontSize: '0.95rem', flex: 1, textAlign: 'center' }}>
             View Services
@@ -416,7 +416,7 @@ export default function Home() {
         <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
           <div style={{ fontSize: '0.72rem', letterSpacing: '3px', textTransform: 'uppercase', color: 'var(--purple2)', fontWeight: 600, marginBottom: '0.8rem', fontFamily: 'Inter, sans-serif' }}>What we offer</div>
           <h2 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 'clamp(1.8rem, 5vw, 2.8rem)', fontWeight: 800, color: 'var(--text)', letterSpacing: '-1px', marginBottom: '1rem' }}>Everything You Need,<br />All in One Place</h2>
-          <p style={{ color: 'var(--muted)', fontSize: '0.97rem', maxWidth: '480px', margin: '0 auto', lineHeight: 1.7, fontFamily: 'Inter, sans-serif' }}>Access premium digital services from across the globe ΓÇö no hassle, no borders.</p>
+          <p style={{ color: 'var(--muted)', fontSize: '0.97rem', maxWidth: '480px', margin: '0 auto', lineHeight: 1.7, fontFamily: 'Inter, sans-serif' }}>Access premium digital services from across the globe — no hassle, no borders.</p>
         </div>
         <div className="services-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem' }}>
           {services.map((s) => (
@@ -477,7 +477,7 @@ export default function Home() {
         </div>
         <div className="cta-box" style={{ maxWidth: '620px', margin: '0 auto', background: 'var(--card2)', border: '1px solid rgba(108,78,242,0.25)', borderRadius: '24px', padding: '3.5rem 2rem', position: 'relative' }}>
           <div style={{ position: 'absolute', top: 0, left: '10%', right: '10%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--purple), transparent)' }} />
-          <div style={{ fontFamily: 'Outfit, sans-serif', fontSize: '2.2rem', marginBottom: '0.8rem', animation: 'float 3s ease-in-out infinite' }}>ΓÜí</div>
+          <div style={{ fontFamily: 'Outfit, sans-serif', fontSize: '2.2rem', marginBottom: '0.8rem', animation: 'float 3s ease-in-out infinite' }}>🚀</div>
           <h2 className="cta-title" style={{ fontFamily: 'Outfit, sans-serif', fontSize: 'clamp(1.7rem, 5vw, 2.4rem)', fontWeight: 800, color: 'var(--text)', letterSpacing: '-1px', marginBottom: '1rem' }}>Ready to Get Started?</h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.95rem', marginBottom: '2rem', lineHeight: 1.7, fontFamily: 'Inter, sans-serif' }}>
             Join thousands of users who trust MegaDen Exchange for fast, verified, and affordable digital services.
@@ -487,7 +487,7 @@ export default function Home() {
             Create Free Account
           </Link>
           <div style={{ marginTop: '1.2rem', fontSize: '0.78rem', color: 'var(--muted)', fontFamily: 'Inter, sans-serif' }}>
-            No hidden fees &nbsp;┬╖&nbsp; Instant delivery &nbsp;┬╖&nbsp; 24/7 support
+            No hidden fees &nbsp;·&nbsp; Instant delivery &nbsp;·&nbsp; 24/7 support
           </div>
         </div>
       </section>
@@ -501,7 +501,7 @@ export default function Home() {
               Mega<span style={{ color: 'var(--purple2)' }}>Den</span>
             </span>
           </Link>
-          <div style={{ color: 'var(--muted)', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}>┬⌐ 2026 MegaDen Exchange. All rights reserved.</div>
+          <div style={{ color: 'var(--muted)', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}>© 2026 MegaDen Exchange. All rights reserved.</div>
           <div style={{ display: 'flex', gap: '1.5rem' }}>
             {['Privacy', 'Terms', 'Support'].map(link => (
               <a key={link} href="#" style={{ color: 'var(--muted)', fontSize: '0.82rem', textDecoration: 'none', fontFamily: 'Inter, sans-serif', transition: 'color 0.2s' }}
@@ -526,6 +526,10 @@ function LogIcon() {
 function BoostIcon() {
   return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
 }
+
+
+
+
 
 
 

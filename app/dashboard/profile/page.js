@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import LoadingScreen from '@/components/LoadingScreen'
+import BottomNav from '@/components/BottomNav'
 
 export default function Profile() {
   const router = useRouter()
@@ -322,6 +323,7 @@ export default function Profile() {
       {showPasswordModal && (
         <PasswordModal onClose={() => setShowPasswordModal(false)} />
       )}
+    <BottomNav />
     </main>
   )
 }

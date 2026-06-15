@@ -109,6 +109,21 @@ export default function AdminPanel() {
 
   // Order filter
   const [orderFilter, setOrderFilter] = useState('all')
+  const [userSort, setUserSort] = useState('recent')
+
+  // Provider balances
+  const [providerBalances, setProviderBalances] = useState({ fivesim: { balance: null, error: null }, jap: { balance: null, error: null }, vpn: { balance: null, error: null } })
+  const [balancesLoading, setBalancesLoading] = useState(false)
+  const [balancesLastFetched, setBalancesLastFetched] = useState(null)
+
+  // Logs
+  const [logs, setLogs] = useState([])
+  const [logsLoading, setLogsLoading] = useState(false)
+  const [logsLastFetched, setLogsLastFetched] = useState(null)
+  const [logLevelFilter, setLogLevelFilter] = useState('all')
+  const [logCategoryFilter, setLogCategoryFilter] = useState('all')
+  const [logSearch, setLogSearch] = useState('')
+  const [expandedLog, setExpandedLog] = useState(null)
 
   useEffect(() => {
     setMounted(true)
@@ -162,7 +177,40 @@ export default function AdminPanel() {
       setLoading(false)
     }
     load()
+    fetchProviderBalances()
   }, [router])
+
+  const fetchProviderBalances = async () => {
+    setBalancesLoading(true)
+    try {
+      const res = await fetch('/api/admin/balances')
+      if (res.ok) {
+        const data = await res.json()
+        setProviderBalances(data)
+        setBalancesLastFetched(new Date())
+      }
+    } catch (e) {
+      console.error('Failed to fetch provider balances', e)
+    }
+    setBalancesLoading(false)
+  }
+
+  const fetchLogs = async () => {
+    setLogsLoading(true)
+    try {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200)
+      setLogs(data || [])
+      setLogsLastFetched(new Date())
+    } catch (e) {
+      console.error('Failed to fetch logs', e)
+    }
+    setLogsLoading(false)
+  }
 
   const getPrice = (id) => editedPrices[id] ?? (DEFAULT_BOOST_PACKAGES.find(p => p.id === id)?.price || 0)
 
@@ -292,6 +340,7 @@ export default function AdminPanel() {
     { id: 'boost',    label: 'Prices',    icon: <MoneyIcon /> },
     { id: 'vpn',      label: 'VPN',       icon: <VpnIcon /> },
     { id: 'subs',     label: 'Subs',      icon: <SubsIcon /> },
+    { id: 'logs',     label: 'Logs',      icon: <LogsIcon /> },
     { id: 'settings', label: 'Settings',  icon: <SettingsIcon /> },
   ]
 
@@ -309,6 +358,9 @@ export default function AdminPanel() {
       <style>{`
         @keyframes fadeSlideIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
         @keyframes scaleIn { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
+        @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+        @keyframes shimmer { 0%,100% { opacity:0.4; } 50% { opacity:1; } }
+        @keyframes glow { 0%,100% { box-shadow:0 0 6px #f43f5e; } 50% { box-shadow:0 0 14px #f43f5e; } }
         * { box-sizing: border-box; }
         .tab-btn { transition:background 0.15s,color 0.15s; cursor:pointer; }
         .tab-btn:hover { background:var(--card2) !important; }
@@ -353,7 +405,71 @@ export default function AdminPanel() {
               ))}
             </div>
 
-            {/* VPN stock overview */}
+            {/* PROVIDER BALANCES */}
+            <div style={{ marginBottom:'1.5rem' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.75rem' }}>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.75rem', color:'var(--muted)', letterSpacing:'0.07em', textTransform:'uppercase' }}>
+                  Provider Balances
+                </div>
+                <button onClick={fetchProviderBalances} disabled={balancesLoading}
+                  style={{ display:'flex', alignItems:'center', gap:'0.3rem', background:'transparent', border:'none', color:'var(--muted)', fontSize:'0.65rem', cursor:'pointer', padding:'0.2rem 0.5rem', borderRadius:'8px', transition:'color 0.15s' }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ animation: balancesLoading ? 'spin 0.8s linear infinite' : 'none' }}>
+                    <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                  </svg>
+                  {balancesLastFetched ? `${balancesLastFetched.toLocaleTimeString('en-NG', { hour:'2-digit', minute:'2-digit' })}` : 'Refresh'}
+                </button>
+              </div>
+
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'0.6rem' }}>
+                {[
+                  { key:'fivesim',  label:'5sim',         emoji:'📱', color:'#25d366', bg:'rgba(37,211,102,0.08)',  border:'rgba(37,211,102,0.2)'  },
+                  { key:'jap',      label:'JAP Panel',    emoji:'📣', color:'#1877f2', bg:'rgba(24,119,242,0.08)', border:'rgba(24,119,242,0.2)' },
+                  { key:'vpn',      label:'VPNresellers', emoji:'🔒', color:'#6d4aff', bg:'rgba(109,74,255,0.08)', border:'rgba(109,74,255,0.2)'  },
+                ].map(p => {
+                  const val = providerBalances[p.key]?.balance
+                  const err = providerBalances[p.key]?.error
+                  const isLow = val !== null && val !== undefined && Number(val) < 5
+                  const isMid = val !== null && val !== undefined && Number(val) >= 5 && Number(val) < 20
+                  const balColor = err ? '#f43f5e' : val === null || val === undefined ? 'var(--muted)' : isLow ? '#f43f5e' : isMid ? '#f0b429' : '#34d399'
+                  return (
+                    <div key={p.key} style={{ position:'relative', background: isLow ? 'rgba(244,63,94,0.06)' : p.bg, border:`1px solid ${isLow ? 'rgba(244,63,94,0.3)' : p.border}`, borderRadius:'16px', padding:'1rem 0.75rem 0.85rem', overflow:'hidden', display:'flex', flexDirection:'column', gap:'0.35rem' }}>
+                      {/* top accent bar */}
+                      <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background: isLow ? '#f43f5e' : p.color, borderRadius:'16px 16px 0 0' }} />
+                      {/* low pulse dot */}
+                      {isLow && !balancesLoading && (
+                        <div style={{ position:'absolute', top:10, right:10, width:7, height:7, borderRadius:'50%', background:'#f43f5e', boxShadow:'0 0 8px #f43f5e', animation:'glow 1.2s ease infinite' }} />
+                      )}
+                      <div style={{ fontSize:'1.1rem', lineHeight:1 }}>{p.emoji}</div>
+                      <div style={{ fontSize:'0.6rem', color:'var(--muted)', fontWeight:700, letterSpacing:'0.04em', textTransform:'uppercase' }}>{p.label}</div>
+                      {balancesLoading ? (
+                        <div style={{ height:18, width:'70%', background:'var(--border)', borderRadius:6, animation:'shimmer 1.2s ease infinite' }} />
+                      ) : err ? (
+                        <div style={{ fontSize:'0.68rem', color:'#f43f5e', fontWeight:600 }}>Error</div>
+                      ) : val === null || val === undefined ? (
+                        <div style={{ fontSize:'0.8rem', color:'var(--muted)' }}>—</div>
+                      ) : (
+                        <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.05rem', color: balColor, letterSpacing:'-0.01em' }}>
+                          ${Number(val).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Low balance warning banner */}
+              {!balancesLoading && (
+                providerBalances.fivesim?.balance < 5 ||
+                providerBalances.jap?.balance < 5 ||
+                providerBalances.vpn?.balance < 5
+              ) && (
+                <div style={{ marginTop:'0.6rem', padding:'0.65rem 0.9rem', background:'rgba(244,63,94,0.07)', border:'1px solid rgba(244,63,94,0.22)', borderRadius:'12px', fontSize:'0.7rem', color:'#f43f5e', display:'flex', alignItems:'center', gap:'0.5rem', fontWeight:500 }}>
+                  <span style={{ fontSize:'0.9rem' }}>⚠️</span> One or more provider balances are low — top up to avoid service disruptions.
+                </div>
+              )}
+            </div>
             <div style={{ marginBottom:'1.5rem' }}>
               <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)', marginBottom:'0.8rem' }}>VPN Stock</div>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'0.6rem' }}>
@@ -418,10 +534,30 @@ export default function AdminPanel() {
         {/* USERS */}
         {activeTab === 'users' && (
           <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
-            <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)', marginBottom:'0.9rem' }}>All Users ({users.length})</div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.9rem' }}>
+              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)' }}>All Users ({users.length})</div>
+              <select value={userSort} onChange={e => setUserSort(e.target.value)}
+                style={{ padding:'0.35rem 0.7rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--text)', fontSize:'0.72rem', outline:'none', fontFamily:'Outfit, sans-serif' }}>
+                <option value="recent">Recently Joined</option>
+                <option value="oldest">Oldest First</option>
+                <option value="alpha">A → Z</option>
+              </select>
+            </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'0.6rem' }}>
-              {users.map((user, i) => (
-                <div key={user.id} style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1rem 1.1rem', animation:`fadeSlideIn 0.3s ease ${0.04*i}s both` }}>
+              {[
+                // Admin always first
+                ...users.filter(u => u.is_admin),
+                // Then non-admins sorted by chosen method
+                ...[...users.filter(u => !u.is_admin)].sort((a, b) => {
+                  if (userSort === 'recent') return new Date(b.created_at) - new Date(a.created_at)
+                  if (userSort === 'oldest') return new Date(a.created_at) - new Date(b.created_at)
+                  if (userSort === 'alpha') return (a.full_name || '').localeCompare(b.full_name || '')
+                  return 0
+                }),
+              ].map((user, i) => (
+                <div key={user.id} style={{ background:'var(--card)', border:`1px solid ${user.is_admin ? 'rgba(108,78,242,0.35)' : 'var(--border)'}`, borderRadius:'16px', padding:'1rem 1.1rem', animation:`fadeSlideIn 0.3s ease ${0.04*i}s both`, position:'relative', overflow:'hidden' }}>
+                  {/* admin top accent */}
+                  {user.is_admin && <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:'linear-gradient(90deg, var(--purple), var(--gold))', borderRadius:'16px 16px 0 0' }} />}
                   <div style={{ display:'flex', alignItems:'center', gap:'0.8rem', marginBottom:'0.8rem' }}>
                     <div style={{ width:38, height:38, borderRadius:'50%', background:'linear-gradient(135deg, var(--purple), var(--gold))', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'0.9rem', color:'#fff', flexShrink:0 }}>
                       {user.full_name?.[0]?.toUpperCase() || 'U'}
@@ -780,6 +916,175 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* LOGS TAB */}
+        {activeTab === 'logs' && (
+          <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
+
+            {/* Header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+              <div>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)' }}>Activity Logs</div>
+                <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.1rem' }}>
+                  {logsLastFetched ? `Updated ${logsLastFetched.toLocaleTimeString('en-NG', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}` : 'Last 200 events'}
+                </div>
+              </div>
+              <button onClick={fetchLogs} disabled={logsLoading}
+                style={{ display:'flex', alignItems:'center', gap:'0.3rem', padding:'0.45rem 0.9rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--text)', fontSize:'0.72rem', fontWeight:600, cursor:'pointer' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ animation: logsLoading ? 'spin 0.8s linear infinite' : 'none' }}>
+                  <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+                {logsLoading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {/* Quick stats */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'0.5rem', marginBottom:'1rem' }}>
+              {[
+                { label:'Errors',   count: logs.filter(l=>l.level==='error').length,   color:'#f43f5e', bg:'rgba(244,63,94,0.08)'  },
+                { label:'Warnings', count: logs.filter(l=>l.level==='warning').length, color:'#f0b429', bg:'rgba(240,180,41,0.08)' },
+                { label:'Info',     count: logs.filter(l=>l.level==='info').length,    color:'#34d399', bg:'rgba(52,211,153,0.08)' },
+                { label:'Auth',     count: logs.filter(l=>l.level==='auth').length,    color:'var(--purple2)', bg:'rgba(108,78,242,0.08)' },
+              ].map(s => (
+                <div key={s.label} onClick={() => setLogLevelFilter(s.label.toLowerCase())}
+                  style={{ background: logLevelFilter === s.label.toLowerCase() ? s.bg : 'var(--card)', border:`1px solid ${logLevelFilter === s.label.toLowerCase() ? s.color : 'var(--border)'}`, borderRadius:'12px', padding:'0.65rem 0.5rem', textAlign:'center', cursor:'pointer', transition:'all 0.15s' }}>
+                  <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.1rem', color: s.color }}>{s.count}</div>
+                  <div style={{ fontSize:'0.58rem', color:'var(--muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Filters row */}
+            <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.9rem', flexWrap:'wrap' }}>
+              <select value={logLevelFilter} onChange={e => setLogLevelFilter(e.target.value)}
+                style={{ flex:1, minWidth:100, padding:'0.45rem 0.7rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--text)', fontSize:'0.72rem', outline:'none' }}>
+                <option value="all">All Levels</option>
+                <option value="error">🔴 Error</option>
+                <option value="warning">🟡 Warning</option>
+                <option value="info">🟢 Info</option>
+                <option value="auth">🔵 Auth</option>
+                <option value="admin">⚪ Admin</option>
+              </select>
+              <select value={logCategoryFilter} onChange={e => setLogCategoryFilter(e.target.value)}
+                style={{ flex:1, minWidth:100, padding:'0.45rem 0.7rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--text)', fontSize:'0.72rem', outline:'none' }}>
+                <option value="all">All Categories</option>
+                <option value="number">📱 Numbers</option>
+                <option value="boost">📣 Boost</option>
+                <option value="vpn">🔒 VPN</option>
+                <option value="wallet">💰 Wallet</option>
+                <option value="auth">🔑 Auth</option>
+                <option value="admin">🛡️ Admin</option>
+                <option value="system">⚙️ System</option>
+              </select>
+              <input value={logSearch} onChange={e => setLogSearch(e.target.value)}
+                placeholder="Search user or message..."
+                style={{ flex:2, minWidth:140, padding:'0.45rem 0.7rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--text)', fontSize:'0.72rem', outline:'none' }} />
+            </div>
+
+            {/* Log entries */}
+            <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem' }}>
+              {logsLoading ? (
+                [1,2,3,4,5].map(i => (
+                  <div key={i} style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'14px', padding:'1rem', animation:'shimmer 1.2s ease infinite' }}>
+                    <div style={{ height:12, width:'60%', background:'var(--border)', borderRadius:6, marginBottom:'0.5rem' }} />
+                    <div style={{ height:10, width:'40%', background:'var(--border)', borderRadius:6 }} />
+                  </div>
+                ))
+              ) : (() => {
+                const filtered = logs.filter(l => {
+                  if (logLevelFilter !== 'all' && l.level !== logLevelFilter) return false
+                  if (logCategoryFilter !== 'all' && l.category !== logCategoryFilter) return false
+                  if (logSearch) {
+                    const q = logSearch.toLowerCase()
+                    return (l.message || '').toLowerCase().includes(q) ||
+                      (l.user_email || '').toLowerCase().includes(q)
+                  }
+                  return true
+                })
+
+                if (filtered.length === 0) return (
+                  <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'14px', padding:'2.5rem', textAlign:'center', color:'var(--muted)', fontSize:'0.82rem' }}>
+                    No logs match your filters
+                  </div>
+                )
+
+                const levelStyle = (level) => {
+                  if (level === 'error')   return { bg:'rgba(244,63,94,0.1)',   color:'#f43f5e', dot:'#f43f5e',       label:'ERROR'   }
+                  if (level === 'warning') return { bg:'rgba(240,180,41,0.1)', color:'#f0b429', dot:'#f0b429',       label:'WARN'    }
+                  if (level === 'info')    return { bg:'rgba(52,211,153,0.1)', color:'#34d399', dot:'#34d399',       label:'INFO'    }
+                  if (level === 'auth')    return { bg:'rgba(108,78,242,0.1)', color:'var(--purple2)', dot:'var(--purple2)', label:'AUTH' }
+                  if (level === 'admin')   return { bg:'rgba(200,200,200,0.1)',color:'var(--muted)', dot:'var(--muted)',   label:'ADMIN'  }
+                  return { bg:'var(--card2)', color:'var(--muted)', dot:'var(--muted)', label:'LOG' }
+                }
+
+                const categoryEmoji = (cat) => {
+                  if (cat === 'number') return '📱'
+                  if (cat === 'boost')  return '📣'
+                  if (cat === 'vpn')    return '🔒'
+                  if (cat === 'wallet') return '💰'
+                  if (cat === 'auth')   return '🔑'
+                  if (cat === 'admin')  return '🛡️'
+                  return '⚙️'
+                }
+
+                return filtered.map((entry) => {
+                  const ls = levelStyle(entry.level)
+                  const isExpanded = expandedLog === entry.id
+                  return (
+                    <div key={entry.id}
+                      style={{ background:'var(--card)', border:`1px solid ${entry.level === 'error' ? 'rgba(244,63,94,0.25)' : entry.level === 'warning' ? 'rgba(240,180,41,0.2)' : 'var(--border)'}`, borderRadius:'14px', overflow:'hidden' }}>
+                      <div onClick={() => setExpandedLog(isExpanded ? null : entry.id)}
+                        style={{ padding:'0.85rem 1rem', cursor:'pointer', display:'flex', alignItems:'flex-start', gap:'0.7rem' }}>
+                        {/* Level dot */}
+                        <div style={{ width:8, height:8, borderRadius:'50%', background: ls.dot, flexShrink:0, marginTop:'0.35rem',
+                          boxShadow: entry.level === 'error' ? `0 0 6px ${ls.dot}` : 'none' }} />
+                        <div style={{ flex:1, minWidth:0 }}>
+                          {/* Top row */}
+                          <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', marginBottom:'0.25rem', flexWrap:'wrap' }}>
+                            <span style={{ padding:'0.1rem 0.4rem', borderRadius:'50px', background: ls.bg, color: ls.color, fontSize:'0.58rem', fontWeight:800, letterSpacing:'0.05em' }}>{ls.label}</span>
+                            <span style={{ fontSize:'0.65rem', color:'var(--muted)' }}>{categoryEmoji(entry.category)} {entry.category}</span>
+                            <span style={{ fontSize:'0.62rem', color:'var(--muted)', marginLeft:'auto', flexShrink:0 }}>
+                              {new Date(entry.created_at).toLocaleString('en-NG', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' })}
+                            </span>
+                          </div>
+                          {/* Message */}
+                          <div style={{ fontSize:'0.78rem', color:'var(--text)', fontWeight:500, lineHeight:1.4 }}>{entry.message}</div>
+                          {/* User */}
+                          {entry.user_email && (
+                            <div style={{ fontSize:'0.67rem', color:'var(--muted)', marginTop:'0.2rem' }}>👤 {entry.user_email}</div>
+                          )}
+                        </div>
+                        {/* Expand chevron */}
+                        {entry.context && Object.keys(entry.context).length > 0 && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, transition:'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', marginTop:'0.2rem' }}>
+                            <polyline points="6 9 12 15 18 9"/>
+                          </svg>
+                        )}
+                      </div>
+                      {/* Expanded context */}
+                      {isExpanded && entry.context && Object.keys(entry.context).length > 0 && (
+                        <div style={{ borderTop:'1px solid var(--border)', padding:'0.75rem 1rem', background:'var(--navy)' }}>
+                          <div style={{ fontSize:'0.62rem', color:'var(--muted)', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase', marginBottom:'0.4rem' }}>Context</div>
+                          <pre style={{ fontSize:'0.68rem', color:'var(--purple2)', background:'rgba(108,78,242,0.06)', border:'1px solid rgba(108,78,242,0.15)', borderRadius:'8px', padding:'0.7rem', overflowX:'auto', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap', wordBreak:'break-all' }}>
+                            {JSON.stringify(entry.context, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+
+            {logs.length === 0 && !logsLoading && (
+              <div style={{ marginTop:'1rem', padding:'2rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', textAlign:'center', color:'var(--muted)', fontSize:'0.82rem' }}>
+                No logs yet — they'll appear here as users interact with MegaDen.
+              </div>
+            )}
+          </div>
+        )}
+
         {/* SETTINGS TAB */}
         {activeTab === 'settings' && (
           <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
@@ -843,7 +1148,10 @@ export default function AdminPanel() {
       {/* BOTTOM NAV */}
       <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'var(--navy)', backdropFilter:'blur(12px)', borderTop:'1px solid var(--border)', padding:'0.6rem 0.5rem 0.9rem', display:'flex', justifyContent:'space-around', zIndex:100 }}>
         {tabs.map(tab => (
-          <button key={tab.id} className="tab-btn" onClick={() => setActiveTab(tab.id)}
+          <button key={tab.id} className="tab-btn" onClick={() => {
+            setActiveTab(tab.id)
+            if (tab.id === 'logs' && logs.length === 0) fetchLogs()
+          }}
             style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.22rem', background:'transparent', border:'none', padding:'0.3rem 0.5rem', borderRadius:'10px' }}>
             <div style={{ color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', transition:'color 0.15s' }}>{tab.icon}</div>
             <span style={{ fontSize:'0.58rem', color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', fontWeight: activeTab === tab.id ? 700 : 400, transition:'color 0.15s' }}>{tab.label}</span>
@@ -861,4 +1169,5 @@ function MoneyIcon()   { return <svg width="20" height="20" viewBox="0 0 24 24" 
 function ClockIcon()   { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> }
 function VpnIcon()     { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> }
 function SubsIcon()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> }
+function LogsIcon()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> }
 function SettingsIcon(){ return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> }

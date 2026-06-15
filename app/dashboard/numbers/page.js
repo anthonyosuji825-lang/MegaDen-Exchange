@@ -698,11 +698,11 @@ export default function BuyNumbers() {
                 )}
               </div>
 
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <div style={{ position: 'relative' }}>
                 <div
                   className="service-grid"
                   ref={el => { if (el) { el.onscroll = () => { const page = Math.round(el.scrollLeft / el.clientWidth); setServicePage(page) } } }}
-                  style={{ display: 'grid', gridTemplateRows: 'repeat(2, 1fr)', gridAutoFlow: 'column', gridAutoColumns: 'calc(25% - 0.38rem)', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.3rem', scrollbarWidth: 'none', msOverflowStyle: 'none', flex: 1 }}>
+                  style={{ display: 'grid', gridTemplateRows: 'repeat(2, 1fr)', gridAutoFlow: 'column', gridAutoColumns: 'calc(25% - 0.38rem)', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.3rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                   {services.map((s, i) => {
                     const isSelected = selectedService?.id === s.id
                     return (
@@ -732,12 +732,6 @@ export default function BuyNumbers() {
                       </button>
                     )
                   })}
-                </div>
-                {/* Animated bounce arrow on the right */}
-                <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', animation: 'bounceX 1.2s ease-in-out infinite' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
                 </div>
               </div>
 

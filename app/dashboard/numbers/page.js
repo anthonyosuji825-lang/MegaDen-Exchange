@@ -215,6 +215,8 @@ export default function BuyNumbers() {
   const [countdown, setCountdown] = useState(0)
   const [copied, setCopied] = useState(false)
   const [servicePage, setServicePage] = useState(0)
+  const [smsStatus, setSmsStatus] = useState(null)
+  const [receivedAt, setReceivedAt] = useState(null)
   const pollTimerRef = useRef(null)
   const cdTimerRef = useRef(null)
 
@@ -273,10 +275,13 @@ export default function BuyNumbers() {
       try {
         const res = await fetch(`/api/5sim/sms?id=${purchased.fivesim_id}&order_id=${purchased.order_id}`)
         const data = await res.json()
+        setSmsStatus(data.status)
         if (data.sms && data.sms.length > 0) {
           setSms(data.sms)
           clearInterval(pollTimerRef.current)
           clearInterval(cdTimerRef.current)
+        } else if (data.status === 'RECEIVED') {
+          setReceivedAt(prev => prev || Date.now())
         }
         if (data.status === 'FINISHED' || data.status === 'BANNED' || data.status === 'TIMEOUT') {
           clearInterval(pollTimerRef.current)
@@ -650,19 +655,39 @@ export default function BuyNumbers() {
               </div>
             ) : (
               <div style={{
-                background: 'var(--card)', border: '1px solid var(--border)',
+                background: smsStatus === 'RECEIVED' && receivedAt && (Date.now() - receivedAt > 60000)
+                  ? 'rgba(251,191,36,0.07)' : 'var(--card)',
+                border: smsStatus === 'RECEIVED' && receivedAt && (Date.now() - receivedAt > 60000)
+                  ? '1px solid rgba(251,191,36,0.3)' : '1px solid var(--border)',
                 borderRadius: '14px', padding: '1rem',
                 marginBottom: '1rem', textAlign: 'center',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 1.2s linear infinite' }}>
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                  </svg>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>Waiting for SMS…</span>
-                </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>
-                  Send a verification code to {purchased.phone}
-                </div>
+                {smsStatus === 'RECEIVED' && receivedAt && (Date.now() - receivedAt > 60000) ? (
+                  <>
+                    <div style={{ fontSize: '1.3rem', marginBottom: '0.35rem' }}>⚠️</div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fbbf24', marginBottom: '0.3rem' }}>
+                      SMS received but code not delivered
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+                      This number’s operator isn’t returning the code content.<br/>
+                      Cancel &amp; Refund below, then try a different country.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 1.2s linear infinite' }}>
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                      </svg>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>
+                        {smsStatus === 'RECEIVED' ? 'SMS received, waiting for code…' : 'Waiting for SMS…'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>
+                      Send a verification code to {purchased.phone}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

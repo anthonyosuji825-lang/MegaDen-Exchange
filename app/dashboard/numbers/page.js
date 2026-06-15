@@ -21,6 +21,18 @@ const services = [
   { id: 'microsoft',  name: 'Microsoft',   color: '#00a4ef' },
   { id: 'viber',      name: 'Viber',       color: '#7360f2' },
   { id: 'line',       name: 'Line',        color: '#06c755' },
+  { id: 'signal',     name: 'Signal',      color: '#3a76f0' },
+  { id: 'uber',       name: 'Uber',        color: '#000000' },
+  { id: 'netflix',    name: 'Netflix',     color: '#e50914' },
+  { id: 'tinder',     name: 'Tinder',      color: '#fd5564' },
+  { id: 'paypal',     name: 'PayPal',      color: '#003087' },
+  { id: 'wechat',     name: 'WeChat',      color: '#07c160' },
+  { id: 'yahoo',      name: 'Yahoo',       color: '#6001d2' },
+  { id: 'steam',      name: 'Steam',       color: '#1b2838' },
+  { id: 'shopee',     name: 'Shopee',      color: '#f53d2d' },
+  { id: 'truecaller', name: 'Truecaller',  color: '#009de0' },
+  { id: 'zoho',       name: 'Zoho',        color: '#c8202d' },
+  { id: 'proton',     name: 'ProtonMail',  color: '#6d4aff' },
   { id: 'any',        name: 'Any SMS',     color: '#6c4ef2' },
 ]
 
@@ -121,6 +133,67 @@ const ServiceIcon = ({ id, size = 26 }) => {
         <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
       </svg>
     ),
+    signal: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#3a76f0">
+        <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 4a8 8 0 110 16A8 8 0 0112 4zm0 2a6 6 0 100 12A6 6 0 0012 6zm0 2a4 4 0 110 8 4 4 0 010-8zm0 2a2 2 0 100 4 2 2 0 000-4z"/>
+      </svg>
+    ),
+    uber: (
+      <svg width={size} height={size} viewBox="0 0 24 24">
+        <rect width="24" height="24" rx="4" fill="#000"/>
+        <path fill="#fff" d="M5 7h2v6a2 2 0 004 0V7h2v6a4 4 0 01-8 0V7zm9 0h2v10h-2V7z"/>
+      </svg>
+    ),
+    netflix: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#e50914">
+        <path d="M5.398 0v.006c3.028 8.556 5.37 15.175 8.348 23.578.788.15 1.555.343 2.scalc.429l-1.732-4.882c.918.196 1.87.309 2.854.309 4.785 0 8.664-3.879 8.664-8.664S22.451 2.13 17.666 2.13c-1.97 0-3.786.654-5.252 1.745C11.194 1.486 9.048 0 6.524 0H5.398zm8.28 4.805c1.01-.72 2.237-1.148 3.566-1.148 3.387 0 6.137 2.75 6.137 6.136s-2.75 6.137-6.137 6.137c-.706 0-1.385-.12-2.017-.34L13.678 4.805zM5.398 2.54v18.92c.65.14 1.295.298 1.94.465V12.37l5.97 9.555c.655.187 1.31.38 1.96.582L9.29 12.42V2.54H5.398z"/>
+      </svg>
+    ),
+    tinder: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#fd5564">
+        <path d="M8.21 10.08c-.02 0-.04 0-.06-.02-.67-.9-.84-1.96-.85-2.72 0-.34-.38-.54-.65-.34C4.6 8.4 3 10.87 3 13.55 3 18.74 7.26 23 12.45 23c5.2 0 9.45-4.26 9.45-9.45 0-5.39-3.87-9.17-7.77-10.03-.39-.09-.75.23-.7.62.23 2.07-.45 4.05-1.83 5.67-.19.23-.04.42.61.27z"/>
+      </svg>
+    ),
+    paypal: (
+      <svg width={size} height={size} viewBox="0 0 24 24">
+        <path fill="#003087" d="M7.076 21.337H2.47a.641.641 0 01-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 00-.607-.541c-.013.076-.026.175-.041.254-.59 3.025-2.566 4.643-5.813 4.643h-2.19c-.524 0-.968.382-1.05.9l-1.42 9.007h3.544c.524 0 .968-.383 1.05-.9l.586-3.704c.082-.518.527-.9 1.05-.9h1.364c3.688 0 6.074-1.715 6.85-5.12.31-1.375.196-2.546-.323-3.64z"/>
+      </svg>
+    ),
+    wechat: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#07c160">
+        <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-5.972 3.067-7.965C11.24 3.027 9.94 2.188 8.691 2.188zm-2.48 3.69c.498 0 .9.402.9.9 0 .498-.402.9-.9.9a.9.9 0 110-1.8zm4.95 0c.498 0 .9.402.9.9 0 .498-.402.9-.9.9a.9.9 0 110-1.8zM24 14.601c0-3.399-3.247-6.16-7.25-6.16s-7.25 2.761-7.25 6.16c0 3.4 3.247 6.16 7.25 6.16.957 0 1.874-.14 2.722-.395a.717.717 0 01.594.082l1.54.9a.297.297 0 00.14.047c.134 0 .24-.107.24-.242 0-.06-.024-.12-.04-.177l-.316-1.2a.49.49 0 01.178-.554C23.04 18.447 24 16.617 24 14.6zm-9.75-1.27a.75.75 0 110-1.5.75.75 0 010 1.5zm5 0a.75.75 0 110-1.5.75.75 0 010 1.5z"/>
+      </svg>
+    ),
+    yahoo: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#6001d2">
+        <path d="M0 0l6.693 15.93L0 24h3.434l3.615-5.784L10.663 24h3.434L7.405 7.898h8.533L24 0H0z"/>
+      </svg>
+    ),
+    steam: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#1b2838">
+        <path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.624 0 11.979-5.355 11.979-11.979 0-6.623-5.355-11.979-11.979-11.979zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.503 1.009 2.459-.4.957-1.502 1.41-2.458 1.008zM16.53 7.975c0-1.658-1.349-3.007-3.005-3.007-1.661 0-3.01 1.349-3.01 3.007 0 1.661 1.349 3.01 3.01 3.01 1.656 0 3.005-1.349 3.005-3.01zm-5.258-.005c0-1.252 1.013-2.266 2.265-2.266 1.251 0 2.265 1.014 2.265 2.266 0 1.251-1.014 2.265-2.265 2.265-1.252 0-2.265-1.014-2.265-2.265z"/>
+      </svg>
+    ),
+    shopee: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#f53d2d">
+        <path d="M19.317 5.43C18.59 2.374 15.836 0 12.525 0c-3.312 0-6.065 2.374-6.792 5.43H3.5L2 24h21L21.5 5.43h-2.183zM12.525 1.694c2.516 0 4.626 1.773 5.187 4.144H7.338c.561-2.371 2.672-4.144 5.187-4.144zm5.547 13.938a5.547 5.547 0 01-5.547 5.547 5.547 5.547 0 01-5.547-5.547 5.547 5.547 0 015.547-5.547 5.547 5.547 0 015.547 5.547zm-5.547-3.853a3.853 3.853 0 100 7.706 3.853 3.853 0 000-7.706z"/>
+      </svg>
+    ),
+    truecaller: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#009de0">
+        <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.25 16.5l-1.5 1.5L9 11.25V7.5h2.25v3l6 6z"/>
+      </svg>
+    ),
+    zoho: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#c8202d">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+      </svg>
+    ),
+    proton: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="#6d4aff">
+        <path d="M24 0H0v24h13.5c5.799 0 10.5-4.701 10.5-10.5V0zM13.5 17H11V9h2.5c2.21 0 4 1.79 4 4s-1.79 4-4 4z"/>
+      </svg>
+    ),
   }
   return icons[id] || null
 }
@@ -141,6 +214,7 @@ export default function BuyNumbers() {
   const [sms, setSms] = useState([])
   const [countdown, setCountdown] = useState(0)
   const [copied, setCopied] = useState(false)
+  const [servicePage, setServicePage] = useState(0)
 
   useEffect(() => {
     setMounted(true)
@@ -313,6 +387,10 @@ export default function BuyNumbers() {
         @keyframes glow {
           0%, 100% { box-shadow: 0 0 12px rgba(108,78,242,0.3); }
           50%       { box-shadow: 0 0 28px rgba(108,78,242,0.6); }
+        }
+        @keyframes bounceX {
+          0%, 100% { transform: translateX(0); opacity: 0.5; }
+          50%       { transform: translateX(4px); opacity: 1; }
         }
 
         * { box-sizing: border-box; }
@@ -620,36 +698,66 @@ export default function BuyNumbers() {
                 )}
               </div>
 
-              <div className="service-grid" style={{ display: 'grid', gridTemplateRows: 'repeat(2, 1fr)', gridAutoFlow: 'column', gridAutoColumns: 'calc(25% - 0.38rem)', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.3rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {services.map((s, i) => {
-                  const isSelected = selectedService?.id === s.id
-                  return (
-                    <button key={s.id} className="service-chip"
-                      onClick={() => handleServiceSelect(s)}
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center',
-                        gap: '0.5rem', padding: '1rem 0.4rem',
-                        background: isSelected ? `${s.color}15` : 'var(--card)',
-                        border: `1.5px solid ${isSelected ? s.color : 'var(--border)'}`,
-                        borderRadius: '14px', cursor: 'pointer',
-                        boxShadow: isSelected ? `0 4px 16px ${s.color}33` : 'none',
-                        animation: mounted ? `fadeSlideIn 0.3s ease ${0.04 * i}s both` : 'none',
-                      }}>
-                      <div style={{ filter: isSelected ? 'none' : 'grayscale(20%) opacity(0.85)', transition: 'filter 0.2s' }}>
-                        <ServiceIcon id={s.id} size={26} />
-                      </div>
-                      <span style={{
-                        fontSize: '0.62rem', fontWeight: 600,
-                        color: isSelected ? s.color : 'var(--muted)',
-                        textAlign: 'center', lineHeight: 1.2,
-                        whiteSpace: 'nowrap', overflow: 'hidden',
-                        textOverflow: 'ellipsis', width: '100%',
-                      }}>
-                        {s.name.replace(' / X', '')}
-                      </span>
-                    </button>
-                  )
-                })}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <div
+                  className="service-grid"
+                  ref={el => { if (el) { el.onscroll = () => { const page = Math.round(el.scrollLeft / el.clientWidth); setServicePage(page) } } }}
+                  style={{ display: 'grid', gridTemplateRows: 'repeat(2, 1fr)', gridAutoFlow: 'column', gridAutoColumns: 'calc(25% - 0.38rem)', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.3rem', scrollbarWidth: 'none', msOverflowStyle: 'none', flex: 1 }}>
+                  {services.map((s, i) => {
+                    const isSelected = selectedService?.id === s.id
+                    return (
+                      <button key={s.id} className="service-chip"
+                        onClick={() => handleServiceSelect(s)}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center',
+                          gap: '0.5rem', padding: '1rem 0.4rem',
+                          background: isSelected ? `${s.color}15` : 'var(--card)',
+                          border: `1.5px solid ${isSelected ? s.color : 'var(--border)'}`,
+                          borderRadius: '14px', cursor: 'pointer',
+                          boxShadow: isSelected ? `0 4px 16px ${s.color}33` : 'none',
+                          animation: mounted ? `fadeSlideIn 0.3s ease ${0.04 * i}s both` : 'none',
+                        }}>
+                        <div style={{ filter: isSelected ? 'none' : 'grayscale(20%) opacity(0.85)', transition: 'filter 0.2s' }}>
+                          <ServiceIcon id={s.id} size={26} />
+                        </div>
+                        <span style={{
+                          fontSize: '0.62rem', fontWeight: 600,
+                          color: isSelected ? s.color : 'var(--muted)',
+                          textAlign: 'center', lineHeight: 1.2,
+                          whiteSpace: 'nowrap', overflow: 'hidden',
+                          textOverflow: 'ellipsis', width: '100%',
+                        }}>
+                          {s.name.replace(' / X', '')}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {/* Animated bounce arrow on the right */}
+                <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', animation: 'bounceX 1.2s ease-in-out infinite' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </div>
+              </div>
+
+              {/* Dot indicators + swipe hint */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem', marginTop: '0.5rem' }}>
+                {/* Dots — 28 services, 8 per page = 4 pages */}
+                <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                  {[0,1,2,3].map(i => (
+                    <div key={i} style={{
+                      width: servicePage === i ? 16 : 6,
+                      height: 6, borderRadius: 99,
+                      background: servicePage === i ? 'var(--purple)' : 'var(--border)',
+                      transition: 'all 0.3s ease',
+                    }} />
+                  ))}
+                </div>
+                {/* Swipe text */}
+                <span style={{ fontSize: '0.6rem', color: 'var(--muted)', letterSpacing: '0.04em' }}>
+                  Swipe to see more services →
+                </span>
               </div>
             </div>
 

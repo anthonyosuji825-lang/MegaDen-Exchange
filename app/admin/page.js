@@ -198,14 +198,14 @@ export default function AdminPanel() {
   const fetchLogs = async () => {
     setLogsLoading(true)
     try {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(200)
-      setLogs(data || [])
-      setLogsLastFetched(new Date())
+      const res = await fetch('/api/admin/logs')
+      if (res.ok) {
+        const data = await res.json()
+        setLogs(data.logs || [])
+        setLogsLastFetched(new Date())
+      } else {
+        console.error('Failed to fetch logs:', res.status)
+      }
     } catch (e) {
       console.error('Failed to fetch logs', e)
     }

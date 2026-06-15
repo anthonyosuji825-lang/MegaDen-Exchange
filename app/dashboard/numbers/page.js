@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { createServerClient } from '@supabase/ssr'
 import Link from 'next/link'
@@ -215,6 +215,8 @@ export default function BuyNumbers() {
   const [countdown, setCountdown] = useState(0)
   const [copied, setCopied] = useState(false)
   const [servicePage, setServicePage] = useState(0)
+  const pollTimerRef = useRef(null)
+  const cdTimerRef = useRef(null)
 
   useEffect(() => {
     setMounted(true)
@@ -255,22 +257,40 @@ export default function BuyNumbers() {
   useEffect(() => {
     if (!purchased) return
     setCountdown(purchased.expires_in)
-    const cdTimer = setInterval(() => {
+
+    cdTimerRef.current = setInterval(() => {
       setCountdown(prev => {
-        if (prev <= 1) { clearInterval(cdTimer); return 0 }
+        if (prev <= 1) {
+          clearInterval(cdTimerRef.current)
+          clearInterval(pollTimerRef.current)
+          return 0
+        }
         return prev - 1
       })
     }, 1000)
-    const pollTimer = setInterval(async () => {
-      const res = await fetch(`/api/5sim/sms?id=${purchased.fivesim_id}&order_id=${purchased.order_id}`)
-      const data = await res.json()
-      if (data.sms && data.sms.length > 0) {
-        setSms(data.sms)
-        clearInterval(pollTimer)
-        clearInterval(cdTimer)
+
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/5sim/sms?id=${purchased.fivesim_id}&order_id=${purchased.order_id}`)
+        const data = await res.json()
+        if (data.sms && data.sms.length > 0) {
+          setSms(data.sms)
+          clearInterval(pollTimerRef.current)
+          clearInterval(cdTimerRef.current)
+        }
+        if (data.status === 'FINISHED' || data.status === 'BANNED' || data.status === 'TIMEOUT') {
+          clearInterval(pollTimerRef.current)
+          clearInterval(cdTimerRef.current)
+        }
+      } catch (e) {
+        console.error('SMS poll error:', e)
       }
     }, 5000)
-    return () => { clearInterval(cdTimer); clearInterval(pollTimer) }
+
+    return () => {
+      clearInterval(cdTimerRef.current)
+      clearInterval(pollTimerRef.current)
+    }
   }, [purchased])
 
   const filtered = countries.filter(c =>

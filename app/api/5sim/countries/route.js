@@ -43,26 +43,29 @@ export async function GET(request) {
     const countries = []
 
     for (const [country, operators] of Object.entries(serviceData)) {
-      let maxPrice = 0       // use most expensive operator — covers worst-case any operator charge
+      let maxPrice = 0
       let totalQty = 0
       let validOperators = 0
 
       for (const [operator, info] of Object.entries(operators)) {
+        // Skip 'any' operator — it selects low-quality operators that receive
+        // SMS triggers but don't deliver the actual code content
+        if (operator === 'any') continue
+
         // Skip operators with 0 stock or suspiciously low prices (< $0.10)
-        // These are usually test/virtual operators that inflate cheapest price
         if (info.count === 0) continue
-        if (info.cost < 0.10) continue // ignore sub-$0.10 noise
+        if (info.cost < 0.10) continue
 
         if (info.cost > maxPrice) maxPrice = info.cost
         totalQty += info.count
         validOperators++
       }
 
-      if (totalQty === 0) continue // skip out of stock
-      if (validOperators === 0) continue // skip if no valid operators
+      if (totalQty === 0) continue
+      if (validOperators === 0) continue
       if (maxPrice === 0) continue
 
-      // Safety floor: never show below $0.50 to absorb any operator variance
+      // Safety floor: never show below $0.50
       const displayPrice = Math.max(maxPrice, 0.50)
 
       countries.push({

@@ -21,7 +21,7 @@ export async function GET(request) {
             'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
             'Accept': 'application/json',
           },
-          next: { revalidate: 300 }
+          next: { revalidate: 60 }
         }
       ),
       supabaseAdmin.from('app_settings').select('key, value'),
@@ -43,23 +43,34 @@ export async function GET(request) {
     const countries = []
 
     for (const [country, operators] of Object.entries(serviceData)) {
-      let cheapestPrice = Infinity
+      let maxPrice = 0       // use most expensive operator — covers worst-case any operator charge
       let totalQty = 0
+      let validOperators = 0
 
       for (const [operator, info] of Object.entries(operators)) {
-        if (info.cost < cheapestPrice) cheapestPrice = info.cost
+        // Skip operators with 0 stock or suspiciously low prices (< $0.10)
+        // These are usually test/virtual operators that inflate cheapest price
+        if (info.count === 0) continue
+        if (info.cost < 0.10) continue // ignore sub-$0.10 noise
+
+        if (info.cost > maxPrice) maxPrice = info.cost
         totalQty += info.count
+        validOperators++
       }
 
       if (totalQty === 0) continue // skip out of stock
-      if (cheapestPrice === Infinity) continue
+      if (validOperators === 0) continue // skip if no valid operators
+      if (maxPrice === 0) continue
+
+      // Safety floor: never show below $0.50 to absorb any operator variance
+      const displayPrice = Math.max(maxPrice, 0.50)
 
       countries.push({
         code: country,
         name: formatCountryName(country),
         flag: getFlag(country),
-        price_usd: cheapestPrice,
-        price_ngn: Math.ceil(cheapestPrice * rate * multiplier),
+        price_usd: displayPrice,
+        price_ngn: Math.ceil(displayPrice * rate * multiplier),
         stock: totalQty,
       })
     }

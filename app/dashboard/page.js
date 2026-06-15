@@ -1,5 +1,6 @@
 'use client'
 import LoadingScreen from '@/components/LoadingScreen'
+import OnboardingTour from '@/components/OnboardingTour'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -143,14 +144,14 @@ export default function Dashboard() {
 
   const row1Actions = [
     { label: 'Fund Wallet', href: '/dashboard/wallet', icon: <WalletIcon size={18} color="#8b6ff7" />, bg: 'rgba(108,78,242,0.12)' },
-    { label: 'Buy Number', href: '/dashboard/numbers', icon: <PhoneIcon size={18} color="#10b981" />, bg: 'rgba(16,185,129,0.12)' },
+    { label: 'Buy Number', href: '/dashboard/numbers', icon: <PhoneIcon size={18} color="#10b981" />, bg: 'rgba(16,185,129,0.12)', tourId: 'tour-buy-number' },
     { label: 'Subscriptions', href: '/dashboard/subscriptions', icon: <SubsIcon size={18} color="#4687ff" />, bg: 'rgba(70,135,255,0.12)' },
-    { label: 'Boosting', href: '/dashboard/boosting', icon: <BoostIcon size={18} color="#f43f5e" />, bg: 'rgba(244,63,94,0.12)' },
+    { label: 'Boosting', href: '/dashboard/boosting', icon: <BoostIcon size={18} color="#f43f5e" />, bg: 'rgba(244,63,94,0.12)', tourId: 'tour-boosting' },
   ]
 
   const row2Actions = [
-    { label: 'VPN', href: '/dashboard/vpn', icon: <VpnIcon size={18} color="#8b6ff7" />, bg: 'rgba(108,78,242,0.12)' },
-    { label: 'Refer & Earn', href: '/dashboard/referral', icon: <ReferIcon size={18} color="#f0b429" />, bg: 'rgba(240,180,41,0.12)' },
+    { label: 'VPN', href: '/dashboard/vpn', icon: <VpnIcon size={18} color="#8b6ff7" />, bg: 'rgba(108,78,242,0.12)', tourId: 'tour-vpn' },
+    { label: 'Refer & Earn', href: '/dashboard/referral', icon: <ReferIcon size={18} color="#f0b429" />, bg: 'rgba(240,180,41,0.12)', tourId: 'tour-refer' },
     { label: 'View History', href: '/dashboard/orders', icon: <HistoryIcon size={18} color="#f0b429" />, bg: 'rgba(240,180,41,0.12)' },
     { label: 'Support', icon: <SupportIcon size={18} color="#10b981" />, bg: 'rgba(16,185,129,0.12)', isSupport: true },
   ]
@@ -291,7 +292,7 @@ export default function Dashboard() {
       <div style={{ padding: '1.1rem 1.15rem', display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
 
         {/* WALLET CARD */}
-        <div style={{ borderRadius: 24, padding: '1.5rem', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg,#130b3e 0%,#3a1fa8 45%,#6c4ef2 75%,#a86020 100%)' }}>
+        <div id="tour-balance" style={{ borderRadius: 24, padding: '1.5rem', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg,#130b3e 0%,#3a1fa8 45%,#6c4ef2 75%,#a86020 100%)' }}>
           <div style={{ position: 'absolute', top: -60, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
           <div style={{ position: 'absolute', bottom: -50, left: -30, width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.3rem', position: 'relative' }}>
@@ -308,12 +309,12 @@ export default function Dashboard() {
           </div>
           <div style={{ display: 'flex', gap: '0.55rem', position: 'relative' }}>
             {[
-              { label: 'Add Funds', icon: <WalletIcon size={18} />, href: '/dashboard/wallet' },
+              { label: 'Add Funds', icon: <WalletIcon size={18} />, href: '/dashboard/wallet', tourId: 'tour-add-funds' },
               { label: 'History', icon: <HistoryIcon size={18} />, href: '/dashboard/orders' },
               { label: 'Buy Number', icon: <PhoneIcon size={18} />, href: '/dashboard/numbers' },
               { label: 'Refer', icon: <ReferIcon size={18} />, href: '/dashboard/referral' },
             ].map(a => (
-              <Link key={a.label} href={a.href} className="w-act" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem', background: 'rgba(255,255,255,0.12)', borderRadius: 14, padding: '0.6rem 0.15rem', textDecoration: 'none', transition: 'background 0.2s' }}>
+              <Link key={a.label} href={a.href} id={a.tourId} className="w-act" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem', background: 'rgba(255,255,255,0.12)', borderRadius: 14, padding: '0.6rem 0.15rem', textDecoration: 'none', transition: 'background 0.2s' }}>
                 <div style={{ color: '#fff' }}>{a.icon}</div>
                 <span style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.8)', fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{a.label}</span>
               </Link>
@@ -376,7 +377,7 @@ export default function Dashboard() {
         </div>
 
         {/* QUICK SERVICES */}
-        <div>
+        <div id="tour-quick-services">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
             <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text)' }}>Quick Services</span>
             <span onClick={() => setShowAllActions(!showAllActions)} style={{ fontSize: '0.72rem', color: 'var(--purple2)', fontWeight: 600, cursor: 'pointer' }}>
@@ -385,7 +386,7 @@ export default function Dashboard() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.55rem' }}>
             {row1Actions.map(a => (
-              <Link key={a.label} href={a.href} className="qa" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '0.8rem 0.15rem', textDecoration: 'none', transition: 'border-color 0.2s, background 0.2s' }}>
+              <Link key={a.label} href={a.href} id={a.tourId} className="qa" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '0.8rem 0.15rem', textDecoration: 'none', transition: 'border-color 0.2s, background 0.2s' }}>
                 <div style={{ width: 38, height: 38, borderRadius: 11, background: a.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{a.icon}</div>
                 <span style={{ fontSize: '0.57rem', color: 'var(--text)', fontWeight: 600, textAlign: 'center', lineHeight: 1.25 }}>{a.label}</span>
               </Link>
@@ -397,7 +398,7 @@ export default function Dashboard() {
                   <span style={{ fontSize: '0.57rem', color: 'var(--text)', fontWeight: 600, textAlign: 'center', lineHeight: 1.25 }}>{a.label}</span>
                 </button>
               ) : (
-                <Link key={a.label} href={a.href} className="qa" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '0.8rem 0.15rem', textDecoration: 'none', transition: 'border-color 0.2s, background 0.2s' }}>
+                <Link key={a.label} href={a.href} id={a.tourId} className="qa" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '0.8rem 0.15rem', textDecoration: 'none', transition: 'border-color 0.2s, background 0.2s' }}>
                   <div style={{ width: 38, height: 38, borderRadius: 11, background: a.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{a.icon}</div>
                   <span style={{ fontSize: '0.57rem', color: 'var(--text)', fontWeight: 600, textAlign: 'center', lineHeight: 1.25 }}>{a.label}</span>
                 </Link>
@@ -520,6 +521,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <OnboardingTour />
     </main>
   )
 }

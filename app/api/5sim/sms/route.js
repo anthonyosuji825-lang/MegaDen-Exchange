@@ -51,7 +51,6 @@ export async function GET(request) {
         .update({ status: 'completed', details: updatedDetails })
         .eq('id', orderId)
 
-      // Fetch user email for the log
       const { data: profile } = await supabase.from('profiles').select('email').eq('id', order?.user_id).single()
 
       await log('info', 'number', `SMS received — order completed`, order?.user_id || null, profile?.email || null, {
@@ -61,6 +60,69 @@ export async function GET(request) {
         sms_text: data.sms[0].text,
         phone: data.phone,
       })
+
+      return NextResponse.json({ status: data.status, sms: data.sms, phone: data.phone })
+    }
+
+    // ── No SMS yet — check if this order has expired ──
+    // If 20 minutes have passed with no code, auto-cancel on 5sim and
+    // refund the user automatically instead of leaving them stuck on
+    // "waiting" forever. This is the safety net for dead/virtual operators.
+    if (orderId) {
+      const { data: order } = await supabase
+        .from('orders')
+        .select('details, user_id, amount, status')
+        .eq('id', orderId)
+        .single()
+
+      const expiresAt = order?.details?.expires ? new Date(order.details.expires) : null
+      const isExpired = expiresAt && expiresAt.getTime() < Date.now()
+      const stillPending = order?.status === 'pending'
+
+      if (isExpired && stillPending) {
+        const { data: profile } = await supabase.from('profiles').select('email').eq('id', order.user_id).single()
+        const userEmail = profile?.email || null
+
+        // Cancel on 5sim (best effort — don't block refund if this fails)
+        const cancelRes = await fetch(
+          `https://5sim.net/v1/user/cancel/${fivesimId}`,
+          { method: 'GET', headers: { 'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`, 'Accept': 'application/json' } }
+        )
+        if (!cancelRes.ok) {
+          const cancelErr = await cancelRes.text()
+          await log('warning', 'number', '5sim auto-cancel failed on expiry — proceeding with refund anyway', order.user_id, userEmail, {
+            fivesim_id: fivesimId, order_id: orderId, cancel_error: cancelErr,
+          })
+        }
+
+        // Atomic refund
+        const { data: refundResult, error: refundError } = await supabase
+          .rpc('credit_wallet_balance', { p_user_id: order.user_id, p_amount: order.amount })
+
+        if (refundError || !refundResult) {
+          await log('error', 'wallet', 'Auto-refund RPC failed after order expiry', order.user_id, userEmail, {
+            fivesim_id: fivesimId, order_id: orderId, amount: order.amount, rpc_error: refundError?.message,
+          })
+        } else {
+          await supabase.from('transactions').insert({
+            user_id: order.user_id,
+            type: 'credit',
+            amount: order.amount,
+            description: 'Auto-refund — No SMS received before expiry',
+            reference: `AUTOREFUND-${fivesimId}-${Date.now()}`,
+            status: 'success',
+          })
+
+          await supabase.from('orders').update({ status: 'expired' }).eq('id', orderId)
+
+          await log('warning', 'number', `Order auto-expired — no SMS received, wallet refunded ₦${order.amount.toLocaleString()}`, order.user_id, userEmail, {
+            fivesim_id: fivesimId, order_id: orderId, refunded_amount: order.amount,
+            country: order.details?.country, service: order.details?.service, operator: order.details?.operator,
+          })
+
+          return NextResponse.json({ status: 'expired', sms: [], phone: data.phone, refunded: true })
+        }
+      }
     }
 
     return NextResponse.json({ status: data.status, sms: data.sms || [], phone: data.phone })
@@ -79,11 +141,9 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Fetch user email for richer logs
     const { data: profile } = await supabase.from('profiles').select('email').eq('id', userId).single()
     const userEmail = profile?.email || null
 
-    // Check if SMS already received — prevent refund abuse
     const checkRes = await fetch(
       `https://5sim.net/v1/user/check/${fivesimId}`,
       { headers: { 'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`, 'Accept': 'application/json' } }
@@ -99,7 +159,6 @@ export async function DELETE(request) {
       }
     }
 
-    // Cancel on 5SIM
     const cancelRes = await fetch(
       `https://5sim.net/v1/user/cancel/${fivesimId}`,
       { method: 'GET', headers: { 'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`, 'Accept': 'application/json' } }
@@ -112,7 +171,6 @@ export async function DELETE(request) {
       })
     }
 
-    // Atomic refund
     const { data: refundResult, error: refundError } = await supabase
       .rpc('credit_wallet_balance', { p_user_id: userId, p_amount: amount })
 
@@ -123,7 +181,6 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Refund failed. Contact support.' }, { status: 500 })
     }
 
-    // Log refund transaction
     await supabase.from('transactions').insert({
       user_id: userId,
       type: 'credit',

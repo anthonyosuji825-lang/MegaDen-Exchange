@@ -282,6 +282,16 @@ export default function BuyNumbers() {
           clearInterval(cdTimerRef.current)
         } else if (data.status === 'RECEIVED') {
           setReceivedAt(prev => prev || Date.now())
+        } else if (data.status === 'expired') {
+          // ✅ Server auto-cancelled + refunded after 20 min with no SMS.
+          // Reflect that immediately so the user isn't left staring at a dead timer.
+          clearInterval(pollTimerRef.current)
+          clearInterval(cdTimerRef.current)
+          setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + purchased.price_ngn }))
+          setError('No SMS received in time — your wallet has been automatically refunded.')
+          setPurchased(null)
+          setSms([])
+          return
         }
         if (data.status === 'FINISHED' || data.status === 'BANNED' || data.status === 'TIMEOUT') {
           clearInterval(pollTimerRef.current)

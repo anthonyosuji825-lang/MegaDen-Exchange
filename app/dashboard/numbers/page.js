@@ -281,10 +281,37 @@ export default function BuyNumbers() {
           clearInterval(pollTimerRef.current)
           clearInterval(cdTimerRef.current)
         } else if (data.status === 'RECEIVED') {
+          // SMS detected but content not yet in response — keep polling.
+          // Some operators (esp. Indonesian) mark RECEIVED immediately but
+          // deliver content in a later response. Do NOT stop or warn here.
           setReceivedAt(prev => prev || Date.now())
+          // Speed up polling to every 2s once we know SMS is incoming
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current)
+            pollTimerRef.current = setInterval(async () => {
+              try {
+                const r2 = await fetch(`/api/5sim/sms?id=${purchased.fivesim_id}&order_id=${purchased.order_id}`)
+                const d2 = await r2.json()
+                setSmsStatus(d2.status)
+                if (d2.sms && d2.sms.length > 0) {
+                  setSms(d2.sms)
+                  clearInterval(pollTimerRef.current)
+                  clearInterval(cdTimerRef.current)
+                }
+                if (d2.status === 'FINISHED' || d2.status === 'BANNED' || d2.status === 'TIMEOUT' || d2.status === 'expired') {
+                  clearInterval(pollTimerRef.current)
+                  clearInterval(cdTimerRef.current)
+                  if (d2.status === 'expired') {
+                    setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + purchased.price_ngn }))
+                    setError('No SMS received in time — your wallet has been automatically refunded.')
+                    setPurchased(null)
+                    setSms([])
+                  }
+                }
+              } catch (e) { console.error('SMS fast-poll error:', e) }
+            }, 2000)
+          }
         } else if (data.status === 'expired') {
-          // ✅ Server auto-cancelled + refunded after 20 min with no SMS.
-          // Reflect that immediately so the user isn't left staring at a dead timer.
           clearInterval(pollTimerRef.current)
           clearInterval(cdTimerRef.current)
           setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + purchased.price_ngn }))
@@ -641,26 +668,12 @@ export default function BuyNumbers() {
                         <div style={{ fontSize: '0.65rem', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
                           Verification Code
                         </div>
-                        {(() => {
-                          // Use parsed code if available, otherwise extract digits from raw text.
-                          // Many operators send the OTP in the message body but don't populate
-                          // the `code` field — grabbing the longest digit sequence covers most cases.
-                          const displayCode = s.code ||
-                            (s.text && (s.text.match(/\b\d{4,8}\b/g) || []).sort((a, b) => b.length - a.length)[0]) ||
-                            null
-                          return displayCode ? (
-                            <div style={{
-                              fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: '2rem',
-                              color: 'var(--text)', letterSpacing: '0.15em',
-                            }}>
-                              {displayCode}
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: '0.78rem', color: '#fbbf24', fontWeight: 600 }}>
-                              ⚠️ Code not parsed — check the message below
-                            </div>
-                          )
-                        })()}
+                        <div style={{
+                          fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: '2rem',
+                          color: 'var(--text)', letterSpacing: '0.15em',
+                        }}>
+                          {s.code}
+                        </div>
                       </div>
                     )}
                     <div style={{ fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.5 }}>{s.text}</div>
@@ -679,22 +692,23 @@ export default function BuyNumbers() {
               </div>
             ) : (
               <div style={{
-                background: smsStatus === 'RECEIVED' && receivedAt && (Date.now() - receivedAt > 60000)
-                  ? 'rgba(251,191,36,0.07)' : 'var(--card)',
-                border: smsStatus === 'RECEIVED' && receivedAt && (Date.now() - receivedAt > 60000)
-                  ? '1px solid rgba(251,191,36,0.3)' : '1px solid var(--border)',
+                background: smsStatus === 'RECEIVED' ? 'rgba(108,78,242,0.07)' : 'var(--card)',
+                border: smsStatus === 'RECEIVED' ? '1px solid rgba(108,78,242,0.3)' : '1px solid var(--border)',
                 borderRadius: '14px', padding: '1rem',
                 marginBottom: '1rem', textAlign: 'center',
               }}>
-                {smsStatus === 'RECEIVED' && receivedAt && (Date.now() - receivedAt > 60000) ? (
+                {smsStatus === 'RECEIVED' ? (
                   <>
-                    <div style={{ fontSize: '1.3rem', marginBottom: '0.35rem' }}>⚠️</div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fbbf24', marginBottom: '0.3rem' }}>
-                      SMS received but code not extracted
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 1.2s linear infinite' }}>
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                      </svg>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--purple2)' }}>
+                        SMS detected — fetching code…
+                      </span>
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', lineHeight: 1.5 }}>
-                      This number’s operator isn’t returning the code content.<br/>
-                      Cancel &amp; Refund below, then try a different country.
+                    <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>
+                      Your code is on the way, hold on a moment
                     </div>
                   </>
                 ) : (
@@ -704,7 +718,7 @@ export default function BuyNumbers() {
                         <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
                       </svg>
                       <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>
-                        {smsStatus === 'RECEIVED' ? 'SMS received, waiting for code…' : 'Waiting for SMS…'}
+                        Waiting for SMS…
                       </span>
                     </div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>

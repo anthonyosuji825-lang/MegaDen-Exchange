@@ -641,12 +641,26 @@ export default function BuyNumbers() {
                         <div style={{ fontSize: '0.65rem', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
                           Verification Code
                         </div>
-                        <div style={{
-                          fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: '2rem',
-                          color: 'var(--text)', letterSpacing: '0.15em',
-                        }}>
-                          {s.code}
-                        </div>
+                        {(() => {
+                          // Use parsed code if available, otherwise extract digits from raw text.
+                          // Many operators send the OTP in the message body but don't populate
+                          // the `code` field — grabbing the longest digit sequence covers most cases.
+                          const displayCode = s.code ||
+                            (s.text && (s.text.match(/\b\d{4,8}\b/g) || []).sort((a, b) => b.length - a.length)[0]) ||
+                            null
+                          return displayCode ? (
+                            <div style={{
+                              fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: '2rem',
+                              color: 'var(--text)', letterSpacing: '0.15em',
+                            }}>
+                              {displayCode}
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: '0.78rem', color: '#fbbf24', fontWeight: 600 }}>
+                              ⚠️ Code not parsed — check the message below
+                            </div>
+                          )
+                        })()}
                       </div>
                     )}
                     <div style={{ fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.5 }}>{s.text}</div>
@@ -676,7 +690,7 @@ export default function BuyNumbers() {
                   <>
                     <div style={{ fontSize: '1.3rem', marginBottom: '0.35rem' }}>⚠️</div>
                     <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fbbf24', marginBottom: '0.3rem' }}>
-                      SMS received but code not delivered
+                      SMS received but code not extracted
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--muted)', lineHeight: 1.5 }}>
                       This number’s operator isn’t returning the code content.<br/>

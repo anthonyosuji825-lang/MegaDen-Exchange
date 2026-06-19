@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { createServerClient } from '@supabase/ssr'
 import Link from 'next/link'
 import LoadingScreen from '@/components/LoadingScreen'
 
@@ -82,11 +81,6 @@ const ServiceIcon = ({ id, size = 26 }) => {
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
       </svg>
     ),
-    any: (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#6c4ef2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
-    ),
     google: (
       <svg width={size} height={size} viewBox="0 0 24 24">
         <path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -107,7 +101,7 @@ const ServiceIcon = ({ id, size = 26 }) => {
     ),
     linkedin: (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="#0a66c2">
-        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 23.2 24 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
       </svg>
     ),
     amazon: (
@@ -125,7 +119,7 @@ const ServiceIcon = ({ id, size = 26 }) => {
     ),
     viber: (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="#7360f2">
-        <path d="M11.4.006C9.396.022 4.98.285 2.548 2.535 .804 4.28.21 6.83.144 9.988c-.066 3.158-.132 9.08 5.567 10.702h.005l-.005 2.456s-.038.96.596 1.152c.77.232 1.215-.492 1.95-1.28.4-.438.955-1.06 1.376-1.558 3.793.32 6.71-.41 7.043-.518.766-.248 5.1-.803 5.8-6.545.72-5.916-.35-9.649-2.834-11.329l-.001-.001c-.712-.506-3.57-1.066-7.24-1.06h-.001zm.034 1.76c3.16-.003 5.756.454 6.29.826 2.03 1.39 2.89 4.643 2.268 9.73-.578 4.847-4.022 5.15-4.666 5.356-.276.09-2.892.73-6.168.528 0 0-2.44 2.95-3.2 3.717-.118.12-.256.168-.348.147-.128-.03-.163-.18-.162-.394l.022-3.607C2.98 16.4 1.77 12.042 1.83 9.93c.057-2.63.53-4.82 1.98-6.224C5.856 1.9 9.746 1.768 11.434 1.765zM12 5.09c-1.69 0-3.1.68-4.21 2.04l.012-.017c-.99 1.24-1.49 2.73-1.49 4.47 0 1.51.37 2.83 1.11 3.97l.03.04-1.35 1.34c-.15.15-.18.38-.07.55.11.17.33.25.52.19l1.64-.68c1.04.85 2.31 1.37 3.81 1.37 1.69 0 3.1-.68 4.21-2.04.99-1.24 1.49-2.73 1.49-4.46s-.5-3.22-1.49-4.46c-1.1-1.36-2.52-2.31-4.22-2.31zm-.07 1.37c1.32 0 2.41.52 3.28 1.57.77.95 1.15 2.1 1.15 3.44 0 1.34-.38 2.49-1.15 3.44-.87 1.05-1.96 1.57-3.28 1.57-1.1 0-2.04-.35-2.83-1.04l-.25-.23-1.13.47.39-1.07-.2-.28c-.67-.9-1.01-1.95-1.01-3.15 0-1.34.38-2.49 1.15-3.44.86-1.05 1.96-1.57 3.08-1.78zm.06.88c-.45 0-.85.16-1.2.47-.35.31-.52.71-.52 1.2 0 .35.09.66.27.93.18.27.44.49.79.65l.29.12-.06.28c-.04.2-.12.37-.24.51.39-.05.73-.24 1.01-.56.28-.32.44-.69.49-1.11-.02-.53-.19-.97-.5-1.32-.31-.35-.69-.17-1.33-.17zm-1.77 4.1c.15.27.36.49.61.66l-.5.21.41-.52c-.19-.1-.36-.21-.52-.35zm-.12-.4c.04.16.1.31.17.44l-.56.24.39-.68zm3.84-1.65c-.04.53-.19.99-.46 1.39l.04.01c-.27.4-.64.72-1.1.95-.46.23-.95.35-1.47.35-.15 0-.3-.01-.45-.03.27-.11.5-.28.68-.5l.01-.01c.24-.28.38-.62.41-.99.5-.02.93-.18 1.28-.48.35-.3.55-.67.62-1.11.13-.03.27-.04.44-.04v.47z"/>
+        <path d="M11.4.006C9.396.022 4.98.285 2.548 2.535 .804 4.28.21 6.83.144 9.988c-.066 3.158-.132 9.08 5.567 10.702h.005l-.005 2.456s-.038.96.596 1.152c.77.232 1.215-.492 1.95-1.28.4-.438.955-1.06 1.376-1.558 3.793.32 6.71-.41 7.043-.518.766-.248 5.1-.803 5.8-6.545.72-5.916-.35-9.649-2.834-11.329l-.001-.001c-.712-.506-3.57-1.066-7.24-1.06h-.001zm.034 1.76c3.16-.003 5.756.454 6.29.826 2.03 1.39 2.89 4.643 2.268 9.73-.578 4.847-4.022 5.15-4.666 5.356-.276.09-2.892.73-6.168.528 0 0-2.44 2.95-3.2 3.717-.118.12-.256.168-.348.147-.128-.03-.163-.18-.162-.394l.022-3.607C2.98 16.4 1.77 12.042 1.83 9.93c.057-2.63.53-4.82 1.98-6.224C5.856 1.9 9.746 1.768 11.434 1.765z"/>
       </svg>
     ),
     line: (
@@ -146,7 +140,7 @@ const ServiceIcon = ({ id, size = 26 }) => {
     ),
     netflix: (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="#e50914">
-        <path d="M5.398 0v.006c3.028 8.556 5.37 15.175 8.348 23.578.788.15 1.555.343 2.scalc.429l-1.732-4.882c.918.196 1.87.309 2.854.309 4.785 0 8.664-3.879 8.664-8.664S22.451 2.13 17.666 2.13c-1.97 0-3.786.654-5.252 1.745C11.194 1.486 9.048 0 6.524 0H5.398zm8.28 4.805c1.01-.72 2.237-1.148 3.566-1.148 3.387 0 6.137 2.75 6.137 6.136s-2.75 6.137-6.137 6.137c-.706 0-1.385-.12-2.017-.34L13.678 4.805zM5.398 2.54v18.92c.65.14 1.295.298 1.94.465V12.37l5.97 9.555c.655.187 1.31.38 1.96.582L9.29 12.42V2.54H5.398z"/>
+        <path d="M5.398 0v.006c3.028 8.556 5.37 15.175 8.348 23.578.788.15 1.555.343 2.413.429l-1.732-4.882c.918.196 1.87.309 2.854.309 4.785 0 8.664-3.879 8.664-8.664S22.451 2.13 17.666 2.13c-1.97 0-3.786.654-5.252 1.745C11.194 1.486 9.048 0 6.524 0H5.398zm8.28 4.805c1.01-.72 2.237-1.148 3.566-1.148 3.387 0 6.137 2.75 6.137 6.136s-2.75 6.137-6.137 6.137c-.706 0-1.385-.12-2.017-.34L13.678 4.805zM5.398 2.54v18.92c.65.14 1.295.298 1.94.465V12.37l5.97 9.555c.655.187 1.31.38 1.96.582L9.29 12.42V2.54H5.398z"/>
       </svg>
     ),
     tinder: (
@@ -171,7 +165,7 @@ const ServiceIcon = ({ id, size = 26 }) => {
     ),
     steam: (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="#1b2838">
-        <path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.624 0 11.979-5.355 11.979-11.979 0-6.623-5.355-11.979-11.979-11.979zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.503 1.009 2.459-.4.957-1.502 1.41-2.458 1.008zM16.53 7.975c0-1.658-1.349-3.007-3.005-3.007-1.661 0-3.01 1.349-3.01 3.007 0 1.661 1.349 3.01 3.01 3.01 1.656 0 3.005-1.349 3.005-3.01zm-5.258-.005c0-1.252 1.013-2.266 2.265-2.266 1.251 0 2.265 1.014 2.265 2.266 0 1.251-1.014 2.265-2.265 2.265-1.252 0-2.265-1.014-2.265-2.265z"/>
+        <path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.624 0 11.979-5.355 11.979-11.979 0-6.623-5.355-11.979-11.979-11.979z"/>
       </svg>
     ),
     shopee: (
@@ -192,6 +186,11 @@ const ServiceIcon = ({ id, size = 26 }) => {
     proton: (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="#6d4aff">
         <path d="M24 0H0v24h13.5c5.799 0 10.5-4.701 10.5-10.5V0zM13.5 17H11V9h2.5c2.21 0 4 1.79 4 4s-1.79 4-4 4z"/>
+      </svg>
+    ),
+    any: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#6c4ef2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
     ),
   }
@@ -216,9 +215,10 @@ export default function BuyNumbers() {
   const [copied, setCopied] = useState(false)
   const [servicePage, setServicePage] = useState(0)
   const [smsStatus, setSmsStatus] = useState(null)
-  const [receivedAt, setReceivedAt] = useState(null)
-  const pollTimerRef = useRef(null)
-  const cdTimerRef = useRef(null)
+
+  // Single refs — one interval each, no nesting
+  const pollRef = useRef(null)
+  const cdRef = useRef(null)
 
   useEffect(() => {
     setMounted(true)
@@ -233,6 +233,75 @@ export default function BuyNumbers() {
     }
     load()
   }, [])
+
+  // ── Polling effect — runs once when `purchased` is set ──────────────────
+  // One countdown interval. One poll interval. No nesting. No racing.
+  // The server drives expiry logic — the client just reacts to what comes back.
+  useEffect(() => {
+    if (!purchased) return
+
+    setCountdown(purchased.expires_in)
+    setSmsStatus(null)
+
+    // Countdown — purely cosmetic, does not drive any cancellation logic
+    cdRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(cdRef.current)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    // Poll every 5 seconds — single interval, no inner intervals
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/5sim/sms?id=${purchased.fivesim_id}&order_id=${purchased.order_id}`
+        )
+        const data = await res.json()
+
+        setSmsStatus(data.status)
+
+        // ── SMS arrived ──
+        if (data.sms && data.sms.length > 0) {
+          setSms(data.sms)
+          clearInterval(pollRef.current)
+          clearInterval(cdRef.current)
+          return
+        }
+
+        // ── Server says order expired and refunded ──
+        if (data.status === 'expired') {
+          clearInterval(pollRef.current)
+          clearInterval(cdRef.current)
+          if (data.refunded && data.refunded_amount) {
+            setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + data.refunded_amount }))
+          }
+          setError('No SMS received in time — your wallet has been automatically refunded.')
+          setPurchased(null)
+          setSms([])
+          return
+        }
+
+        // ── Terminal statuses from 5sim — stop polling ──
+        if (['FINISHED', 'BANNED', 'TIMEOUT', 'CANCEL'].includes(data.status)) {
+          clearInterval(pollRef.current)
+          clearInterval(cdRef.current)
+        }
+
+      } catch (e) {
+        // Network hiccup — don't stop polling, just log and wait for next tick
+        console.error('[SMS poll]', e)
+      }
+    }, 5000)
+
+    return () => {
+      clearInterval(pollRef.current)
+      clearInterval(cdRef.current)
+    }
+  }, [purchased])
 
   const fetchCountries = async (serviceId) => {
     setLoadingCountries(true)
@@ -255,128 +324,47 @@ export default function BuyNumbers() {
     fetchCountries(service.id)
   }
 
-  // Countdown + SMS polling after purchase
-  useEffect(() => {
-    if (!purchased) return
-    setCountdown(purchased.expires_in)
-
-    cdTimerRef.current = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(cdTimerRef.current)
-          clearInterval(pollTimerRef.current)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    pollTimerRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/5sim/sms?id=${purchased.fivesim_id}&order_id=${purchased.order_id}`)
-        const data = await res.json()
-        setSmsStatus(data.status)
-        if (data.sms && data.sms.length > 0) {
-          setSms(data.sms)
-          clearInterval(pollTimerRef.current)
-          clearInterval(cdTimerRef.current)
-        } else if (data.status === 'RECEIVED') {
-          // SMS detected but content not yet in response — keep polling.
-          // Some operators (esp. Indonesian) mark RECEIVED immediately but
-          // deliver content in a later response. Do NOT stop or warn here.
-          setReceivedAt(prev => prev || Date.now())
-          // Speed up polling to every 2s once we know SMS is incoming
-          if (pollTimerRef.current) {
-            clearInterval(pollTimerRef.current)
-            pollTimerRef.current = setInterval(async () => {
-              try {
-                const r2 = await fetch(`/api/5sim/sms?id=${purchased.fivesim_id}&order_id=${purchased.order_id}`)
-                const d2 = await r2.json()
-                setSmsStatus(d2.status)
-                if (d2.sms && d2.sms.length > 0) {
-                  setSms(d2.sms)
-                  clearInterval(pollTimerRef.current)
-                  clearInterval(cdTimerRef.current)
-                }
-                if (d2.status === 'FINISHED' || d2.status === 'BANNED' || d2.status === 'TIMEOUT' || d2.status === 'expired') {
-                  clearInterval(pollTimerRef.current)
-                  clearInterval(cdTimerRef.current)
-                  if (d2.status === 'expired') {
-                    setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + purchased.price_ngn }))
-                    setError('No SMS received in time — your wallet has been automatically refunded.')
-                    setPurchased(null)
-                    setSms([])
-                  }
-                }
-              } catch (e) { console.error('SMS fast-poll error:', e) }
-            }, 2000)
-          }
-        } else if (data.status === 'expired') {
-          clearInterval(pollTimerRef.current)
-          clearInterval(cdTimerRef.current)
-          setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + purchased.price_ngn }))
-          setError('No SMS received in time — your wallet has been automatically refunded.')
-          setPurchased(null)
-          setSms([])
-          return
-        }
-        if (data.status === 'FINISHED' || data.status === 'BANNED' || data.status === 'TIMEOUT') {
-          clearInterval(pollTimerRef.current)
-          clearInterval(cdTimerRef.current)
-        }
-      } catch (e) {
-        console.error('SMS poll error:', e)
-      }
-    }, 5000)
-
-    return () => {
-      clearInterval(cdTimerRef.current)
-      clearInterval(pollTimerRef.current)
-    }
-  }, [purchased])
-
-  const filtered = countries.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.code.toLowerCase().includes(search.toLowerCase())
-  )
-
-  // ✅ FIX: No longer sends userId or priceNgn from client
   const handleOrder = async () => {
     if (!selectedCountry || !selectedService || !user) return
     setOrdering(true)
     setError('')
-    const res = await fetch('/api/5sim/buy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        country: selectedCountry.code,
-        service: selectedService.id,
-        price_ngn: selectedCountry.price_ngn,
+    try {
+      const res = await fetch('/api/5sim/buy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          country: selectedCountry.code,
+          service: selectedService.id,
+          price_ngn: selectedCountry.price_ngn,
+        }),
       })
-    })
-    const data = await res.json()
-    if (!res.ok) {
-      setError(data.error || 'Purchase failed. Try again.')
-      setOrdering(false)
-      return
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Purchase failed. Try again.')
+        setOrdering(false)
+        return
+      }
+      setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) - data.price_ngn }))
+      setSms([])
+      setSmsStatus(null)
+      setPurchased({
+        phone: data.phone,
+        fivesim_id: data.fivesim_id,
+        order_id: data.order_id,
+        expires_in: data.expires_in,
+        price_ngn: data.price_ngn,
+        country: selectedCountry,
+        service: selectedService,
+      })
+    } catch {
+      setError('Something went wrong. Please try again.')
     }
-    // ✅ Use server-returned price_ngn, not client-side price
-    setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) - data.price_ngn }))
-    setPurchased({
-      phone: data.phone,
-      fivesim_id: data.fivesim_id,
-      order_id: data.order_id,
-      expires_in: data.expires_in,
-      price_ngn: data.price_ngn,
-      country: selectedCountry,
-      service: selectedService,
-    })
     setOrdering(false)
   }
 
-  // ✅ FIX: Sends JSON body (not query params) + handles errors properly
   const handleCancel = async () => {
     if (!purchased) return
+    setError('')
     try {
       const res = await fetch('/api/5sim/sms', {
         method: 'DELETE',
@@ -384,25 +372,25 @@ export default function BuyNumbers() {
         body: JSON.stringify({
           fivesimId: purchased.fivesim_id,
           orderId: purchased.order_id,
-          userId: user.id,
           amount: purchased.price_ngn,
-        })
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
         setError(data.error || 'Cancel failed. Contact support.')
         return
       }
+      clearInterval(pollRef.current)
+      clearInterval(cdRef.current)
       setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + purchased.price_ngn }))
-    } catch (err) {
+      setPurchased(null)
+      setSms([])
+      setSelectedCountry(null)
+      setSelectedService(null)
+      setCountries([])
+    } catch {
       setError('Cancel failed. Contact support.')
-      return
     }
-    setPurchased(null)
-    setSms([])
-    setSelectedCountry(null)
-    setSelectedService(null)
-    setCountries([])
   }
 
   const copyPhone = () => {
@@ -417,6 +405,11 @@ export default function BuyNumbers() {
     const sec = s % 60
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
+
+  const filtered = countries.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    c.code.toLowerCase().includes(search.toLowerCase())
+  )
 
   const hasBalance = (profile?.wallet_balance || 0) >= (selectedCountry?.price_ngn || 0)
 
@@ -454,72 +447,28 @@ export default function BuyNumbers() {
           0%, 100% { transform: translateX(0); opacity: 0.5; }
           50%       { transform: translateX(4px); opacity: 1; }
         }
-
         * { box-sizing: border-box; }
-
         .service-grid::-webkit-scrollbar { display: none; }
-
-        .service-chip {
-          transition: transform 0.15s ease, border-color 0.15s, background 0.15s, box-shadow 0.15s;
-        }
+        .service-chip { transition: transform 0.15s ease, border-color 0.15s, background 0.15s, box-shadow 0.15s; }
         .service-chip:hover { transform: translateY(-2px); }
         .service-chip:active { transform: scale(0.97); }
-
-        .country-card {
-          transition: transform 0.15s ease, border-color 0.15s, background 0.15s;
-        }
+        .country-card { transition: transform 0.15s ease, border-color 0.15s, background 0.15s; }
         .country-card:hover { transform: translateY(-1px); }
         .country-card:active { transform: scale(0.98); }
-
-        .buy-btn {
-          transition: transform 0.18s ease, box-shadow 0.18s, background 0.18s;
-        }
-        .buy-btn:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 32px rgba(108,78,242,0.45);
-        }
+        .buy-btn { transition: transform 0.18s ease, box-shadow 0.18s, background 0.18s; }
+        .buy-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(108,78,242,0.45); }
         .buy-btn:active:not(:disabled) { transform: scale(0.98); }
-
-        .back-btn {
-          transition: background 0.15s, transform 0.15s;
-        }
+        .back-btn { transition: background 0.15s, transform 0.15s; }
         .back-btn:hover { background: var(--card2) !important; transform: translateX(-2px); }
-
-        .copy-btn {
-          transition: background 0.15s, transform 0.15s;
-        }
+        .copy-btn { transition: background 0.15s, transform 0.15s; }
         .copy-btn:hover { transform: scale(1.05); }
         .copy-btn:active { transform: scale(0.95); }
-
-        .cancel-btn {
-          transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
-        }
-        .cancel-btn:hover {
-          background: rgba(244,63,94,0.08) !important;
-          border-color: rgba(244,63,94,0.4) !important;
-          color: #f43f5e !important;
-          transform: translateY(-1px);
-        }
-
-        .search-input:focus {
-          border-color: var(--purple) !important;
-          box-shadow: 0 0 0 3px rgba(108,78,242,0.12);
-        }
-
-        .progress-ring {
-          transform: rotate(-90deg);
-          transform-origin: 50% 50%;
-        }
-
-        .number-display {
-          background: linear-gradient(135deg, rgba(108,78,242,0.08) 0%, rgba(192,120,26,0.06) 100%);
-          border: 1px solid rgba(108,78,242,0.25);
-          animation: glow 3s ease infinite;
-        }
-
-        @media (max-width: 380px) {
-          .country-grid { grid-template-columns: 1fr !important; }
-        }
+        .cancel-btn { transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s; }
+        .cancel-btn:hover { background: rgba(244,63,94,0.08) !important; border-color: rgba(244,63,94,0.4) !important; color: #f43f5e !important; transform: translateY(-1px); }
+        .search-input:focus { border-color: var(--purple) !important; box-shadow: 0 0 0 3px rgba(108,78,242,0.12); }
+        .progress-ring { transform: rotate(-90deg); transform-origin: 50% 50%; }
+        .number-display { background: linear-gradient(135deg, rgba(108,78,242,0.08) 0%, rgba(192,120,26,0.06) 100%); border: 1px solid rgba(108,78,242,0.25); animation: glow 3s ease infinite; }
+        @media (max-width: 380px) { .country-grid { grid-template-columns: 1fr !important; } }
       `}</style>
 
       {/* ── STICKY HEADER ── */}
@@ -539,7 +488,6 @@ export default function BuyNumbers() {
         }}>
           <BackIcon />
         </Link>
-
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem', color: 'var(--text)', letterSpacing: '-0.02em' }}>
             Virtual Numbers
@@ -548,8 +496,6 @@ export default function BuyNumbers() {
             Instant delivery · 20-min window
           </div>
         </div>
-
-        {/* Wallet pill */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '0.4rem',
           padding: '0.35rem 0.75rem',
@@ -574,7 +520,7 @@ export default function BuyNumbers() {
               borderRadius: '20px', padding: '1.5rem',
               marginBottom: '1rem', position: 'relative', overflow: 'hidden',
             }}>
-              {/* Service badge */}
+              {/* Service badge + countdown */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <div style={{
@@ -587,8 +533,6 @@ export default function BuyNumbers() {
                     {purchased.service.name} · {purchased.country.flag} {purchased.country.name}
                   </span>
                 </div>
-
-                {/* Countdown */}
                 {sms.length === 0 && countdown > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={countdown < 120 ? '#f43f5e' : 'var(--muted)'} strokeWidth="2" strokeLinecap="round">
@@ -744,8 +688,14 @@ export default function BuyNumbers() {
                 </button>
               )}
               <button onClick={() => {
-                setPurchased(null); setSms([])
-                setSelectedCountry(null); setSelectedService(null); setCountries([])
+                clearInterval(pollRef.current)
+                clearInterval(cdRef.current)
+                setPurchased(null)
+                setSms([])
+                setSelectedCountry(null)
+                setSelectedService(null)
+                setCountries([])
+                setError('')
               }} className="buy-btn" style={{
                 flex: 1, padding: '0.85rem',
                 background: 'var(--purple)', color: '#fff', border: 'none',
@@ -784,8 +734,20 @@ export default function BuyNumbers() {
               <div style={{ position: 'relative' }}>
                 <div
                   className="service-grid"
-                  ref={el => { if (el) { el.onscroll = () => { const page = Math.round(el.scrollLeft / el.clientWidth); setServicePage(page) } } }}
-                  style={{ display: 'grid', gridTemplateRows: 'repeat(2, 1fr)', gridAutoFlow: 'column', gridAutoColumns: 'calc(25% - 0.38rem)', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.3rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                  ref={el => {
+                    if (el) {
+                      el.onscroll = () => {
+                        const page = Math.round(el.scrollLeft / el.clientWidth)
+                        setServicePage(page)
+                      }
+                    }
+                  }}
+                  style={{
+                    display: 'grid', gridTemplateRows: 'repeat(2, 1fr)',
+                    gridAutoFlow: 'column', gridAutoColumns: 'calc(25% - 0.38rem)',
+                    gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.3rem',
+                    scrollbarWidth: 'none', msOverflowStyle: 'none',
+                  }}>
                   {services.map((s, i) => {
                     const isSelected = selectedService?.id === s.id
                     return (
@@ -818,11 +780,10 @@ export default function BuyNumbers() {
                 </div>
               </div>
 
-              {/* Dot indicators + swipe hint */}
+              {/* Page dots */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem', marginTop: '0.5rem' }}>
-                {/* Dots — 28 services, 8 per page = 4 pages */}
                 <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
-                  {[0,1,2,3].map(i => (
+                  {[0, 1, 2, 3].map(i => (
                     <div key={i} style={{
                       width: servicePage === i ? 16 : 6,
                       height: 6, borderRadius: 99,
@@ -831,7 +792,6 @@ export default function BuyNumbers() {
                     }} />
                   ))}
                 </div>
-                {/* Swipe text */}
                 <span style={{ fontSize: '0.6rem', color: 'var(--muted)', letterSpacing: '0.04em' }}>
                   Swipe to see more services →
                 </span>
@@ -854,7 +814,6 @@ export default function BuyNumbers() {
                   )}
                 </div>
 
-                {/* Search */}
                 <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
                   <div style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }}>
                     <SearchIcon size={14} />
@@ -923,7 +882,6 @@ export default function BuyNumbers() {
             {/* ── ORDER SUMMARY + BUY ── */}
             {selectedCountry && selectedService && (
               <div style={{ animation: 'scaleIn 0.3s ease both' }}>
-                {/* Summary card */}
                 <div style={{
                   background: 'var(--card)', border: '1px solid var(--border)',
                   borderRadius: '16px', padding: '1rem', marginBottom: '0.75rem',
@@ -955,7 +913,6 @@ export default function BuyNumbers() {
                   </div>
                 </div>
 
-                {/* Insufficient balance warning */}
                 {!hasBalance && (
                   <div style={{
                     background: 'rgba(244,63,94,0.07)',
@@ -972,7 +929,6 @@ export default function BuyNumbers() {
                   </div>
                 )}
 
-                {/* Error */}
                 {error && (
                   <div style={{
                     background: 'rgba(244,63,94,0.07)', border: '1px solid rgba(244,63,94,0.2)',
@@ -983,7 +939,6 @@ export default function BuyNumbers() {
                   </div>
                 )}
 
-                {/* Buy button */}
                 <button
                   onClick={handleOrder}
                   disabled={ordering || !hasBalance}
@@ -1018,7 +973,7 @@ export default function BuyNumbers() {
   )
 }
 
-// ── Small reusable components ──
+// ── Small reusable components ──────────────────────────────────────────────
 
 function StepBadge({ n, done }) {
   return (

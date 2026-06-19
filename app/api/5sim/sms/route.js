@@ -1,12 +1,16 @@
 // app/api/5sim/sms/route.js
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
+import { createServerClient } from '@supabase/ssr'
 import { log } from '@/lib/logger'
 
-const supabase = createClient(
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
+
+// ── GET: check for SMS ─────────────────────────────────────────────────────
 
 export async function GET(request) {
   try {
@@ -15,96 +19,128 @@ export async function GET(request) {
     const orderId = searchParams.get('order_id')
 
     if (!fivesimId) {
-      return NextResponse.json({ error: 'Missing ID' }, { status: 400 })
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
 
+    // ── Ask 5sim for the current order state ──
     const res = await fetch(
       `https://5sim.net/v1/user/check/${fivesimId}`,
-      { headers: { 'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`, 'Accept': 'application/json' } }
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
+          'Accept': 'application/json',
+        },
+      }
     )
 
     if (!res.ok) {
-      await log('error', 'number', '5sim SMS check API failed', null, null, {
+      await log('error', 'number', '5sim SMS check failed', null, null, {
         fivesim_id: fivesimId, order_id: orderId, http_status: res.status,
       })
-      throw new Error('Failed to check SMS')
+      return NextResponse.json({ error: 'Failed to check SMS' }, { status: 502 })
     }
 
     const data = await res.json()
 
-    // If SMS received, update order and log it
-    if (data.sms && data.sms.length > 0 && orderId) {
-      const { data: order } = await supabase
-        .from('orders')
-        .select('details, user_id')
-        .eq('id', orderId)
-        .single()
+    // ── SMS arrived ──
+    if (data.sms && data.sms.length > 0) {
+      if (orderId) {
+        // Fetch order once to get user context for logging
+        const { data: order } = await supabaseAdmin
+          .from('orders')
+          .select('details, user_id, status')
+          .eq('id', orderId)
+          .single()
 
-      const updatedDetails = {
-        ...(order?.details || {}),
-        sms_code: data.sms[0].code,
-        sms_text: data.sms[0].text,
+        // Only update if still pending — avoid double-writing on repeated polls
+        if (order?.status === 'pending') {
+          await supabaseAdmin
+            .from('orders')
+            .update({
+              status: 'completed',
+              details: {
+                ...(order.details || {}),
+                sms_code: data.sms[0].code,
+                sms_text: data.sms[0].text,
+              },
+            })
+            .eq('id', orderId)
+
+          const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('email')
+            .eq('id', order.user_id)
+            .single()
+
+          await log('info', 'number', 'SMS received — order completed', order.user_id, profile?.email || null, {
+            fivesim_id: fivesimId,
+            order_id: orderId,
+            sms_code: data.sms[0].code,
+            sms_text: data.sms[0].text,
+            phone: data.phone,
+          })
+        }
       }
 
-      await supabase
-        .from('orders')
-        .update({ status: 'completed', details: updatedDetails })
-        .eq('id', orderId)
-
-      const { data: profile } = await supabase.from('profiles').select('email').eq('id', order?.user_id).single()
-
-      await log('info', 'number', `SMS received — order completed`, order?.user_id || null, profile?.email || null, {
-        fivesim_id: fivesimId,
-        order_id: orderId,
-        sms_code: data.sms[0].code,
-        sms_text: data.sms[0].text,
+      return NextResponse.json({
+        status: data.status,
+        sms: data.sms,
         phone: data.phone,
       })
-
-      return NextResponse.json({ status: data.status, sms: data.sms, phone: data.phone })
     }
 
-    // ── No SMS yet — check if this order has expired ──
-    // If 20 minutes have passed with no code, auto-cancel on 5sim and
-    // refund the user automatically instead of leaving them stuck on
-    // "waiting" forever. This is the safety net for dead/virtual operators.
+    // ── No SMS yet — check if the order has expired ──
+    // We only do this check when orderId is provided (i.e. a tracked order).
+    // Expiry is driven by the `expires` timestamp we wrote at buy time.
     if (orderId) {
-      const { data: order } = await supabase
+      const { data: order } = await supabaseAdmin
         .from('orders')
         .select('details, user_id, amount, status')
         .eq('id', orderId)
         .single()
 
+      const isStillPending = order?.status === 'pending'
       const expiresAt = order?.details?.expires ? new Date(order.details.expires) : null
-      const isExpired = expiresAt && expiresAt.getTime() < Date.now()
-      const stillPending = order?.status === 'pending'
+      const isExpired = expiresAt && Date.now() > expiresAt.getTime()
 
-      if (isExpired && stillPending) {
-        const { data: profile } = await supabase.from('profiles').select('email').eq('id', order.user_id).single()
+      if (isStillPending && isExpired) {
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('email')
+          .eq('id', order.user_id)
+          .single()
+
         const userEmail = profile?.email || null
 
-        // Cancel on 5sim (best effort — don't block refund if this fails)
-        const cancelRes = await fetch(
-          `https://5sim.net/v1/user/cancel/${fivesimId}`,
-          { method: 'GET', headers: { 'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`, 'Accept': 'application/json' } }
-        )
-        if (!cancelRes.ok) {
-          const cancelErr = await cancelRes.text()
-          await log('warning', 'number', '5sim auto-cancel failed on expiry — proceeding with refund anyway', order.user_id, userEmail, {
-            fivesim_id: fivesimId, order_id: orderId, cancel_error: cancelErr,
+        // Cancel on 5sim — best effort, don't block refund if this fails
+        try {
+          await fetch(
+            `https://5sim.net/v1/user/cancel/${fivesimId}`,
+            {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
+                'Accept': 'application/json',
+              },
+            }
+          )
+        } catch (cancelErr) {
+          await log('warning', 'number', '5sim cancel call threw — proceeding with refund', order.user_id, userEmail, {
+            fivesim_id: fivesimId, order_id: orderId, error: cancelErr?.message,
           })
         }
 
-        // Atomic refund
-        const { data: refundResult, error: refundError } = await supabase
+        // Refund wallet
+        const { data: refundResult, error: refundError } = await supabaseAdmin
           .rpc('credit_wallet_balance', { p_user_id: order.user_id, p_amount: order.amount })
 
         if (refundError || !refundResult) {
-          await log('error', 'wallet', 'Auto-refund RPC failed after order expiry', order.user_id, userEmail, {
+          await log('error', 'wallet', 'Auto-refund RPC failed after expiry', order.user_id, userEmail, {
             fivesim_id: fivesimId, order_id: orderId, amount: order.amount, rpc_error: refundError?.message,
           })
+          // Still mark expired even if refund failed — don't leave it stuck as pending
         } else {
-          await supabase.from('transactions').insert({
+          await supabaseAdmin.from('transactions').insert({
             user_id: order.user_id,
             type: 'credit',
             amount: order.amount,
@@ -113,76 +149,132 @@ export async function GET(request) {
             status: 'success',
           })
 
-          await supabase.from('orders').update({ status: 'expired' }).eq('id', orderId)
-
-          await log('warning', 'number', `Order auto-expired — no SMS received, wallet refunded ₦${order.amount.toLocaleString()}`, order.user_id, userEmail, {
-            fivesim_id: fivesimId, order_id: orderId, refunded_amount: order.amount,
-            country: order.details?.country, service: order.details?.service, operator: order.details?.operator,
+          await log('warning', 'number', `Order auto-expired — refunded ₦${order.amount?.toLocaleString()}`, order.user_id, userEmail, {
+            fivesim_id: fivesimId,
+            order_id: orderId,
+            refunded_amount: order.amount,
+            country: order.details?.country,
+            service: order.details?.service,
+            operator: order.details?.operator,
           })
-
-          return NextResponse.json({ status: 'expired', sms: [], phone: data.phone, refunded: true })
         }
+
+        await supabaseAdmin
+          .from('orders')
+          .update({ status: 'expired' })
+          .eq('id', orderId)
+
+        return NextResponse.json({
+          status: 'expired',
+          sms: [],
+          phone: data.phone,
+          refunded: true,
+          refunded_amount: order.amount,
+        })
       }
     }
 
-    return NextResponse.json({ status: data.status, sms: data.sms || [], phone: data.phone })
+    // ── Still waiting — return current status ──
+    return NextResponse.json({
+      status: data.status,
+      sms: data.sms || [],
+      phone: data.phone,
+    })
 
   } catch (error) {
-    console.error('SMS check error:', error)
+    console.error('[5sim/sms GET]', error)
     return NextResponse.json({ error: 'Failed to check SMS' }, { status: 500 })
   }
 }
 
+// ── DELETE: cancel a number and refund ────────────────────────────────────
+// Authenticates via session — does NOT trust userId from the request body.
+
 export async function DELETE(request) {
   try {
-    const { fivesimId, orderId, userId, amount } = await request.json()
+    // ── Verify session server-side ──
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      { cookies: { get(name) { return cookieStore.get(name)?.value } } }
+    )
 
-    if (!fivesimId || !userId || !amount) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (!user || authError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { fivesimId, orderId, amount } = await request.json()
+
+    if (!fivesimId || !amount) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const { data: profile } = await supabase.from('profiles').select('email').eq('id', userId).single()
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('email')
+      .eq('id', user.id)
+      .single()
+
     const userEmail = profile?.email || null
 
-    const checkRes = await fetch(
-      `https://5sim.net/v1/user/check/${fivesimId}`,
-      { headers: { 'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`, 'Accept': 'application/json' } }
-    )
-
-    if (checkRes.ok) {
-      const checkData = await checkRes.json()
-      if (checkData.sms && checkData.sms.length > 0) {
-        await log('warning', 'number', 'Refund blocked — SMS already received', userId, userEmail, {
-          fivesim_id: fivesimId, order_id: orderId, amount,
-        })
-        return NextResponse.json({ error: 'SMS already received. No refund.' }, { status: 400 })
+    // ── Confirm no SMS has arrived yet ──
+    try {
+      const checkRes = await fetch(
+        `https://5sim.net/v1/user/check/${fivesimId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
+            'Accept': 'application/json',
+          },
+        }
+      )
+      if (checkRes.ok) {
+        const checkData = await checkRes.json()
+        if (checkData.sms && checkData.sms.length > 0) {
+          await log('warning', 'number', 'Cancel blocked — SMS already received', user.id, userEmail, {
+            fivesim_id: fivesimId, order_id: orderId, amount,
+          })
+          return NextResponse.json({ error: 'SMS already received — no refund possible.' }, { status: 400 })
+        }
       }
+    } catch {
+      // If the check fails we still proceed — better to refund than leave user stuck
     }
 
-    const cancelRes = await fetch(
-      `https://5sim.net/v1/user/cancel/${fivesimId}`,
-      { method: 'GET', headers: { 'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`, 'Accept': 'application/json' } }
-    )
-
-    if (!cancelRes.ok) {
-      const cancelErr = await cancelRes.text()
-      await log('warning', 'number', '5sim cancel API failed — proceeding with refund anyway', userId, userEmail, {
-        fivesim_id: fivesimId, order_id: orderId, cancel_error: cancelErr,
+    // ── Cancel on 5sim ──
+    try {
+      await fetch(
+        `https://5sim.net/v1/user/cancel/${fivesimId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
+            'Accept': 'application/json',
+          },
+        }
+      )
+    } catch (cancelErr) {
+      await log('warning', 'number', '5sim cancel threw — proceeding with refund', user.id, userEmail, {
+        fivesim_id: fivesimId, order_id: orderId, error: cancelErr?.message,
       })
     }
 
-    const { data: refundResult, error: refundError } = await supabase
-      .rpc('credit_wallet_balance', { p_user_id: userId, p_amount: amount })
+    // ── Refund wallet ──
+    const { data: refundResult, error: refundError } = await supabaseAdmin
+      .rpc('credit_wallet_balance', { p_user_id: user.id, p_amount: amount })
 
     if (refundError || !refundResult) {
-      await log('error', 'wallet', 'Refund RPC failed after number cancellation', userId, userEmail, {
+      await log('error', 'wallet', 'Refund RPC failed after cancel', user.id, userEmail, {
         fivesim_id: fivesimId, order_id: orderId, amount, rpc_error: refundError?.message,
       })
-      return NextResponse.json({ error: 'Refund failed. Contact support.' }, { status: 500 })
+      return NextResponse.json({ error: 'Refund failed. Please contact support.' }, { status: 500 })
     }
 
-    await supabase.from('transactions').insert({
-      user_id: userId,
+    // ── Record transaction + update order ──
+    await supabaseAdmin.from('transactions').insert({
+      user_id: user.id,
       type: 'credit',
       amount,
       description: 'Refund — Number cancelled',
@@ -191,20 +283,21 @@ export async function DELETE(request) {
     })
 
     if (orderId) {
-      await supabase.from('orders').update({ status: 'cancelled' }).eq('id', orderId)
+      await supabaseAdmin
+        .from('orders')
+        .update({ status: 'cancelled' })
+        .eq('id', orderId)
     }
 
-    await log('info', 'number', `Number cancelled — wallet refunded ₦${amount.toLocaleString()}`, userId, userEmail, {
+    await log('info', 'number', `Number cancelled — refunded ₦${amount?.toLocaleString()}`, user.id, userEmail, {
       fivesim_id: fivesimId, order_id: orderId, refunded_amount: amount,
     })
 
     return NextResponse.json({ success: true })
 
   } catch (error) {
-    console.error('Cancel error:', error)
-    await log('error', 'number', `Unhandled exception in number cancel route: ${error.message}`, null, null, {
-      stack: error.stack,
-    })
+    console.error('[5sim/sms DELETE]', error)
+    await log('error', 'number', `Unhandled exception in cancel route: ${error.message}`, null, null, { stack: error.stack })
     return NextResponse.json({ error: 'Failed to cancel' }, { status: 500 })
   }
 }

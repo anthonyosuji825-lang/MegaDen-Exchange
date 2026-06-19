@@ -12,7 +12,6 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url)
     const service = searchParams.get('service') || 'whatsapp'
 
-    // Fetch 5sim data + app settings in parallel
     const [res, settingsRes] = await Promise.all([
       fetch(
         `https://5sim.net/v1/guest/prices?product=${service}`,
@@ -21,52 +20,47 @@ export async function GET(request) {
             'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
             'Accept': 'application/json',
           },
-          next: { revalidate: 60 }
+          next: { revalidate: 60 },
         }
       ),
       supabaseAdmin.from('app_settings').select('key, value'),
     ])
 
-    if (!res.ok) throw new Error('Failed to fetch from 5SIM')
+    if (!res.ok) throw new Error(`5sim responded with ${res.status}`)
+
     const data = await res.json()
 
-    // Read live settings, fall back to defaults
+    // Build settings map
     const settingsMap = {}
     ;(settingsRes.data || []).forEach(s => { settingsMap[s.key] = s.value })
     const rate = parseFloat(settingsMap.usd_to_ngn_rate || process.env.USD_TO_NGN_RATE || '1600')
     const multiplier = parseFloat(settingsMap.markup_multiplier || '3.5')
 
-    // 5SIM response: { "whatsapp": { "country": { "operator": { cost, count } } } }
     const serviceData = data[service]
     if (!serviceData) return NextResponse.json({ countries: [] })
 
     const countries = []
 
     for (const [country, operators] of Object.entries(serviceData)) {
-      let maxPrice = 0
-      let totalQty = 0
-      let validOperators = 0
+      let bestPrice = 0
+      let totalStock = 0
 
       for (const [operator, info] of Object.entries(operators)) {
-        // Skip 'any' operator — it selects low-quality operators that receive
-        // SMS triggers but don't deliver the actual code content
-        if (operator === 'any') continue
+        // Skip zero-stock entries — no point showing a country with nothing available
+        if (!info || info.count === 0) continue
 
-        // Skip operators with 0 stock or suspiciously low prices (< $0.10)
-        if (info.count === 0) continue
-        if (info.cost < 0.10) continue
+        totalStock += info.count
 
-        if (info.cost > maxPrice) maxPrice = info.cost
-        totalQty += info.count
-        validOperators++
+        // Track the highest price among available operators
+        // (we display the max so the user is never undercharged)
+        if (info.cost > bestPrice) bestPrice = info.cost
       }
 
-      if (totalQty === 0) continue
-      if (validOperators === 0) continue
-      if (maxPrice === 0) continue
+      // Only list countries that actually have stock
+      if (totalStock === 0 || bestPrice === 0) continue
 
-      // Safety floor: never show below $0.50
-      const displayPrice = Math.max(maxPrice, 0.50)
+      // Floor at $0.50 so we never display a suspiciously cheap price
+      const displayPrice = Math.max(bestPrice, 0.50)
 
       countries.push({
         code: country,
@@ -74,12 +68,16 @@ export async function GET(request) {
         flag: getFlag(country),
         price_usd: displayPrice,
         price_ngn: Math.ceil(displayPrice * rate * multiplier),
-        stock: totalQty,
+        stock: totalStock,
       })
     }
 
-    // Sort preferred countries first
-    const preferred = ['usa', 'uk', 'russia', 'ukraine', 'canada', 'indonesia', 'india', 'nigeria', 'ghana']
+    // Preferred countries appear first, rest sorted alphabetically
+    const preferred = [
+      'usa', 'uk', 'russia', 'ukraine', 'canada',
+      'indonesia', 'india', 'nigeria', 'ghana',
+    ]
+
     countries.sort((a, b) => {
       const ai = preferred.indexOf(a.code)
       const bi = preferred.indexOf(b.code)
@@ -90,11 +88,14 @@ export async function GET(request) {
     })
 
     return NextResponse.json({ countries })
+
   } catch (error) {
-    console.error('5SIM countries error:', error)
+    console.error('[5sim/countries]', error)
     return NextResponse.json({ error: 'Failed to fetch countries' }, { status: 500 })
   }
 }
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function formatCountryName(code) {
   const names = {

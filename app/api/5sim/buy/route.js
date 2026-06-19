@@ -27,12 +27,17 @@ async function pickBestOperator(country, service) {
 
   let best = null
   for (const [operator, info] of Object.entries(operators)) {
+    // Skip 'any' — lets 5sim pick randomly, often picks virtual
     if (operator === 'any') continue
+    // Skip ALL virtual* operators — Virtual53, Virtual62, virtual21, etc.
+    // These operators accept purchases but consistently fail to deliver SMS content.
+    // They show high stock counts which makes them look attractive but they are unreliable.
+    if (operator.toLowerCase().startsWith('virtual')) continue
+    // Skip zero stock or suspiciously cheap
     if (!info || info.count === 0) continue
     if (info.cost < 0.10) continue
 
-    // Prefer the operator with the most stock — a strong signal of
-    // a healthy, real operator rather than a thin "virtual" pool
+    // Pick the real operator with the most stock
     if (!best || info.count > best.count) {
       best = { operator, cost: info.cost, count: info.count }
     }

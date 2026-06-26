@@ -1,6 +1,7 @@
 'use client'
 import LoadingScreen from '@/components/LoadingScreen'
 import OnboardingTour from '@/components/OnboardingTour'
+import TurboBoostAnnouncement from '@/components/TurboBoostAnnouncement'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -179,6 +180,7 @@ export default function Dashboard() {
 
   return (
     <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '5rem' }}>
+      <TurboBoostAnnouncement />
       <style>{`
         @keyframes slideProgress { from{width:0%} to{width:100%} }
         @keyframes notifSlideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }

@@ -1,8 +1,9 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 
+// ─── STANDARD BOOST SERVICES (JAP) ───────────────────────────────────────────
 const STANDARD_SERVICES = [
   {
     id: 'instagram', name: 'Instagram', color: '#e1306c',
@@ -97,6 +98,7 @@ const STANDARD_SERVICES = [
   },
 ]
 
+// ─── TURBO BOOST SERVICES (EXO) ──────────────────────────────────────────────
 const TURBO_SERVICES = [
   {
     id: 'instagram', name: 'Instagram', color: '#e1306c',
@@ -188,9 +190,10 @@ const TURBO_SERVICES = [
   },
 ]
 
+// ─── PLATFORM ICONS (same style as numbers page) ─────────────────────────────
 const PlatformIcon = ({ id, size = 26 }) => {
   const icons = {
-    instagram: <svg width={size} height={size} viewBox="0 0 24 24"><defs><linearGradient id="ig3" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#f09433"/><stop offset="50%" stopColor="#dc2743"/><stop offset="100%" stopColor="#bc1888"/></linearGradient></defs><path fill="url(#ig3)" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>,
+    instagram: <svg width={size} height={size} viewBox="0 0 24 24"><defs><linearGradient id="ig3" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#f09433"/><stop offset="25%" stopColor="#e6683c"/><stop offset="50%" stopColor="#dc2743"/><stop offset="75%" stopColor="#cc2366"/><stop offset="100%" stopColor="#bc1888"/></linearGradient></defs><path fill="url(#ig3)" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>,
     tiktok: <svg width={size} height={size} viewBox="0 0 24 24"><path fill="#ff0050" d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.32 6.32 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.79 1.52V6.75a4.85 4.85 0 01-1.02-.06z"/></svg>,
     twitter: <svg width={size} height={size} viewBox="0 0 24 24" fill="#e7e7e7"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>,
     facebook: <svg width={size} height={size} viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>,
@@ -215,6 +218,8 @@ export default function Boosting() {
   const [success, setSuccess] = useState(false)
   const [orderId, setOrderId] = useState(null)
   const [mounted, setMounted] = useState(false)
+  const [platformPage, setPlatformPage] = useState(0)
+  const platformRef = useRef(null)
 
   const activeServices = provider === 'turbo' ? turboServices : standardServices
   const isTurbo = provider === 'turbo'
@@ -251,6 +256,7 @@ export default function Boosting() {
     setError('')
     setSuccess(false)
     setOrderId(null)
+    setPlatformPage(0)
   }
 
   const handleOrder = async () => {
@@ -279,29 +285,32 @@ export default function Boosting() {
     setSuccess(true)
   }
 
+  // Dots count for platform grid (4 per page)
+  const totalPages = Math.ceil(activeServices.length / 4)
+
   return (
     <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2rem' }}>
       <style>{`
         @keyframes fadeSlideIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes fadeSlideUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes scaleIn { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
+        @keyframes fadeSlideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes scaleIn { from { opacity:0; transform:scale(0.97); } to { opacity:1; transform:scale(1); } }
         @keyframes successPop { 0%{transform:scale(0);opacity:0;} 70%{transform:scale(1.15);} 100%{transform:scale(1);opacity:1;} }
         @keyframes spin { to { transform:rotate(360deg); } }
         * { box-sizing:border-box; }
-        .platform-grid::-webkit-scrollbar { display:none; }
-        .platform-chip { transition:transform 0.15s ease,border-color 0.15s,background 0.15s,box-shadow 0.15s; cursor:pointer; }
-        .platform-chip:hover { transform:translateY(-2px); }
-        .platform-chip:active { transform:scale(0.97); }
+        .service-grid::-webkit-scrollbar { display:none; }
+        .service-chip { transition:transform 0.15s ease,border-color 0.15s,background 0.15s,box-shadow 0.15s; cursor:pointer; }
+        .service-chip:hover { transform:translateY(-2px); }
+        .service-chip:active { transform:scale(0.97); }
         .pkg-card { transition:transform 0.15s ease,border-color 0.18s,background 0.18s; cursor:pointer; }
         .pkg-card:hover { transform:translateY(-1px); }
         .pkg-card:active { transform:scale(0.98); }
         .buy-btn { transition:transform 0.18s ease,box-shadow 0.18s,background 0.18s; cursor:pointer; }
         .buy-btn:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 10px 32px rgba(108,78,242,0.45); }
         .buy-btn:active:not(:disabled) { transform:scale(0.98); }
-        .back-btn { transition:background 0.15s,transform 0.15s; }
+        .back-btn { transition:background 0.15s; }
         .back-btn:hover { background:var(--card2) !important; }
         .link-input:focus { border-color:var(--purple) !important; box-shadow:0 0 0 3px rgba(108,78,242,0.12); outline:none; }
-        .provider-card { transition:transform 0.18s ease,box-shadow 0.2s ease,border-color 0.18s; cursor:pointer; }
+        .provider-card { transition:transform 0.18s ease,box-shadow 0.2s ease; cursor:pointer; }
         .provider-card:hover { transform:translateY(-3px); }
         .provider-card:active { transform:scale(0.98); }
       `}</style>
@@ -318,11 +327,13 @@ export default function Boosting() {
           </Link>
         )}
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1rem', color:'var(--text)', letterSpacing:'-0.02em' }}>
-            {!provider ? 'Social Boosting' : isTurbo ? '⚡ Turbo Boost' : '🚀 Standard Boost'}
+          <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1rem', color:'var(--text)', letterSpacing:'-0.02em', display:'flex', alignItems:'center', gap:'0.4rem' }}>
+            {provider === 'turbo' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
+            {provider === 'standard' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f5a623" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>}
+            {!provider ? 'Social Boosting' : isTurbo ? 'Turbo Boost' : 'Standard Boost'}
           </div>
           <div style={{ fontSize:'0.7rem', color:'var(--muted)', marginTop:'0.05rem' }}>
-            {!provider ? 'Real growth · Choose your service' : isTurbo ? 'Fast delivery · Exo Booster' : 'All platforms · JAP'}
+            {!provider ? 'Real growth · Choose your service' : isTurbo ? 'Fast delivery · Premium quality' : 'All platforms · Steady growth'}
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', padding:'0.35rem 0.75rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'20px', flexShrink:0 }}>
@@ -336,80 +347,55 @@ export default function Boosting() {
         {/* ── LANDING SCREEN ── */}
         {!provider && (
           <div style={{ animation: mounted ? 'fadeSlideIn 0.4s ease both' : 'none' }}>
-            <div style={{ textAlign:'center', padding:'1.5rem 0 1.8rem' }}>
-              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.25rem', color:'var(--text)', marginBottom:'0.4rem' }}>Choose Your Boost</div>
-              <div style={{ fontSize:'0.82rem', color:'var(--muted)', lineHeight:1.5 }}>Pick the service that fits your goals</div>
+            <div style={{ textAlign:'center', padding:'1.4rem 0 1.6rem' }}>
+              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.2rem', color:'var(--text)', marginBottom:'0.35rem' }}>Choose Your Boost</div>
+              <div style={{ fontSize:'0.8rem', color:'var(--muted)' }}>Pick the service that fits your goals</div>
             </div>
 
-            <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+            {/* TWO CARDS SIDE BY SIDE */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
 
-              {/* TURBO CARD */}
+              {/* TURBO */}
               <button className="provider-card" onClick={() => setProvider('turbo')}
-                style={{ width:'100%', padding:'1.4rem', background:'linear-gradient(135deg, rgba(108,78,242,0.12) 0%, rgba(108,78,242,0.04) 100%)', border:'1.5px solid rgba(108,78,242,0.4)', borderRadius:'18px', textAlign:'left', boxShadow:'0 4px 24px rgba(108,78,242,0.12)' }}>
-                <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'0.9rem' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'0.75rem' }}>
-                    <div style={{ width:46, height:46, borderRadius:'13px', background:'rgba(108,78,242,0.18)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', flexShrink:0 }}>⚡</div>
-                    <div>
-                      <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.05rem', color:'var(--text)' }}>Turbo Boost</div>
-                      <div style={{ fontSize:'0.68rem', color:'var(--purple2)', fontWeight:600, marginTop:'0.1rem' }}>Powered by Exo Booster</div>
-                    </div>
-                  </div>
-                  <div style={{ background:'rgba(108,78,242,0.18)', borderRadius:'8px', padding:'0.25rem 0.6rem', fontSize:'0.65rem', fontWeight:700, color:'var(--purple2)', whiteSpace:'nowrap', flexShrink:0 }}>FASTEST</div>
+                style={{ padding:'1.2rem 1rem', background:'linear-gradient(145deg, rgba(108,78,242,0.14) 0%, rgba(108,78,242,0.04) 100%)', border:'1.5px solid rgba(108,78,242,0.4)', borderRadius:'18px', textAlign:'left', boxShadow:'0 4px 20px rgba(108,78,242,0.1)' }}>
+                <div style={{ width:40, height:40, borderRadius:'11px', background:'rgba(108,78,242,0.18)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'0.75rem' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 </div>
-
-                <div style={{ fontSize:'0.8rem', color:'var(--muted)', lineHeight:1.65, marginBottom:'1rem' }}>
-                  Lightning-fast delivery with Average and High Quality tiers. Best for quick engagement boosts and campaigns that need results now.
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'0.92rem', color:'var(--text)', marginBottom:'0.2rem' }}>Turbo Boost</div>
+                <div style={{ fontSize:'0.62rem', color:'var(--purple2)', fontWeight:600, marginBottom:'0.6rem' }}>MegaDen Premium</div>
+                <div style={{ fontSize:'0.72rem', color:'var(--muted)', lineHeight:1.55, marginBottom:'0.85rem' }}>
+                  Lightning-fast delivery with Average and High Quality tiers.
                 </div>
-
-                <div style={{ display:'flex', flexWrap:'wrap', gap:'0.4rem', marginBottom:'1rem' }}>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'0.3rem', marginBottom:'0.85rem' }}>
                   {['Instagram','TikTok','Facebook','YouTube','Telegram'].map(p => (
-                    <span key={p} style={{ fontSize:'0.65rem', fontWeight:600, color:'var(--muted)', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'6px', padding:'0.2rem 0.5rem' }}>{p}</span>
+                    <span key={p} style={{ fontSize:'0.58rem', fontWeight:600, color:'var(--muted)', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'5px', padding:'0.15rem 0.4rem' }}>{p}</span>
                   ))}
                 </div>
-
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(108,78,242,0.15)', paddingTop:'0.8rem' }}>
-                  <div style={{ display:'flex', gap:'1.2rem' }}>
-                    <div style={{ fontSize:'0.7rem', color:'var(--muted)' }}>⚡ <span style={{ color:'var(--text)', fontWeight:600 }}>Minutes</span> delivery</div>
-                    <div style={{ fontSize:'0.7rem', color:'var(--muted)' }}>🎯 <span style={{ color:'var(--text)', fontWeight:600 }}>Avg & HQ</span> tiers</div>
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:'0.3rem', color:'var(--purple2)', fontSize:'0.78rem', fontWeight:700 }}>
-                    Select <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                  </div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(108,78,242,0.15)', paddingTop:'0.7rem' }}>
+                  <span style={{ fontSize:'0.62rem', color:'var(--purple2)', fontWeight:700 }}>FASTEST</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                 </div>
               </button>
 
-              {/* STANDARD CARD */}
+              {/* STANDARD */}
               <button className="provider-card" onClick={() => setProvider('standard')}
-                style={{ width:'100%', padding:'1.4rem', background:'linear-gradient(135deg, rgba(245,166,35,0.08) 0%, rgba(245,166,35,0.02) 100%)', border:'1.5px solid rgba(245,166,35,0.3)', borderRadius:'18px', textAlign:'left', boxShadow:'0 4px 24px rgba(245,166,35,0.06)' }}>
-                <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'0.9rem' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'0.75rem' }}>
-                    <div style={{ width:46, height:46, borderRadius:'13px', background:'rgba(245,166,35,0.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', flexShrink:0 }}>🚀</div>
-                    <div>
-                      <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.05rem', color:'var(--text)' }}>Standard Boost</div>
-                      <div style={{ fontSize:'0.68rem', color:'#f5a623', fontWeight:600, marginTop:'0.1rem' }}>Powered by JAP</div>
-                    </div>
-                  </div>
-                  <div style={{ background:'rgba(245,166,35,0.12)', borderRadius:'8px', padding:'0.25rem 0.6rem', fontSize:'0.65rem', fontWeight:700, color:'#f5a623', whiteSpace:'nowrap', flexShrink:0 }}>ALL PLATFORMS</div>
+                style={{ padding:'1.2rem 1rem', background:'linear-gradient(145deg, rgba(245,166,35,0.1) 0%, rgba(245,166,35,0.02) 100%)', border:'1.5px solid rgba(245,166,35,0.3)', borderRadius:'18px', textAlign:'left', boxShadow:'0 4px 20px rgba(245,166,35,0.06)' }}>
+                <div style={{ width:40, height:40, borderRadius:'11px', background:'rgba(245,166,35,0.14)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'0.75rem' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f5a623" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
                 </div>
-
-                <div style={{ fontSize:'0.8rem', color:'var(--muted)', lineHeight:1.65, marginBottom:'1rem' }}>
-                  Wider platform coverage including Spotify and Snapchat. Great for steady, gradual growth across all major social networks.
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'0.92rem', color:'var(--text)', marginBottom:'0.2rem' }}>Standard Boost</div>
+                <div style={{ fontSize:'0.62rem', color:'#f5a623', fontWeight:600, marginBottom:'0.6rem' }}>MegaDen Standard</div>
+                <div style={{ fontSize:'0.72rem', color:'var(--muted)', lineHeight:1.55, marginBottom:'0.85rem' }}>
+                  Wider coverage including Spotify and Snapchat across 8 platforms.
                 </div>
-
-                <div style={{ display:'flex', flexWrap:'wrap', gap:'0.4rem', marginBottom:'1rem' }}>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'0.3rem', marginBottom:'0.85rem' }}>
                   {['Instagram','TikTok','Twitter','Facebook','YouTube','Telegram','Spotify','Snapchat'].map(p => (
-                    <span key={p} style={{ fontSize:'0.65rem', fontWeight:600, color:'var(--muted)', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'6px', padding:'0.2rem 0.5rem' }}>{p}</span>
+                    <span key={p} style={{ fontSize:'0.58rem', fontWeight:600, color:'var(--muted)', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'5px', padding:'0.15rem 0.4rem' }}>{p}</span>
                   ))}
                 </div>
-
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(245,166,35,0.15)', paddingTop:'0.8rem' }}>
-                  <div style={{ display:'flex', gap:'1.2rem' }}>
-                    <div style={{ fontSize:'0.7rem', color:'var(--muted)' }}>🌐 <span style={{ color:'var(--text)', fontWeight:600 }}>8 platforms</span></div>
-                    <div style={{ fontSize:'0.7rem', color:'var(--muted)' }}>🎵 <span style={{ color:'var(--text)', fontWeight:600 }}>Spotify & Snap</span></div>
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:'0.3rem', color:'#f5a623', fontSize:'0.78rem', fontWeight:700 }}>
-                    Select <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                  </div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(245,166,35,0.15)', paddingTop:'0.7rem' }}>
+                  <span style={{ fontSize:'0.62rem', color:'#f5a623', fontWeight:700 }}>ALL PLATFORMS</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f5a623" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                 </div>
               </button>
 
@@ -453,34 +439,77 @@ export default function Boosting() {
                   </div>
                 )}
 
-                {/* PLATFORM */}
-                <div style={{ marginBottom:'1.4rem' }}>
-                  <div style={{ fontSize:'0.75rem', fontWeight:700, color:'var(--muted)', letterSpacing:'0.06em', textTransform:'uppercase', marginBottom:'0.7rem' }}>Select Platform</div>
-                  <div className="platform-grid" style={{ display:'grid', gridTemplateRows:'repeat(2, 1fr)', gridAutoFlow:'column', gridAutoColumns:'calc(25% - 0.38rem)', gap:'0.5rem', overflowX:'auto', paddingBottom:'0.3rem', scrollbarWidth:'none' }}>
+                {/* STEP 1 — PLATFORM (single row horizontal scroll, same as numbers page) */}
+                <div style={{ marginBottom:'1.5rem', animation: mounted ? 'fadeSlideIn 0.35s ease 0.05s both' : 'none' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
+                    <div style={{ width:22, height:22, borderRadius:'50%', background: selectedPlatform ? 'var(--purple)' : 'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      {selectedPlatform
+                        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        : <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>1</span>}
+                    </div>
+                    <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Select Platform</span>
+                    {selectedPlatform && (
+                      <span style={{ fontSize:'0.7rem', color:'#34d399', marginLeft:'auto', display:'flex', alignItems:'center', gap:'0.3rem' }}>
+                        <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', background: selectedPlatform.color }}/>
+                        {selectedPlatform.name}
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    className="service-grid"
+                    ref={platformRef}
+                    onScroll={e => {
+                      if (isTurbo) {
+                        const page = Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth)
+                        setPlatformPage(page)
+                      }
+                    }}
+                    style={isTurbo
+                      ? { display:'grid', gridTemplateRows:'1fr', gridAutoFlow:'column', gridAutoColumns:'calc(25% - 0.38rem)', gap:'0.5rem', overflowX:'auto', paddingBottom:'0.3rem', scrollbarWidth:'none', msOverflowStyle:'none' }
+                      : { display:'grid', gridTemplateRows:'repeat(2, 1fr)', gridAutoFlow:'column', gridAutoColumns:'calc(25% - 0.38rem)', gap:'0.5rem', overflowX:'auto', paddingBottom:'0.3rem', scrollbarWidth:'none', msOverflowStyle:'none' }
+                    }>
                     {activeServices.map((p, i) => {
                       const isSel = selectedPlatform?.id === p.id
                       return (
-                        <button key={p.id} className="platform-chip"
+                        <button key={p.id} className="service-chip"
                           onClick={() => { setSelectedPlatform(p); setSelectedPackage(null) }}
-                          style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.5rem', padding:'1rem 0.4rem', background: isSel ? `${p.color}15` : 'var(--card)', border:`1.5px solid ${isSel ? p.color : 'var(--border)'}`, borderRadius:'14px', boxShadow: isSel ? `0 4px 16px ${p.color}33` : 'none', animation:`fadeSlideIn 0.3s ease ${0.04*i}s both` }}>
+                          style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.5rem', padding:'1rem 0.4rem', background: isSel ? `${p.color}15` : 'var(--card)', border:`1.5px solid ${isSel ? p.color : 'var(--border)'}`, borderRadius:'14px', boxShadow: isSel ? `0 4px 16px ${p.color}33` : 'none', animation: mounted ? `fadeSlideIn 0.3s ease ${0.04*i}s both` : 'none' }}>
                           <div style={{ filter: isSel ? 'none' : 'grayscale(20%) opacity(0.85)', transition:'filter 0.2s' }}>
                             <PlatformIcon id={p.id} size={26} />
                           </div>
-                          <span style={{ fontSize:'0.6rem', fontWeight:600, color: isSel ? p.color : 'var(--muted)', textAlign:'center', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:'100%', transition:'color 0.2s' }}>
+                          <span style={{ fontSize:'0.62rem', fontWeight:600, color: isSel ? p.color : 'var(--muted)', textAlign:'center', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:'100%', transition:'color 0.2s' }}>
                             {p.name.replace(' / X', '')}
                           </span>
                         </button>
                       )
                     })}
                   </div>
+
+                  {/* Page dots — Turbo only */}
+                  {isTurbo && totalPages > 1 && (
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.3rem', marginTop:'0.5rem' }}>
+                      <div style={{ display:'flex', gap:'0.3rem', alignItems:'center' }}>
+                        {Array.from({ length: totalPages }).map((_, i) => (
+                          <div key={i} style={{ width: platformPage === i ? 16 : 6, height:6, borderRadius:99, background: platformPage === i ? 'var(--purple)' : 'var(--border)', transition:'all 0.3s ease' }}/>
+                        ))}
+                      </div>
+                      <span style={{ fontSize:'0.6rem', color:'var(--muted)', letterSpacing:'0.04em' }}>Swipe to see more platforms →</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* PACKAGES */}
+                {/* STEP 2 — PACKAGES */}
                 {selectedPlatform && (
                   <div style={{ marginBottom:'1.4rem', animation:'fadeSlideIn 0.35s ease both' }}>
-                    <div style={{ fontSize:'0.75rem', fontWeight:700, color:'var(--muted)', letterSpacing:'0.06em', textTransform:'uppercase', marginBottom:'0.7rem', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                      <span>Select Package</span>
-                      <span style={{ display:'flex', alignItems:'center', gap:'0.35rem' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
+                      <div style={{ width:22, height:22, borderRadius:'50%', background: selectedPackage ? 'var(--purple)' : 'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        {selectedPackage
+                          ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          : <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>2</span>}
+                      </div>
+                      <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Select Package</span>
+                      <span style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:'0.35rem' }}>
                         <PlatformIcon id={selectedPlatform.id} size={13} />
                         <span style={{ color: selectedPlatform.color, fontSize:'0.72rem', fontWeight:700 }}>{selectedPlatform.name}</span>
                       </span>
@@ -507,10 +536,15 @@ export default function Boosting() {
                   </div>
                 )}
 
-                {/* LINK */}
+                {/* STEP 3 — LINK */}
                 {selectedPackage && (
                   <div style={{ marginBottom:'1.4rem', animation:'fadeSlideIn 0.3s ease both' }}>
-                    <div style={{ fontSize:'0.75rem', fontWeight:700, color:'var(--muted)', letterSpacing:'0.06em', textTransform:'uppercase', marginBottom:'0.7rem' }}>Your Link</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
+                      <div style={{ width:22, height:22, borderRadius:'50%', background:'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>3</span>
+                      </div>
+                      <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Your Link</span>
+                    </div>
                     <input className="link-input"
                       placeholder={`Paste your ${selectedPlatform.name} profile or post URL...`}
                       value={link} onChange={e => setLink(e.target.value)}
@@ -526,7 +560,7 @@ export default function Boosting() {
                     <div style={{ background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.1rem', marginBottom:'1rem' }}>
                       <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.82rem', color:'var(--text)', marginBottom:'0.8rem' }}>Order Summary</div>
                       {[
-                        { label:'Service',  value: <span style={{ fontWeight:600, color: isTurbo ? 'var(--purple2)' : '#f5a623' }}>{isTurbo ? '⚡ Turbo Boost' : '🚀 Standard Boost'}</span> },
+                        { label:'Service',  value: <span style={{ fontWeight:600, color: isTurbo ? 'var(--purple2)' : '#f5a623' }}>{isTurbo ? 'Turbo Boost' : 'Standard Boost'}</span> },
                         { label:'Platform', value: <span style={{ display:'flex', alignItems:'center', gap:'0.4rem', justifyContent:'flex-end' }}><PlatformIcon id={selectedPlatform.id} size={13}/>{selectedPlatform.name}</span> },
                         { label:'Package',  value: selectedPackage.name },
                         { label:'Delivery', value: selectedPackage.delivery },
@@ -547,7 +581,7 @@ export default function Boosting() {
                       style={{ width:'100%', padding:'0.95rem', background: ordering ? 'var(--purple2)' : 'var(--purple)', color:'#fff', border:'none', borderRadius:'12px', fontFamily:'Outfit, sans-serif', fontSize:'0.95rem', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:'0.6rem' }}>
                       {ordering
                         ? <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation:'spin 0.8s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Processing...</>
-                        : `${isTurbo ? '⚡ Turbo' : '🚀 Boost'} Now — ₦${selectedPackage.price.toLocaleString()}`}
+                        : `${isTurbo ? 'Turbo' : 'Boost'} Now — ₦${selectedPackage.price.toLocaleString()}`}
                     </button>
                   </div>
                 )}

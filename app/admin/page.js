@@ -141,8 +141,8 @@ export default function AdminPanel() {
   const [subKeys, setSubKeys] = useState([])
 
   // Settings
-  const [settings, setSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5' })
-  const [editedSettings, setEditedSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5' })
+  const [settings, setSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
+  const [editedSettings, setEditedSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [boostPrices, setBoostPrices] = useState({})
@@ -177,7 +177,7 @@ export default function AdminPanel() {
   const [userSort, setUserSort] = useState('recent')
 
   // Provider balances
-  const [providerBalances, setProviderBalances] = useState({ fivesim: { balance: null, error: null }, jap: { balance: null, error: null }, vpn: { balance: null, error: null } })
+  const [providerBalances, setProviderBalances] = useState({ fivesim: { balance: null, error: null }, jap: { balance: null, error: null }, vtugate: { balance: null, error: null } })
   const [balancesLoading, setBalancesLoading] = useState(false)
   const [balancesLastFetched, setBalancesLastFetched] = useState(null)
 
@@ -189,6 +189,13 @@ export default function AdminPanel() {
   const [logCategoryFilter, setLogCategoryFilter] = useState('all')
   const [logSearch, setLogSearch] = useState('')
   const [expandedLog, setExpandedLog] = useState(null)
+
+  // Broadcast email
+  const [broadcastSubject, setBroadcastSubject] = useState('')
+  const [broadcastMessage, setBroadcastMessage] = useState('')
+  const [sendingBroadcast, setSendingBroadcast] = useState(false)
+  const [broadcastResult, setBroadcastResult] = useState(null)
+  const [confirmingBroadcast, setConfirmingBroadcast] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -218,10 +225,8 @@ export default function AdminPanel() {
       // Load settings
       const settingsMap = {}
       ;(settingsRes.data || []).forEach(s => { settingsMap[s.key] = s.value })
-      if (Object.keys(settingsMap).length) {
-        setSettings(settingsMap)
-        setEditedSettings(settingsMap)
-      }
+      setSettings(prev => ({ ...prev, ...settingsMap }))
+      setEditedSettings(prev => ({ ...prev, ...settingsMap }))
 
       // Get real auth user count via profiles (fallback) 
       // Count all profiles + any auth users without profiles
@@ -275,6 +280,30 @@ export default function AdminPanel() {
       console.error('Failed to fetch logs', e)
     }
     setLogsLoading(false)
+  }
+
+  const sendBroadcast = async () => {
+    setSendingBroadcast(true)
+    setBroadcastResult(null)
+    try {
+      const res = await fetch('/api/admin/broadcast-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: broadcastSubject, message: broadcastMessage }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setBroadcastResult({ ok: true, ...data })
+        setBroadcastSubject('')
+        setBroadcastMessage('')
+      } else {
+        setBroadcastResult({ ok: false, error: data.error || 'Failed to send' })
+      }
+    } catch (e) {
+      setBroadcastResult({ ok: false, error: 'Network error — please try again' })
+    }
+    setSendingBroadcast(false)
+    setConfirmingBroadcast(false)
   }
 
   const getPrice = (id) => editedPrices[id] ?? (DEFAULT_BOOST_PACKAGES.find(p => p.id === id)?.price || 0)
@@ -405,6 +434,7 @@ export default function AdminPanel() {
     { id: 'boost',    label: 'Prices',    icon: <MoneyIcon /> },
     { id: 'vpn',      label: 'VPN',       icon: <VpnIcon /> },
     { id: 'subs',     label: 'Subs',      icon: <SubsIcon /> },
+    { id: 'notify',   label: 'Notify',    icon: <MailIcon /> },
     { id: 'logs',     label: 'Logs',      icon: <LogsIcon /> },
     { id: 'settings', label: 'Settings',  icon: <SettingsIcon /> },
   ]
@@ -429,6 +459,12 @@ export default function AdminPanel() {
         * { box-sizing: border-box; }
         .tab-btn { transition:background 0.15s,color 0.15s; cursor:pointer; }
         .tab-btn:hover { background:var(--card2) !important; }
+        .bottom-nav-row { display:flex; justify-content:space-around; }
+        @media (max-width: 640px) {
+          .bottom-nav-row { justify-content:flex-start; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; -ms-overflow-style:none; gap:0.15rem; }
+          .bottom-nav-row::-webkit-scrollbar { display:none; }
+          .nav-tab-item { flex-shrink:0; min-width:3.6rem; }
+        }
         .action-btn { transition:transform 0.13s,opacity 0.13s; cursor:pointer; }
         .action-btn:hover { transform:scale(1.04); }
         .action-btn:active { transform:scale(0.97); }
@@ -489,9 +525,9 @@ export default function AdminPanel() {
 
               <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'0.6rem' }}>
                 {[
-                  { key:'fivesim',  label:'5sim',         emoji:'📱', color:'#25d366', bg:'rgba(37,211,102,0.08)',  border:'rgba(37,211,102,0.2)'  },
-                  { key:'jap',      label:'JAP Panel',    emoji:'📣', color:'#1877f2', bg:'rgba(24,119,242,0.08)', border:'rgba(24,119,242,0.2)' },
-                  { key:'vpn',      label:'VPNresellers', emoji:'🔒', color:'#6d4aff', bg:'rgba(109,74,255,0.08)', border:'rgba(109,74,255,0.2)'  },
+                  { key:'fivesim',  label:'5sim',    emoji:'📱', color:'#25d366', bg:'rgba(37,211,102,0.08)',  border:'rgba(37,211,102,0.2)', currency:'$' },
+                  { key:'jap',      label:'JAP Panel', emoji:'📣', color:'#1877f2', bg:'rgba(24,119,242,0.08)', border:'rgba(24,119,242,0.2)', currency:'$' },
+                  { key:'vtugate',  label:'VTUGATE', emoji:'📶', color:'#6c4ef2', bg:'rgba(108,78,242,0.08)', border:'rgba(108,78,242,0.2)', currency:'₦' },
                 ].map(p => {
                   const val = providerBalances[p.key]?.balance
                   const err = providerBalances[p.key]?.error
@@ -516,7 +552,7 @@ export default function AdminPanel() {
                         <div style={{ fontSize:'0.8rem', color:'var(--muted)' }}>—</div>
                       ) : (
                         <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.05rem', color: balColor, letterSpacing:'-0.01em' }}>
-                          ${Number(val).toFixed(2)}
+                          {p.currency}{p.currency === '₦' ? Number(val).toLocaleString() : Number(val).toFixed(2)}
                         </div>
                       )}
                     </div>
@@ -528,7 +564,7 @@ export default function AdminPanel() {
               {!balancesLoading && (
                 providerBalances.fivesim?.balance < 5 ||
                 providerBalances.jap?.balance < 5 ||
-                providerBalances.vpn?.balance < 5
+                providerBalances.vtugate?.balance < 5
               ) && (
                 <div style={{ marginTop:'0.6rem', padding:'0.65rem 0.9rem', background:'rgba(244,63,94,0.07)', border:'1px solid rgba(244,63,94,0.22)', borderRadius:'12px', fontSize:'0.7rem', color:'#f43f5e', display:'flex', alignItems:'center', gap:'0.5rem', fontWeight:500 }}>
                   <span style={{ fontSize:'0.9rem' }}>⚠️</span> One or more provider balances are low — top up to avoid service disruptions.
@@ -981,6 +1017,84 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* NOTIFY TAB — mass email broadcast */}
+        {activeTab === 'notify' && (
+          <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
+            <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)', marginBottom:'0.3rem' }}>
+              Mass Email Notification
+            </div>
+            <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'1.1rem' }}>
+              Sends a separate email to every user with a registered email address. Currently {stats.users} users.
+            </div>
+
+            <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginBottom:'1rem' }}>
+              <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.4rem' }}>Subject</label>
+              <input
+                value={broadcastSubject}
+                onChange={e => setBroadcastSubject(e.target.value)}
+                placeholder="e.g. New feature: Instant number delivery"
+                style={{ width:'100%', padding:'0.7rem 0.9rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--text)', fontSize:'0.85rem', outline:'none', marginBottom:'1rem', fontFamily:'Inter, sans-serif' }}
+              />
+
+              <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.4rem' }}>Message</label>
+              <textarea
+                value={broadcastMessage}
+                onChange={e => setBroadcastMessage(e.target.value)}
+                placeholder="Write your message here…"
+                rows={7}
+                style={{ width:'100%', padding:'0.9rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--text)', fontSize:'0.85rem', outline:'none', resize:'vertical', fontFamily:'Inter, sans-serif', lineHeight:1.6 }}
+              />
+              <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.4rem' }}>
+                Sent from <code style={{ background:'var(--card2)', padding:'0.1rem 0.3rem', borderRadius:'4px' }}>no-reply@megad.name.ng</code>
+              </div>
+            </div>
+
+            {broadcastResult && (
+              <div style={{
+                background: broadcastResult.ok ? 'rgba(29,158,117,0.08)' : 'rgba(244,63,94,0.08)',
+                border: `1px solid ${broadcastResult.ok ? 'rgba(29,158,117,0.25)' : 'rgba(244,63,94,0.25)'}`,
+                borderRadius:'12px', padding:'0.85rem 1rem', marginBottom:'1rem',
+                fontSize:'0.78rem', color: broadcastResult.ok ? '#34d399' : '#f43f5e', lineHeight:1.5,
+              }}>
+                {broadcastResult.ok
+                  ? `Sent to ${broadcastResult.sent} of ${broadcastResult.total} recipients.${broadcastResult.failed ? ` ${broadcastResult.failed} failed.` : ''}`
+                  : `Failed: ${broadcastResult.error}`}
+              </div>
+            )}
+
+            {!confirmingBroadcast ? (
+              <button
+                className="action-btn"
+                disabled={!broadcastSubject.trim() || !broadcastMessage.trim() || sendingBroadcast}
+                onClick={() => setConfirmingBroadcast(true)}
+                style={{
+                  width:'100%', padding:'0.9rem', background: (!broadcastSubject.trim() || !broadcastMessage.trim()) ? 'var(--card2)' : 'var(--purple)',
+                  border:'none', borderRadius:'12px', color: (!broadcastSubject.trim() || !broadcastMessage.trim()) ? 'var(--muted)' : '#fff',
+                  fontSize:'0.85rem', fontWeight:700, fontFamily:'Outfit, sans-serif',
+                  cursor: (!broadcastSubject.trim() || !broadcastMessage.trim()) ? 'not-allowed' : 'pointer',
+                }}>
+                Review & Send
+              </button>
+            ) : (
+              <div style={{ background:'rgba(240,180,41,0.06)', border:'1px solid rgba(240,180,41,0.25)', borderRadius:'12px', padding:'1rem' }}>
+                <div style={{ fontSize:'0.8rem', color:'var(--text)', marginBottom:'0.9rem', lineHeight:1.5 }}>
+                  Send this email to all <strong>{stats.users}</strong> users? This can't be undone.
+                </div>
+                <div style={{ display:'flex', gap:'0.6rem' }}>
+                  <button className="action-btn" onClick={() => setConfirmingBroadcast(false)} disabled={sendingBroadcast}
+                    style={{ flex:1, padding:'0.7rem', background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--muted)', fontSize:'0.8rem', fontWeight:600 }}>
+                    Cancel
+                  </button>
+                  <button className="action-btn" onClick={sendBroadcast} disabled={sendingBroadcast}
+                    style={{ flex:1, padding:'0.7rem', background:'var(--purple)', border:'none', borderRadius:'10px', color:'#fff', fontSize:'0.8rem', fontWeight:700 }}>
+                    {sendingBroadcast ? 'Sending…' : 'Confirm & Send'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* LOGS TAB */}
         {activeTab === 'logs' && (
           <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
@@ -1164,6 +1278,84 @@ export default function AdminPanel() {
               </button>
             </div>
 
+            {/* Bills page broadcast */}
+            <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginBottom:'1rem' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.3rem' }}>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.85rem', color:'var(--text)' }}>Top-Up & Bills Broadcast</div>
+                <button
+                  onClick={() => setEditedSettings(s => ({ ...s, bills_broadcast_enabled: s.bills_broadcast_enabled === 'true' ? 'false' : 'true' }))}
+                  style={{
+                    width: 44, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer', position: 'relative',
+                    background: editedSettings.bills_broadcast_enabled === 'true' ? 'var(--purple)' : 'var(--navy)',
+                    transition: 'background 0.2s', flexShrink: 0,
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: 3, left: editedSettings.bills_broadcast_enabled === 'true' ? 23 : 3,
+                    width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
+              <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'0.9rem' }}>
+                When on, this message shows as a banner at the top of the Top-Up & Bills page for every user — use it for outage notices (e.g. "Cable TV & Education temporarily unavailable").
+              </div>
+              <textarea
+                value={editedSettings.bills_broadcast_message}
+                onChange={e => setEditedSettings(s => ({ ...s, bills_broadcast_message: e.target.value }))}
+                placeholder="e.g. Cable TV and Education pins are temporarily unavailable while we resolve a provider issue. Airtime and Data are working normally."
+                rows={3}
+                style={{
+                  width: '100%', padding: '0.7rem 0.9rem', background: 'var(--navy)', border: '1px solid var(--border)',
+                  borderRadius: '10px', color: 'var(--text)', fontSize: '0.82rem', fontFamily: 'Inter, sans-serif',
+                  outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+                }}
+              />
+              {settings.bills_broadcast_enabled === 'true' && settings.bills_broadcast_message && (
+                <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.5rem' }}>
+                  Currently live: "{settings.bills_broadcast_message}"
+                </div>
+              )}
+            </div>
+
+            {/* Standard Boost broadcast */}
+            <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginBottom:'1rem' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.3rem' }}>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.85rem', color:'var(--text)' }}>Standard Boost Broadcast</div>
+                <button
+                  onClick={() => setEditedSettings(s => ({ ...s, boost_broadcast_enabled: s.boost_broadcast_enabled === 'true' ? 'false' : 'true' }))}
+                  style={{
+                    width: 44, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer', position: 'relative',
+                    background: editedSettings.boost_broadcast_enabled === 'true' ? 'var(--purple)' : 'var(--navy)',
+                    transition: 'background 0.2s', flexShrink: 0,
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: 3, left: editedSettings.boost_broadcast_enabled === 'true' ? 23 : 3,
+                    width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
+              <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'0.9rem' }}>
+                When on, this message shows as a banner at the top of the Social Boosting page for every user — use it for outage notices (e.g. "Standard Boost is temporarily unavailable while we carry out repairs").
+              </div>
+              <textarea
+                value={editedSettings.boost_broadcast_message}
+                onChange={e => setEditedSettings(s => ({ ...s, boost_broadcast_message: e.target.value }))}
+                placeholder="e.g. Standard Boost is currently undergoing repair and is temporarily unavailable. Turbo Boost is working normally."
+                rows={3}
+                style={{
+                  width: '100%', padding: '0.7rem 0.9rem', background: 'var(--navy)', border: '1px solid var(--border)',
+                  borderRadius: '10px', color: 'var(--text)', fontSize: '0.82rem', fontFamily: 'Inter, sans-serif',
+                  outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+                }}
+              />
+              {settings.boost_broadcast_enabled === 'true' && settings.boost_broadcast_message && (
+                <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.5rem' }}>
+                  Currently live: "{settings.boost_broadcast_message}"
+                </div>
+              )}
+            </div>
+
             {/* Number pricing */}
             <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginBottom:'1rem' }}>
               <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.85rem', color:'var(--text)', marginBottom:'0.3rem' }}>Virtual Number Pricing</div>
@@ -1211,17 +1403,19 @@ export default function AdminPanel() {
       </div>
 
       {/* BOTTOM NAV */}
-      <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'var(--navy)', backdropFilter:'blur(12px)', borderTop:'1px solid var(--border)', padding:'0.6rem 0.5rem 0.9rem', display:'flex', justifyContent:'space-around', zIndex:100 }}>
-        {tabs.map(tab => (
-          <button key={tab.id} className="tab-btn" onClick={() => {
-            setActiveTab(tab.id)
-            if (tab.id === 'logs' && logs.length === 0) fetchLogs()
-          }}
-            style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.22rem', background:'transparent', border:'none', padding:'0.3rem 0.5rem', borderRadius:'10px' }}>
-            <div style={{ color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', transition:'color 0.15s' }}>{tab.icon}</div>
-            <span style={{ fontSize:'0.58rem', color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', fontWeight: activeTab === tab.id ? 700 : 400, transition:'color 0.15s' }}>{tab.label}</span>
-          </button>
-        ))}
+      <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'var(--navy)', backdropFilter:'blur(12px)', borderTop:'1px solid var(--border)', zIndex:100 }}>
+        <div className="bottom-nav-row" style={{ padding:'0.6rem 0.5rem 0.9rem' }}>
+          {tabs.map(tab => (
+            <button key={tab.id} className="tab-btn nav-tab-item" onClick={() => {
+              setActiveTab(tab.id)
+              if (tab.id === 'logs' && logs.length === 0) fetchLogs()
+            }}
+              style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.22rem', background:'transparent', border:'none', padding:'0.3rem 0.5rem', borderRadius:'10px' }}>
+              <div style={{ color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', transition:'color 0.15s' }}>{tab.icon}</div>
+              <span style={{ fontSize:'0.58rem', color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', fontWeight: activeTab === tab.id ? 700 : 400, transition:'color 0.15s', whiteSpace:'nowrap' }}>{tab.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </main>
   )
@@ -1235,4 +1429,5 @@ function ClockIcon()   { return <svg width="20" height="20" viewBox="0 0 24 24" 
 function VpnIcon()     { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> }
 function SubsIcon()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> }
 function LogsIcon()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> }
+function MailIcon()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> }
 function SettingsIcon(){ return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> }

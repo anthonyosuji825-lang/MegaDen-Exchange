@@ -1,194 +1,8 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
-
-// ─── STANDARD BOOST SERVICES (JAP) ───────────────────────────────────────────
-const STANDARD_SERVICES = [
-  {
-    id: 'instagram', name: 'Instagram', color: '#e1306c',
-    packages: [
-      { id: 'ig_f1k',   name: '1,000 Followers',   price: 1500,  delivery: '24hrs',  desc: 'Real-looking profiles',  service_id: 10129, quantity: 1000   },
-      { id: 'ig_f5k',   name: '5,000 Followers',   price: 6000,  delivery: '48hrs',  desc: 'Gradual delivery',       service_id: 10129, quantity: 5000   },
-      { id: 'ig_f10k',  name: '10,000 Followers',  price: 11000, delivery: '72hrs',  desc: 'Best value',             service_id: 10129, quantity: 10000  },
-      { id: 'ig_f50k',  name: '50,000 Followers',  price: 48000, delivery: '5days',  desc: 'Mega growth',            service_id: 10129, quantity: 50000  },
-      { id: 'ig_l500',  name: '500 Likes',          price: 500,   delivery: '6hrs',   desc: 'Per post',               service_id: 9438,  quantity: 500    },
-      { id: 'ig_l1k',   name: '1,000 Likes',        price: 800,   delivery: '12hrs',  desc: 'Per post',               service_id: 9438,  quantity: 1000   },
-      { id: 'ig_l5k',   name: '5,000 Likes',        price: 3500,  delivery: '24hrs',  desc: 'Per post',               service_id: 9438,  quantity: 5000   },
-      { id: 'ig_v10k',  name: '10,000 Views',       price: 600,   delivery: '6hrs',   desc: 'Reel / Video',           service_id: 7786,  quantity: 10000  },
-      { id: 'ig_v50k',  name: '50,000 Views',       price: 2500,  delivery: '12hrs',  desc: 'Reel / Video',           service_id: 7786,  quantity: 50000  },
-      { id: 'ig_v100k', name: '100,000 Views',      price: 4500,  delivery: '24hrs',  desc: 'Reel / Video',           service_id: 7786,  quantity: 100000 },
-    ]
-  },
-  {
-    id: 'tiktok', name: 'TikTok', color: '#ff0050',
-    packages: [
-      { id: 'tt_f1k',   name: '1,000 Followers',  price: 1200,  delivery: '24hrs', desc: 'Real-looking',     service_id: 10127, quantity: 1000   },
-      { id: 'tt_f5k',   name: '5,000 Followers',  price: 5000,  delivery: '48hrs', desc: 'Gradual delivery', service_id: 10127, quantity: 5000   },
-      { id: 'tt_f10k',  name: '10,000 Followers', price: 9500,  delivery: '72hrs', desc: 'Best value',       service_id: 10127, quantity: 10000  },
-      { id: 'tt_l1k',   name: '1,000 Likes',      price: 600,   delivery: '6hrs',  desc: 'Per video',        service_id: 10022, quantity: 1000   },
-      { id: 'tt_l5k',   name: '5,000 Likes',      price: 2500,  delivery: '12hrs', desc: 'Per video',        service_id: 10022, quantity: 5000   },
-      { id: 'tt_v50k',  name: '50,000 Views',     price: 1000,  delivery: '6hrs',  desc: 'Video views',      service_id: 10238, quantity: 50000  },
-      { id: 'tt_v500k', name: '500,000 Views',    price: 8000,  delivery: '48hrs', desc: 'Viral boost',      service_id: 10238, quantity: 500000 },
-    ]
-  },
-  {
-    id: 'twitter', name: 'Twitter / X', color: '#e7e7e7',
-    packages: [
-      { id: 'tw_f500',  name: '500 Followers',   price: 1000, delivery: '12hrs', desc: 'Quality accounts', service_id: 10176, quantity: 500  },
-      { id: 'tw_f1k',   name: '1,000 Followers', price: 1800, delivery: '24hrs', desc: 'Quality accounts', service_id: 9276,  quantity: 1000 },
-      { id: 'tw_f5k',   name: '5,000 Followers', price: 7500, delivery: '72hrs', desc: 'Gradual delivery', service_id: 9276,  quantity: 5000 },
-      { id: 'tw_l500',  name: '500 Likes',        price: 700,  delivery: '6hrs',  desc: 'Per tweet',        service_id: 10176, quantity: 500  },
-      { id: 'tw_l1k',   name: '1,000 Likes',      price: 1200, delivery: '12hrs', desc: 'Per tweet',        service_id: 10176, quantity: 1000 },
-      { id: 'tw_rt500', name: '500 Retweets',     price: 1000, delivery: '12hrs', desc: 'Per tweet',        service_id: 10177, quantity: 500  },
-    ]
-  },
-  {
-    id: 'facebook', name: 'Facebook', color: '#1877f2',
-    packages: [
-      { id: 'fb_pl1k',   name: '1,000 Page Likes', price: 2000, delivery: '48hrs', desc: 'Real-looking',      service_id: 1882, quantity: 1000 },
-      { id: 'fb_pl5k',   name: '5,000 Page Likes', price: 8000, delivery: '5days', desc: 'Gradual delivery',  service_id: 1882, quantity: 5000 },
-      { id: 'fb_f1k',    name: '1,000 Followers',  price: 1800, delivery: '24hrs', desc: 'Profile followers', service_id: 1889, quantity: 1000 },
-      { id: 'fb_f5k',    name: '5,000 Followers',  price: 7000, delivery: '72hrs', desc: 'Gradual delivery',  service_id: 1889, quantity: 5000 },
-      { id: 'fb_ptl500', name: '500 Post Likes',    price: 800,  delivery: '12hrs', desc: 'Per post',          service_id: 8999, quantity: 500  },
-      { id: 'fb_ptl1k',  name: '1,000 Post Likes', price: 1400, delivery: '24hrs', desc: 'Per post',          service_id: 8999, quantity: 1000 },
-    ]
-  },
-  {
-    id: 'youtube', name: 'YouTube', color: '#ff0000',
-    packages: [
-      { id: 'yt_s500',  name: '500 Subscribers',   price: 3000,  delivery: '48hrs', desc: 'Retention safe',     service_id: 3366,  quantity: 500   },
-      { id: 'yt_s1k',   name: '1,000 Subscribers', price: 5000,  delivery: '72hrs', desc: 'Retention safe',     service_id: 3366,  quantity: 1000  },
-      { id: 'yt_s5k',   name: '5,000 Subscribers', price: 22000, delivery: '7days', desc: 'Gradual delivery',   service_id: 3366,  quantity: 5000  },
-      { id: 'yt_v10k',  name: '10,000 Views',       price: 2000,  delivery: '48hrs', desc: 'Watch time counted', service_id: 10236, quantity: 10000 },
-      { id: 'yt_v50k',  name: '50,000 Views',       price: 8000,  delivery: '5days', desc: 'Watch time counted', service_id: 10236, quantity: 50000 },
-      { id: 'yt_l500',  name: '500 Likes',           price: 1000,  delivery: '24hrs', desc: 'Per video',          service_id: 6767,  quantity: 500   },
-      { id: 'yt_l1k',   name: '1,000 Likes',         price: 1800,  delivery: '48hrs', desc: 'Per video',          service_id: 6767,  quantity: 1000  },
-    ]
-  },
-  {
-    id: 'telegram', name: 'Telegram', color: '#0088cc',
-    packages: [
-      { id: 'tg_m500',  name: '500 Members',       price: 1800,  delivery: '24hrs', desc: 'Channel / Group',  service_id: 7330, quantity: 500   },
-      { id: 'tg_m1k',   name: '1,000 Members',     price: 3000,  delivery: '48hrs', desc: 'Channel / Group',  service_id: 7330, quantity: 1000  },
-      { id: 'tg_m5k',   name: '5,000 Members',     price: 12000, delivery: '72hrs', desc: 'Gradual delivery', service_id: 7330, quantity: 5000  },
-      { id: 'tg_m10k',  name: '10,000 Members',    price: 22000, delivery: '5days', desc: 'Mega growth',      service_id: 7330, quantity: 10000 },
-      { id: 'tg_v10k',  name: '10,000 Post Views', price: 800,   delivery: '6hrs',  desc: 'Per post',         service_id: 7102, quantity: 10000 },
-      { id: 'tg_v50k',  name: '50,000 Post Views', price: 3000,  delivery: '12hrs', desc: 'Per post',         service_id: 7102, quantity: 50000 },
-    ]
-  },
-  {
-    id: 'spotify', name: 'Spotify', color: '#1db954',
-    packages: [
-      { id: 'sp_pl1k',  name: '1,000 Plays',  price: 1800,  delivery: '24hrs', desc: 'iOS/iPhone targeted', service_id: 8430, quantity: 1000  },
-      { id: 'sp_pl5k',  name: '5,000 Plays',  price: 8000,  delivery: '48hrs', desc: 'iOS/iPhone targeted', service_id: 8430, quantity: 5000  },
-      { id: 'sp_pl10k', name: '10,000 Plays', price: 14000, delivery: '72hrs', desc: 'iOS/iPhone targeted', service_id: 8430, quantity: 10000 },
-      { id: 'sp_pla1k', name: '1,000 Plays',  price: 1900,  delivery: '24hrs', desc: 'Android targeted',    service_id: 8431, quantity: 1000  },
-      { id: 'sp_pla5k', name: '5,000 Plays',  price: 8500,  delivery: '48hrs', desc: 'Android targeted',    service_id: 8431, quantity: 5000  },
-    ]
-  },
-  {
-    id: 'snapchat', name: 'Snapchat', color: '#fffc00',
-    packages: [
-      { id: 'sc_f100',  name: '100 Followers',   price: 2500,  delivery: '48hrs', desc: 'Arab Gulf accounts', service_id: 4165, quantity: 100  },
-      { id: 'sc_f500',  name: '500 Followers',   price: 10000, delivery: '5days', desc: 'Arab Gulf accounts', service_id: 4165, quantity: 500  },
-      { id: 'sc_fa100', name: '100 Followers',   price: 2000,  delivery: '24hrs', desc: 'Arab accounts',      service_id: 6859, quantity: 100  },
-      { id: 'sc_fa1k',  name: '1,000 Followers', price: 18000, delivery: '72hrs', desc: 'Arab accounts',      service_id: 6859, quantity: 1000 },
-    ]
-  },
-]
-
-// ─── TURBO BOOST SERVICES (EXO) ──────────────────────────────────────────────
-const TURBO_SERVICES = [
-  {
-    id: 'instagram', name: 'Instagram', color: '#e1306c',
-    packages: [
-      { id: 'tb_ig_f1k_avg',   name: '1,000 Followers (Avg)',  price: 4000,  delivery: '1hr',   desc: 'Average quality', service_id: 3106, quantity: 1000   },
-      { id: 'tb_ig_f1k_hq',    name: '1,000 Followers (HQ)',   price: 6000,  delivery: '11min', desc: 'High quality',    service_id: 3107, quantity: 1000   },
-      { id: 'tb_ig_f5k_avg',   name: '5,000 Followers (Avg)',  price: 18000, delivery: '1hr',   desc: 'Average quality', service_id: 3106, quantity: 5000   },
-      { id: 'tb_ig_f5k_hq',    name: '5,000 Followers (HQ)',   price: 28000, delivery: '11min', desc: 'High quality',    service_id: 3107, quantity: 5000   },
-      { id: 'tb_ig_l1k_avg',   name: '1,000 Likes (Avg)',      price: 500,   delivery: '5min',  desc: 'Average quality', service_id: 2997, quantity: 1000   },
-      { id: 'tb_ig_l1k_hq',    name: '1,000 Likes (HQ)',       price: 900,   delivery: '5min',  desc: 'High quality',    service_id: 2998, quantity: 1000   },
-      { id: 'tb_ig_l5k_avg',   name: '5,000 Likes (Avg)',      price: 2000,  delivery: '5min',  desc: 'Average quality', service_id: 2997, quantity: 5000   },
-      { id: 'tb_ig_l5k_hq',    name: '5,000 Likes (HQ)',       price: 4000,  delivery: '5min',  desc: 'High quality',    service_id: 2998, quantity: 5000   },
-      { id: 'tb_ig_v10k_avg',  name: '10,000 Views (Avg)',     price: 100,   delivery: '28min', desc: 'Reel / Video',    service_id: 3108, quantity: 10000  },
-      { id: 'tb_ig_v10k_hq',   name: '10,000 Views (HQ)',      price: 300,   delivery: '31min', desc: 'Reel / Video',    service_id: 3109, quantity: 10000  },
-      { id: 'tb_ig_v100k_avg', name: '100,000 Views (Avg)',    price: 900,   delivery: '28min', desc: 'Reel / Video',    service_id: 3108, quantity: 100000 },
-      { id: 'tb_ig_v100k_hq',  name: '100,000 Views (HQ)',     price: 2500,  delivery: '31min', desc: 'Reel / Video',    service_id: 3109, quantity: 100000 },
-    ]
-  },
-  {
-    id: 'tiktok', name: 'TikTok', color: '#ff0050',
-    packages: [
-      { id: 'tb_tt_f1k_avg',   name: '1,000 Followers (Avg)',  price: 8000,  delivery: '1hr',   desc: 'Average quality', service_id: 3036, quantity: 1000   },
-      { id: 'tb_tt_f1k_hq',    name: '1,000 Followers (HQ)',   price: 11000, delivery: '7hrs',  desc: 'High quality',    service_id: 3037, quantity: 1000   },
-      { id: 'tb_tt_f5k_avg',   name: '5,000 Followers (Avg)',  price: 38000, delivery: '1hr',   desc: 'Average quality', service_id: 3036, quantity: 5000   },
-      { id: 'tb_tt_f5k_hq',    name: '5,000 Followers (HQ)',   price: 56000, delivery: '7hrs',  desc: 'High quality',    service_id: 3037, quantity: 5000   },
-      { id: 'tb_tt_l1k_avg',   name: '1,000 Likes (Avg)',      price: 500,   delivery: '29min', desc: 'Average quality', service_id: 3048, quantity: 1000   },
-      { id: 'tb_tt_l1k_hq',    name: '1,000 Likes (HQ)',       price: 700,   delivery: '32min', desc: 'High quality',    service_id: 3049, quantity: 1000   },
-      { id: 'tb_tt_l5k_avg',   name: '5,000 Likes (Avg)',      price: 2000,  delivery: '29min', desc: 'Average quality', service_id: 3048, quantity: 5000   },
-      { id: 'tb_tt_l5k_hq',    name: '5,000 Likes (HQ)',       price: 3500,  delivery: '32min', desc: 'High quality',    service_id: 3049, quantity: 5000   },
-      { id: 'tb_tt_v50k_avg',  name: '50,000 Views (Avg)',     price: 400,   delivery: '12min', desc: 'Video views',     service_id: 3047, quantity: 50000  },
-      { id: 'tb_tt_v50k_hq',   name: '50,000 Views (HQ)',      price: 600,   delivery: '5min',  desc: 'Video views',     service_id: 3043, quantity: 50000  },
-      { id: 'tb_tt_v500k_avg', name: '500,000 Views (Avg)',    price: 4000,  delivery: '12min', desc: 'Viral boost',     service_id: 3047, quantity: 500000 },
-      { id: 'tb_tt_v500k_hq',  name: '500,000 Views (HQ)',     price: 6000,  delivery: '5min',  desc: 'Viral boost',     service_id: 3043, quantity: 500000 },
-    ]
-  },
-  {
-    id: 'facebook', name: 'Facebook', color: '#1877f2',
-    packages: [
-      { id: 'tb_fb_pgf1k_avg',   name: '1,000 Page Followers (Avg)',    price: 4500, delivery: '3hrs',  desc: 'Average quality', service_id: 3123, quantity: 1000  },
-      { id: 'tb_fb_pgf1k_hq',    name: '1,000 Page Followers (HQ)',     price: 4500, delivery: '4hrs',  desc: 'High quality',    service_id: 3124, quantity: 1000  },
-      { id: 'tb_fb_prf1k_avg',   name: '1,000 Profile Followers (Avg)', price: 7000, delivery: '6hrs',  desc: 'Average quality', service_id: 3125, quantity: 1000  },
-      { id: 'tb_fb_prf1k_hq',    name: '1,000 Profile Followers (HQ)',  price: 7000, delivery: '1hr',   desc: 'High quality',    service_id: 3126, quantity: 1000  },
-      { id: 'tb_fb_pl1k_avg',    name: '1,000 Post Likes (Avg)',        price: 700,  delivery: '26min', desc: 'Average quality', service_id: 3129, quantity: 1000  },
-      { id: 'tb_fb_pl1k_hq',     name: '1,000 Post Likes (HQ)',         price: 900,  delivery: '1hr',   desc: 'High quality',    service_id: 3130, quantity: 1000  },
-      { id: 'tb_fb_react_love',  name: '1,000 Reactions ❤️',            price: 900,  delivery: '2hrs',  desc: 'Love reaction',   service_id: 3131, quantity: 1000  },
-      { id: 'tb_fb_react_haha',  name: '1,000 Reactions 😂',            price: 900,  delivery: '55min', desc: 'Haha reaction',   service_id: 3133, quantity: 1000  },
-      { id: 'tb_fb_react_wow',   name: '1,000 Reactions 😮',            price: 900,  delivery: '3hrs',  desc: 'Wow reaction',    service_id: 3132, quantity: 1000  },
-      { id: 'tb_fb_react_sad',   name: '1,000 Reactions 😢',            price: 900,  delivery: '29min', desc: 'Sad reaction',    service_id: 3134, quantity: 1000  },
-      { id: 'tb_fb_react_angry', name: '1,000 Reactions 😡',            price: 900,  delivery: '8min',  desc: 'Angry reaction',  service_id: 3135, quantity: 1000  },
-      { id: 'tb_fb_shares',      name: '1,000 Post Shares',             price: 2200, delivery: '4min',  desc: 'High quality',    service_id: 2975, quantity: 1000  },
-      { id: 'tb_fb_grp1k_avg',   name: '1,000 Group Members (Avg)',     price: 2700, delivery: '1hr',   desc: 'Average quality', service_id: 2932, quantity: 1000  },
-      { id: 'tb_fb_grp1k_hq',    name: '1,000 Group Members (HQ)',      price: 4000, delivery: '3hrs',  desc: 'High quality',    service_id: 3136, quantity: 1000  },
-      { id: 'tb_fb_v10k_avg',    name: '10,000 Video Views (Avg)',      price: 1200, delivery: '2hrs',  desc: 'Average quality', service_id: 3137, quantity: 10000 },
-      { id: 'tb_fb_v10k_hq',     name: '10,000 Video Views (HQ)',       price: 2000, delivery: '3hrs',  desc: 'High quality',    service_id: 3138, quantity: 10000 },
-    ]
-  },
-  {
-    id: 'youtube', name: 'YouTube', color: '#ff0000',
-    packages: [
-      { id: 'tb_yt_s500_avg',  name: '500 Subscribers (Avg)',  price: 25000, delivery: '65hrs', desc: 'Average quality', service_id: 3056, quantity: 500   },
-      { id: 'tb_yt_s500_hq',   name: '500 Subscribers (HQ)',   price: 32000, delivery: 'varies',desc: 'High quality',    service_id: 3058, quantity: 500   },
-      { id: 'tb_yt_v10k_avg',  name: '10,000 Views (Avg)',     price: 1800,  delivery: '6hrs',  desc: 'Average quality', service_id: 3061, quantity: 10000 },
-      { id: 'tb_yt_v10k_hq',   name: '10,000 Views (HQ)',      price: 2500,  delivery: '4hrs',  desc: 'High quality',    service_id: 3062, quantity: 10000 },
-      { id: 'tb_yt_v50k_avg',  name: '50,000 Views (Avg)',     price: 8000,  delivery: '6hrs',  desc: 'Average quality', service_id: 3061, quantity: 50000 },
-      { id: 'tb_yt_v50k_hq',   name: '50,000 Views (HQ)',      price: 11000, delivery: '4hrs',  desc: 'High quality',    service_id: 3062, quantity: 50000 },
-      { id: 'tb_yt_l500_avg',  name: '500 Likes (Avg)',         price: 2200,  delivery: '36min', desc: 'Average quality', service_id: 3080, quantity: 500   },
-      { id: 'tb_yt_l500_hq',   name: '500 Likes (HQ)',          price: 4000,  delivery: '3min',  desc: 'High quality',    service_id: 3149, quantity: 500   },
-      { id: 'tb_yt_l1k_avg',   name: '1,000 Likes (Avg)',       price: 4500,  delivery: '36min', desc: 'Average quality', service_id: 3080, quantity: 1000  },
-      { id: 'tb_yt_l1k_hq',    name: '1,000 Likes (HQ)',        price: 7000,  delivery: '3min',  desc: 'High quality',    service_id: 3149, quantity: 1000  },
-    ]
-  },
-  {
-    id: 'telegram', name: 'Telegram', color: '#0088cc',
-    packages: [
-      { id: 'tb_tg_m500_avg',     name: '500 Members (Avg)',        price: 1800, delivery: '4hrs',  desc: 'Channel / Group',    service_id: 3143, quantity: 500   },
-      { id: 'tb_tg_m500_hq',      name: '500 Members (HQ)',         price: 2200, delivery: '28min', desc: 'Channel / Group',    service_id: 3144, quantity: 500   },
-      { id: 'tb_tg_m1k_avg',      name: '1,000 Members (Avg)',      price: 3500, delivery: '4hrs',  desc: 'Channel / Group',    service_id: 3143, quantity: 1000  },
-      { id: 'tb_tg_m1k_hq',       name: '1,000 Members (HQ)',       price: 4500, delivery: '28min', desc: 'Channel / Group',    service_id: 3144, quantity: 1000  },
-      { id: 'tb_tg_v10k',         name: '10,000 Post Views',        price: 300,  delivery: '16min', desc: 'High quality',       service_id: 2801, quantity: 10000 },
-      { id: 'tb_tg_v50k',         name: '50,000 Post Views',        price: 1500, delivery: '16min', desc: 'High quality',       service_id: 2801, quantity: 50000 },
-      { id: 'tb_tg_autoviews',    name: 'Auto Views (New & Old)',   price: 100,  delivery: '1hr',   desc: 'Per 10k views',      service_id: 2804, quantity: 10000 },
-      { id: 'tb_tg_react_pos',    name: '1,000 Positive Reactions', price: 500,  delivery: '7min',  desc: '👍❤️🔥🎉',           service_id: 2733, quantity: 1000  },
-      { id: 'tb_tg_react_neg',    name: '1,000 Negative Reactions', price: 500,  delivery: '4min',  desc: '👎😢😱😡',           service_id: 2734, quantity: 1000  },
-      { id: 'tb_tg_react_heart',  name: '1,000 Reactions ❤️',       price: 500,  delivery: '22min', desc: 'Heart reaction',     service_id: 2735, quantity: 1000  },
-      { id: 'tb_tg_react_fire',   name: '1,000 Reactions 🔥',       price: 500,  delivery: '3min',  desc: 'Fire reaction',      service_id: 2736, quantity: 1000  },
-      { id: 'tb_tg_react_party',  name: '1,000 Reactions 🎉',       price: 500,  delivery: '5min',  desc: 'Party reaction',     service_id: 2737, quantity: 1000  },
-      { id: 'tb_tg_react_thumbs', name: '1,000 Reactions 👍',       price: 500,  delivery: '2min',  desc: 'Thumbs up reaction', service_id: 2738, quantity: 1000  },
-    ]
-  },
-]
+import { STANDARD_SERVICES, TURBO_SERVICES, interpolatePrice, nearestDelivery } from '@/lib/boost-catalog'
 
 // ─── PLATFORM ICONS (same style as numbers page) ─────────────────────────────
 const PlatformIcon = ({ id, size = 26 }) => {
@@ -205,6 +19,100 @@ const PlatformIcon = ({ id, size = 26 }) => {
   return icons[id] || null
 }
 
+function AlertIcon({ size = 16, color = 'currentColor' }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+}
+
+function CustomAmountCard({ family, accentColor, selected, onConfirm }) {
+  const [open, setOpen] = useState(false)
+  const [raw, setRaw] = useState('')
+
+  const qty = Math.round(Number(raw) || 0)
+  const clamped = Math.min(family.max, Math.max(family.min, qty || family.min))
+  const valid = raw !== '' && qty >= family.min && qty <= family.max
+  const price = valid ? interpolatePrice(family.tiers, qty) : null
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="pkg-card"
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem',
+          background: selected ? `${accentColor}12` : 'var(--card)',
+          border: `1px dashed ${selected ? accentColor : 'var(--border)'}`, borderRadius: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--border)', flexShrink: 0 }} />
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text)' }}>Custom Amount — {family.label}</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.1rem' }}>
+              {family.min.toLocaleString()}–{family.max.toLocaleString()}
+            </div>
+          </div>
+        </div>
+        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: accentColor, flexShrink: 0, marginLeft: '0.5rem' }}>Enter →</span>
+      </button>
+    )
+  }
+
+  return (
+    <div style={{ padding: '0.9rem 1rem', background: `${accentColor}0d`, border: `1px solid ${accentColor}`, borderRadius: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+        <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text)' }}>Custom {family.label}</div>
+        <button type="button" onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '1rem', cursor: 'pointer', lineHeight: 1 }}>×</button>
+      </div>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={raw}
+        onChange={e => setRaw(e.target.value)}
+        placeholder={`${family.min.toLocaleString()} – ${family.max.toLocaleString()}`}
+        style={{
+          width: '100%', padding: '0.7rem 0.85rem', background: 'var(--navy)', border: '1px solid var(--border)',
+          borderRadius: '10px', color: 'var(--text)', fontSize: '0.86rem', fontFamily: 'Inter, sans-serif',
+          outline: 'none', boxSizing: 'border-box', marginBottom: '0.5rem',
+        }}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>
+          {raw !== '' && !valid
+            ? `Min ${family.min.toLocaleString()}, max ${family.max.toLocaleString()}`
+            : `Range: ${family.min.toLocaleString()}–${family.max.toLocaleString()}`}
+        </span>
+        <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--gold)', fontFamily: 'Outfit, sans-serif' }}>
+          {price !== null ? `₦${price.toLocaleString()}` : '—'}
+        </span>
+      </div>
+      <button
+        type="button"
+        disabled={!valid}
+        onClick={() => onConfirm({
+          id: `custom_${family.service_id}_${qty}`,
+          name: `${qty.toLocaleString()} ${family.label}`,
+          price,
+          delivery: nearestDelivery(family.tiers, qty),
+          desc: 'Custom amount',
+          service_id: family.service_id,
+          quantity: qty,
+          is_custom: true,
+        })}
+        className="buy-btn"
+        style={{
+          width: '100%', marginTop: '0.7rem', padding: '0.65rem',
+          background: valid ? accentColor : 'var(--card2)', color: valid ? '#fff' : 'var(--muted)',
+          border: 'none', borderRadius: '10px', fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.82rem',
+          cursor: valid ? 'pointer' : 'not-allowed',
+        }}
+      >
+        Use This Amount
+      </button>
+    </div>
+  )
+}
+
 export default function Boosting() {
   const [profile, setProfile] = useState(null)
   const [provider, setProvider] = useState(null)
@@ -219,10 +127,35 @@ export default function Boosting() {
   const [orderId, setOrderId] = useState(null)
   const [mounted, setMounted] = useState(false)
   const [platformPage, setPlatformPage] = useState(0)
+  const [broadcast, setBroadcast] = useState(null) // { enabled, message } | null while loading
   const platformRef = useRef(null)
 
   const activeServices = provider === 'turbo' ? turboServices : standardServices
   const isTurbo = provider === 'turbo'
+
+  // Group the selected platform's packages by service_id — packages that
+  // share a service_id are the same offering (e.g. all Instagram Follower
+  // tiers) at different quantities, so that's the natural range for a
+  // "custom amount" input. Only offer it where there are 2+ tiers to draw
+  // a min/max range and price curve from.
+  const customFamilies = useMemo(() => {
+    if (!selectedPlatform) return []
+    const groups = {}
+    selectedPlatform.packages.forEach(pkg => {
+      if (!groups[pkg.service_id]) groups[pkg.service_id] = []
+      groups[pkg.service_id].push(pkg)
+    })
+    return Object.values(groups)
+      .map(tiers => tiers.slice().sort((a, b) => a.quantity - b.quantity))
+      .filter(tiers => tiers.length >= 2)
+      .map(tiers => ({
+        service_id: tiers[0].service_id,
+        label: tiers[0].name.replace(/^[\d,]+\s*/, ''),
+        min: tiers[0].quantity,
+        max: tiers[tiers.length - 1].quantity,
+        tiers,
+      }))
+  }, [selectedPlatform])
 
   useEffect(() => {
     setMounted(true)
@@ -246,6 +179,11 @@ export default function Boosting() {
       }
     }
     load()
+
+    fetch('/api/boost/broadcast')
+      .then(r => r.json())
+      .then(setBroadcast)
+      .catch(() => setBroadcast({ enabled: false, message: '' }))
   }, [])
 
   const goBack = () => {
@@ -275,6 +213,7 @@ export default function Boosting() {
         package_id: selectedPackage.id,
         package_name: selectedPackage.name,
         platform: selectedPlatform.name,
+        is_custom: !!selectedPackage.is_custom,
       })
     })
     const data = await res.json()
@@ -296,6 +235,9 @@ export default function Boosting() {
         @keyframes scaleIn { from { opacity:0; transform:scale(0.97); } to { opacity:1; transform:scale(1); } }
         @keyframes successPop { 0%{transform:scale(0);opacity:0;} 70%{transform:scale(1.15);} 100%{transform:scale(1);opacity:1;} }
         @keyframes spin { to { transform:rotate(360deg); } }
+        @keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+        .marquee-track { animation: marquee linear infinite; }
+        .marquee-track:hover { animation-play-state: paused; }
         * { box-sizing:border-box; }
         .service-grid::-webkit-scrollbar { display:none; }
         .service-chip { transition:transform 0.15s ease,border-color 0.15s,background 0.15s,box-shadow 0.15s; cursor:pointer; }
@@ -343,6 +285,29 @@ export default function Boosting() {
       </div>
 
       <div style={{ padding:'1.2rem', maxWidth:480, margin:'0 auto' }}>
+
+        {broadcast?.enabled && broadcast.message && (
+          <div style={{
+            display: 'flex', gap: '0.7rem', alignItems: 'center',
+            background: 'rgba(240,180,41,0.08)', border: '1px solid rgba(240,180,41,0.25)',
+            borderRadius: 14, padding: '0.85rem 1rem', marginBottom: '1.2rem',
+            overflow: 'hidden',
+          }}>
+            <div style={{ flexShrink: 0, display: 'flex' }}><AlertIcon size={16} color="#f0b429" /></div>
+            <div style={{ flex: 1, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              <div
+                className="marquee-track"
+                style={{
+                  display: 'inline-flex', width: 'max-content',
+                  animationDuration: `${Math.max(12, broadcast.message.length * 0.18)}s`,
+                }}
+              >
+                <span style={{ fontSize: '0.8rem', color: 'var(--text)', paddingRight: '3rem' }}>{broadcast.message}</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text)', paddingRight: '3rem' }}>{broadcast.message}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── LANDING SCREEN ── */}
         {!provider && (
@@ -532,6 +497,16 @@ export default function Boosting() {
                           </button>
                         )
                       })}
+
+                      {customFamilies.map(family => (
+                        <CustomAmountCard
+                          key={family.service_id}
+                          family={family}
+                          accentColor={selectedPlatform.color}
+                          selected={selectedPackage?.service_id === family.service_id && String(selectedPackage?.id).startsWith('custom_')}
+                          onConfirm={setSelectedPackage}
+                        />
+                      ))}
                     </div>
                   </div>
                 )}

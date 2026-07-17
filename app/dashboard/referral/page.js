@@ -57,7 +57,7 @@ export default function Referral() {
   const rewardedUserIds = new Set(rewards.map(r => r.referred_user_id))
   const totalEarned = rewards.reduce((sum, r) => sum + Number(r.amount), 0)
   const pendingCount = referrals.filter(r => !rewardedUserIds.has(r.id)).length
-  const pendingAmount = pendingCount * 200
+  const pendingAmount = pendingCount * 500
 
   if (loading) return <LoadingScreen />
 
@@ -120,7 +120,7 @@ export default function Referral() {
         </Link>
         <div style={{ animation: mounted ? 'fadeSlideIn 0.4s ease' : 'none' }}>
           <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem', color: 'var(--text)' }}>Refer & Earn</div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Invite friends and earn ₦200 per referral</div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Invite friends and earn ₦500 per referral</div>
         </div>
       </div>
 
@@ -140,7 +140,7 @@ export default function Referral() {
             }}>
               <GiftBoxIcon size={30} />
             </div>
-            <div style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.4rem', fontWeight: 800, color: '#fff', marginBottom: '0.4rem', letterSpacing: '-0.3px' }}>Invite & Earn ₦200</div>
+            <div style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.4rem', fontWeight: 800, color: '#fff', marginBottom: '0.4rem', letterSpacing: '-0.3px' }}>Invite & Earn ₦500</div>
             <div style={{ fontSize: '0.84rem', color: 'rgba(255,255,255,0.78)', maxWidth: '290px', margin: '0 auto', lineHeight: 1.55 }}>
               For every friend who signs up and makes their first purchase using your link
             </div>
@@ -197,7 +197,7 @@ export default function Referral() {
             { step: '01', title: 'Share your link', desc: 'Send your unique referral link to friends and family' },
             { step: '02', title: 'They sign up', desc: 'Your friend creates an account using your link' },
             { step: '03', title: 'They make a purchase', desc: 'When they complete their first order on MegaDen' },
-            { step: '04', title: 'You earn ₦200', desc: 'Credit is automatically added to your wallet' },
+            { step: '04', title: 'You earn ₦500', desc: 'Credit is automatically added to your wallet' },
           ].map((s, i) => (
             <div key={s.step} style={{ display: 'flex', gap: '0.9rem', alignItems: 'flex-start', paddingBottom: i < 3 ? '0.9rem' : 0, marginBottom: i < 3 ? '0.9rem' : 0, borderBottom: i < 3 ? '1px solid var(--border)' : 'none' }}>
               <div style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.4rem', fontWeight: 800, color: 'rgba(108,78,242,0.2)', minWidth: '36px', lineHeight: 1 }}>{s.step}</div>
@@ -239,7 +239,7 @@ export default function Referral() {
                       </div>
                     </div>
                     {rewarded ? (
-                      <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.85rem', color: '#34d399' }}>+₦200</div>
+                      <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.85rem', color: '#34d399' }}>+₦500</div>
                     ) : (
                       <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--muted)', background: 'var(--navy2)', padding: '0.25rem 0.6rem', borderRadius: '50px' }}>Pending</div>
                     )}

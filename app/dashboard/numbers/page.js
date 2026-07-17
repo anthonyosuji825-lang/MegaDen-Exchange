@@ -814,6 +814,39 @@ export default function BuyNumbers() {
                   )}
                 </div>
 
+                {selectedService.id === 'whatsapp' && (
+                  <div style={{
+                    background: 'rgba(37,211,102,0.08)',
+                    border: '1px solid rgba(37,211,102,0.25)',
+                    borderRadius: '12px', padding: '0.75rem 1rem',
+                    marginBottom: '0.6rem',
+                    display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
+                  }}>
+                    <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
+                      <InfoIcon size={15} color="#25d366" />
+                    </span>
+                    <span style={{ fontSize: '0.76rem', color: 'var(--text)', lineHeight: 1.5 }}>
+                      <strong style={{ color: '#25d366' }}>Tip:</strong> WhatsApp numbers work best with the{' '}
+                      <strong>WhatsApp Business</strong> app.
+                    </span>
+                  </div>
+                )}
+
+                <div style={{
+                  background: 'rgba(108,78,242,0.08)',
+                  border: '1px solid rgba(108,78,242,0.25)',
+                  borderRadius: '12px', padding: '0.75rem 1rem',
+                  marginBottom: '0.9rem',
+                  display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
+                }}>
+                  <span style={{ flexShrink: 0, marginTop: '0.1rem' }}>
+                    <InfoIcon size={15} color="var(--purple2)" />
+                  </span>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text)', lineHeight: 1.5 }}>
+                    Having issues receiving your code? Consider using a <strong>VPN</strong> for a smoother experience.
+                  </span>
+                </div>
+
                 <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
                   <div style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }}>
                     <SearchIcon size={14} />
@@ -1011,4 +1044,7 @@ function CheckIcon({ size = 14, color = 'currentColor' }) {
 }
 function CopyIcon() {
   return <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+}
+function InfoIcon({ size = 16, color = 'currentColor' }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
 }

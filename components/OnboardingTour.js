@@ -44,12 +44,12 @@ const STEPS = [
   {
     id: 'tour-refer',
     title: 'Refer & Earn 🎁',
-    desc: 'Share your referral link and earn ₦200 for every friend who signs up and makes their first purchase.',
+    desc: 'Share your referral link and earn ₦500 for every friend who signs up and makes their first purchase.',
     position: 'bottom',
   },
 ]
 
-export default function OnboardingTour() {
+export default function OnboardingTour({ onStart, onFinish } = {}) {
   const [step, setStep] = useState(0)
   const [visible, setVisible] = useState(false)
   const [rect, setRect] = useState(null)
@@ -59,16 +59,18 @@ export default function OnboardingTour() {
     try {
       const done = localStorage.getItem(TOUR_KEY)
       if (!done) {
-        setTimeout(() => setVisible(true), 800)
+        setTimeout(() => {
+          setVisible(true)
+          // Two of our steps (tour-vpn, tour-refer) live in a section that's
+          // collapsed by default — expand it for the tour's duration so
+          // those targets actually exist in the DOM when we reach them.
+          onStart?.()
+        }, 800)
       }
     } catch (e) {}
   }, [])
 
-  const updateRect = useCallback(() => {
-    if (!visible) return
-    const currentStep = STEPS[step]
-    const el = document.getElementById(currentStep.id)
-    if (!el) return
+  const applyTarget = useCallback(el => {
     const r = el.getBoundingClientRect()
     setRect(r)
 
@@ -81,7 +83,24 @@ export default function OnboardingTour() {
     setTooltipPos({ top, left, width: tooltipWidth })
 
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [visible, step])
+  }, [])
+
+  const updateRect = useCallback(() => {
+    if (!visible) return
+    const currentStep = STEPS[step]
+    const el = document.getElementById(currentStep.id)
+    if (!el) {
+      // Target not in the DOM yet (e.g. the parent is still expanding a
+      // collapsed section in response to onStart) — retry shortly instead
+      // of leaving the spotlight and tooltip stuck on the previous step.
+      const retry = setTimeout(() => {
+        const retryEl = document.getElementById(currentStep.id)
+        if (retryEl) applyTarget(retryEl)
+      }, 150)
+      return () => clearTimeout(retry)
+    }
+    applyTarget(el)
+  }, [visible, step, applyTarget])
 
   useEffect(() => {
     updateRect()
@@ -100,6 +119,7 @@ export default function OnboardingTour() {
   const finish = () => {
     setVisible(false)
     try { localStorage.setItem(TOUR_KEY, 'true') } catch (e) {}
+    onFinish?.()
   }
 
   if (!visible || !rect) return null

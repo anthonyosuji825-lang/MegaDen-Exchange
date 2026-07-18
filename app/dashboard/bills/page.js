@@ -218,6 +218,27 @@ function brandFor(label) {
   }
 }
 
+// Standard Nigerian DISCO code → friendly name, matching what VTUGATE's own
+// admin dashboard shows (Ikeja, Eko, Port Harcourt, etc.) — the catalog API
+// itself only returns the short code (e.g. 'IKEDC'), not the friendly name.
+const DISCO_NAMES = {
+  AEDC: 'Abuja Electric', APLE: 'Aba Electric', BEDC: 'Benin Electric',
+  EEDC: 'Enugu Electric', EKEDC: 'Eko Electric', IBEDC: 'Ibadan Electric',
+  IKEDC: 'Ikeja Electric', JEDC: 'Jos Electric', KAEDC: 'Kaduna Electric',
+  KEDC: 'Kano Electric', PHEDC: 'Port Harcourt Electric', YEDC: 'Yola Electric',
+}
+
+// VTUGATE names its "display name" field differently per service category
+// (network_name for airtime/data, tv_name for cable, disco for electricity,
+// edu_type for education — confirmed inconsistent across their own API).
+// This tries every variant seen so far instead of assuming one, so a new
+// category doesn't silently render blank/fallback labels again.
+function serviceLabel(item) {
+  if (item.disco) return DISCO_NAMES[item.disco] || item.disco
+  if (item.edu_type) return item.edu_type.replace(/\b\w/g, c => c.toUpperCase())
+  return item.network_name || item.tv_name || item.provider_name || item.name || `#${item.service_id}`
+}
+
 // A logo-style picker replacing native <select> for network/provider choice.
 // options: array of objects with a unique `idKey` and a display `label`.
 // scrollMobile: on narrow screens, lay out as a single horizontally
@@ -433,7 +454,7 @@ function AirtimeForm({ profile, bumpBalance }) {
     try {
       const data = await postBuy({ type: 'airtime', serviceId, phone, amount: price })
       bumpBalance(-data.price_ngn)
-      setResult({ phone, amount: data.price_ngn, network: networks.find(n => String(n.service_id) === String(serviceId))?.network_name })
+      setResult({ phone, amount: data.price_ngn, network: serviceLabel(networks.find(n => String(n.service_id) === String(serviceId)) || {}) })
     } catch (e) {
       setError(e.message)
     }
@@ -459,7 +480,7 @@ function AirtimeForm({ profile, bumpBalance }) {
       <Label>Network</Label>
       <div style={{ marginBottom: '1rem' }}>
         <LogoPicker
-          options={networks.map(n => ({ idKey: n.service_id, label: n.network_name }))}
+          options={networks.map(n => ({ idKey: n.service_id, label: serviceLabel(n) }))}
           value={serviceId}
           onChange={setServiceId}
           scrollMobile
@@ -549,7 +570,7 @@ function DataForm({ profile, bumpBalance }) {
       <div style={{ marginBottom: '1rem' }}>
         <LogoPicker
           options={networks.map(n => ({
-            idKey: n.service_id, label: n.network_name,
+            idKey: n.service_id, label: serviceLabel(n),
             provider: n.provider ? n.provider.charAt(0).toUpperCase() + n.provider.slice(1) : `#${n.service_id}`,
           }))}
           value={serviceId}
@@ -656,7 +677,7 @@ function CableForm({ profile, bumpBalance }) {
       <Label>Provider</Label>
       <div style={{ marginBottom: '1rem' }}>
         <LogoPicker
-          options={providers.map(p => ({ idKey: p.service_id, label: p.network_name }))}
+          options={providers.map(p => ({ idKey: p.service_id, label: serviceLabel(p) }))}
           value={serviceId}
           onChange={id => { setServiceId(id); setVerified(null); setPlanCode('') }}
         />
@@ -739,7 +760,7 @@ function ElectricityForm({ profile, bumpBalance }) {
       const res = await fetch('/api/bills/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'electricity', serviceId, meterNo, disco: selectedDisco?.network_name }),
+        body: JSON.stringify({ kind: 'electricity', serviceId, meterNo, disco: selectedDisco?.disco }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Verification failed')
@@ -756,7 +777,7 @@ function ElectricityForm({ profile, bumpBalance }) {
   const handleBuy = async () => {
     setLoading(true); setError('')
     try {
-      const data = await postBuy({ type: 'electricity', serviceId, meterNo, disco: selectedDisco?.network_name, amount: price, phone })
+      const data = await postBuy({ type: 'electricity', serviceId, meterNo, disco: selectedDisco?.disco, amount: price, phone })
       bumpBalance(-data.price_ngn)
       setResult({ meterNo, amount: data.price_ngn, token: data.result?.token, name: verified?.meter_name })
     } catch (e) {
@@ -785,9 +806,10 @@ function ElectricityForm({ profile, bumpBalance }) {
       <Label>Distribution Company (DISCO)</Label>
       <div style={{ marginBottom: '1rem' }}>
         <LogoPicker
-          options={discos.map(d => ({ idKey: d.service_id, label: d.network_name }))}
+          options={discos.map(d => ({ idKey: d.service_id, label: serviceLabel(d) }))}
           value={serviceId}
           onChange={id => { setServiceId(id); setVerified(null) }}
+          gridScroll
         />
       </div>
 
@@ -870,9 +892,9 @@ function EducationForm({ profile, bumpBalance }) {
   const handleBuy = async () => {
     setLoading(true); setError('')
     try {
-      const data = await postBuy({ type: 'education', serviceId, phone, quantity: Number(quantity), productCode: selectedType?.network_name })
+      const data = await postBuy({ type: 'education', serviceId, phone, quantity: Number(quantity), productCode: selectedType?.product_code })
       bumpBalance(-data.price_ngn)
-      setResult({ amount: data.price_ngn, pins: data.result?.pins || [], type: selectedType?.network_name })
+      setResult({ amount: data.price_ngn, pins: data.result?.pins || [], type: serviceLabel(selectedType || {}) })
     } catch (e) {
       setError(e.message)
     }
@@ -917,7 +939,7 @@ function EducationForm({ profile, bumpBalance }) {
       <Label>Exam Type</Label>
       <div style={{ marginBottom: '1rem' }}>
         <LogoPicker
-          options={types.map(t => ({ idKey: t.service_id, label: t.network_name }))}
+          options={types.map(t => ({ idKey: t.service_id, label: serviceLabel(t) }))}
           value={serviceId}
           onChange={setServiceId}
         />

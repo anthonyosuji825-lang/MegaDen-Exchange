@@ -3,6 +3,7 @@ import LoadingScreen from '@/components/LoadingScreen'
 import OnboardingTour from '@/components/OnboardingTour'
 import TurboBoostAnnouncement from '@/components/TurboBoostAnnouncement'
 import FloatingSupport from '@/components/FloatingSupport'
+import ReferEarnPopupGate from '@/components/ReferEarnPopupGate'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -112,8 +113,8 @@ export default function Dashboard() {
     {
       bg: 'linear-gradient(140deg,#1a0755 0%,#4a1fa8 40%,#7c3af0 70%,#b06010 100%)',
       tag: 'PROMO', dotColor: '#8b6ff7',
-      badge: { amt: '₦200', lbl: 'per referral' },
-      title: 'Refer &\nEarn ₦200',
+      badge: { amt: '₦500', lbl: 'per referral' },
+      title: 'Refer &\nEarn ₦500',
       desc: 'Invite friends, earn instantly when they make their first purchase.',
       btn: 'Invite Now', href: '/dashboard/referral',
     },
@@ -162,6 +163,7 @@ export default function Dashboard() {
     { title: 'Digital Subscriptions', desc: 'Spotify, Netflix, Canva, ChatGPT & more', icon: <SubsIcon size={22} color="#f0b429" />, bg: 'rgba(240,180,41,0.12)', href: '/dashboard/subscriptions', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
     { title: 'Account Boosting', desc: 'Grow your online presence fast', icon: <BoostIcon size={22} color="#10b981" />, bg: 'rgba(16,185,129,0.12)', href: '/dashboard/boosting' },
     { title: 'VPN Subscriptions', desc: 'NordVPN, ExpressVPN & more', icon: <VpnIcon size={22} color="#4687ff" />, bg: 'rgba(70,135,255,0.12)', href: '/dashboard/vpn', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
+    { title: 'Top-Up & Bills', desc: 'Airtime, data, TV, electricity & exam pins', icon: <BillsIcon size={22} color="#10b981" />, bg: 'rgba(16,185,129,0.12)', href: '/dashboard/bills', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
   ]
 
   const notifIcon = (type) => {
@@ -475,8 +477,12 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <OnboardingTour />
+      <OnboardingTour
+        onStart={() => setShowAllActions(true)}
+        onFinish={() => setShowAllActions(false)}
+      />
       <FloatingSupport />
+      <ReferEarnPopupGate />
     </main>
   )
 }

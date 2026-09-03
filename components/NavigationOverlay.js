@@ -21,13 +21,21 @@
 // hiding itself the moment the URL actually changes (i.e. the new route
 // has taken over). The current page stays visible underneath the whole
 // time, since RouteLoader has no background of its own.
+//
+// FIXED: useSearchParams() requires a Suspense boundary around any code
+// that calls it, or Next.js fails to statically prerender pages that
+// render this component — including the auto-generated /_not-found page,
+// since this is mounted globally in the root layout. The actual
+// pathname/searchParams logic now lives in an inner component, and the
+// default export just wraps it in <Suspense>. Usage in layout.js is
+// unchanged — nothing to update there.
 
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import RouteLoader from './RouteLoader'
 
-export default function NavigationOverlay() {
+function NavigationOverlayInner() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [navigating, setNavigating] = useState(false)
@@ -75,5 +83,13 @@ export default function NavigationOverlay() {
     }}>
       <RouteLoader />
     </div>
+  )
+}
+
+export default function NavigationOverlay() {
+  return (
+    <Suspense fallback={null}>
+      <NavigationOverlayInner />
+    </Suspense>
   )
 }

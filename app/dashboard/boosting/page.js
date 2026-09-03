@@ -1,8 +1,9 @@
 'use client'
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { STANDARD_SERVICES, TURBO_SERVICES, interpolatePrice, nearestDelivery } from '@/lib/boost-catalog'
+import LoadingScreen from '@/components/RouteLoader'
+import { TURBO_SERVICES, interpolatePrice, nearestDelivery } from '@/lib/boost-catalog'
 
 // ─── PLATFORM ICONS (same style as numbers page) ─────────────────────────────
 const PlatformIcon = ({ id, size = 26 }) => {
@@ -23,12 +24,39 @@ function AlertIcon({ size = 16, color = 'currentColor' }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
 }
 
+// A plain fixed-price package — used for services that only have a single
+// tier (so there's no min/max range to build a custom-amount picker from).
+function FixedPackageCard({ pkg, accentColor, selected, onSelect }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect({ ...pkg, is_custom: false })}
+      className="pkg-card"
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem',
+        background: selected ? `${accentColor}12` : 'var(--card)',
+        border: `1px solid ${selected ? accentColor : 'var(--border)'}`, borderRadius: '12px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: selected ? accentColor : 'var(--border)', flexShrink: 0 }} />
+        <div style={{ textAlign: 'left' }}>
+          <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text)' }}>{pkg.name}</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.1rem' }}>{pkg.delivery}</div>
+        </div>
+      </div>
+      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--gold)', flexShrink: 0, marginLeft: '0.5rem', fontFamily: 'Outfit, sans-serif' }}>
+        ₦{pkg.price.toLocaleString()}
+      </span>
+    </button>
+  )
+}
+
 function CustomAmountCard({ family, accentColor, selected, onConfirm }) {
   const [open, setOpen] = useState(false)
   const [raw, setRaw] = useState('')
 
   const qty = Math.round(Number(raw) || 0)
-  const clamped = Math.min(family.max, Math.max(family.min, qty || family.min))
   const valid = raw !== '' && qty >= family.min && qty <= family.max
   const price = valid ? interpolatePrice(family.tiers, qty) : null
 
@@ -62,11 +90,12 @@ function CustomAmountCard({ family, accentColor, selected, onConfirm }) {
     <div style={{ padding: '0.9rem 1rem', background: `${accentColor}0d`, border: `1px solid ${accentColor}`, borderRadius: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
         <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text)' }}>Custom {family.label}</div>
-        <button type="button" onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '1rem', cursor: 'pointer', lineHeight: 1 }}>×</button>
+        <button type="button" onClick={() => setOpen(false)} aria-label="Close custom amount" style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '1rem', cursor: 'pointer', lineHeight: 1 }}>×</button>
       </div>
       <input
         type="number"
         inputMode="numeric"
+        aria-label={`Custom ${family.label} quantity`}
         value={raw}
         onChange={e => setRaw(e.target.value)}
         placeholder={`${family.min.toLocaleString()} – ${family.max.toLocaleString()}`}
@@ -115,9 +144,8 @@ function CustomAmountCard({ family, accentColor, selected, onConfirm }) {
 
 export default function Boosting() {
   const [profile, setProfile] = useState(null)
-  const [provider, setProvider] = useState(null)
   const [turboServices, setTurboServices] = useState(TURBO_SERVICES)
-  const [standardServices, setStandardServices] = useState(STANDARD_SERVICES)
+  const [pricesLoaded, setPricesLoaded] = useState(false)
   const [selectedPlatform, setSelectedPlatform] = useState(null)
   const [selectedPackage, setSelectedPackage] = useState(null)
   const [link, setLink] = useState('')
@@ -128,33 +156,46 @@ export default function Boosting() {
   const [mounted, setMounted] = useState(false)
   const [platformPage, setPlatformPage] = useState(0)
   const [broadcast, setBroadcast] = useState(null) // { enabled, message } | null while loading
-  const platformRef = useRef(null)
 
-  const activeServices = provider === 'turbo' ? turboServices : standardServices
-  const isTurbo = provider === 'turbo'
+  // A fresh key per distinct order attempt. Reused across retries of the
+  // *same* attempt (e.g. a network blip and the user clicking again without
+  // changing anything) so the server can recognize a retry and not create a
+  // duplicate order; cleared whenever the package or link actually changes.
+  const idempotencyKeyRef = useRef(null)
+  useEffect(() => { idempotencyKeyRef.current = null }, [selectedPackage?.id, link])
+
+  const activeServices = turboServices
 
   // Group the selected platform's packages by service_id — packages that
   // share a service_id are the same offering (e.g. all Instagram Follower
-  // tiers) at different quantities, so that's the natural range for a
-  // "custom amount" input. Only offer it where there are 2+ tiers to draw
-  // a min/max range and price curve from.
-  const customFamilies = useMemo(() => {
-    if (!selectedPlatform) return []
+  // tiers) at different quantities. Services with 2+ tiers get a custom
+  // amount picker driven by that range. Services with only a single tier
+  // have no range to build a picker from, so they get a plain fixed-price
+  // card instead — otherwise they'd have no way to be ordered at all.
+  const { customFamilies, singleTierPackages } = useMemo(() => {
+    if (!selectedPlatform) return { customFamilies: [], singleTierPackages: [] }
     const groups = {}
     selectedPlatform.packages.forEach(pkg => {
       if (!groups[pkg.service_id]) groups[pkg.service_id] = []
       groups[pkg.service_id].push(pkg)
     })
-    return Object.values(groups)
-      .map(tiers => tiers.slice().sort((a, b) => a.quantity - b.quantity))
-      .filter(tiers => tiers.length >= 2)
-      .map(tiers => ({
-        service_id: tiers[0].service_id,
-        label: tiers[0].name.replace(/^[\d,]+\s*/, ''),
-        min: tiers[0].quantity,
-        max: tiers[tiers.length - 1].quantity,
-        tiers,
-      }))
+    const families = []
+    const singles = []
+    Object.values(groups).forEach(tiers => {
+      const sorted = tiers.slice().sort((a, b) => a.quantity - b.quantity)
+      if (sorted.length >= 2) {
+        families.push({
+          service_id: sorted[0].service_id,
+          label: sorted[0].name.replace(/^[\d,]+\s*/, ''),
+          min: sorted[0].quantity,
+          max: sorted[sorted.length - 1].quantity,
+          tiers: sorted,
+        })
+      } else {
+        singles.push(sorted[0])
+      }
+    })
+    return { customFamilies: families, singleTierPackages: singles }
   }, [selectedPlatform])
 
   useEffect(() => {
@@ -167,16 +208,25 @@ export default function Boosting() {
         supabase.from('boost_prices').select('package_id, price'),
       ])
       if (profileRes.data) setProfile(profileRes.data)
-      if (pricesRes.data?.length) {
-        const priceMap = {}
-        pricesRes.data.forEach(p => { priceMap[p.package_id] = p.price })
-        const applyPrices = (services) => services.map(platform => ({
-          ...platform,
-          packages: platform.packages.map(pkg => ({ ...pkg, price: priceMap[pkg.id] ?? pkg.price }))
-        }))
-        setTurboServices(applyPrices(TURBO_SERVICES))
-        setStandardServices(applyPrices(STANDARD_SERVICES))
-      }
+      const priceMap = {}
+      ;(pricesRes.data || []).forEach(p => { priceMap[p.package_id] = p.price })
+      // These tiers are no longer shown to users directly — they're only
+      // reference points used to interpolate a price for whatever custom
+      // quantity the user types in. boost_prices overrides the catalog's
+      // built-in price where set; otherwise the catalog value is used.
+      const applyPrices = (services) => services.map(platform => ({
+        ...platform,
+        packages: platform.packages.map(pkg => ({ ...pkg, price: priceMap[pkg.id] ?? pkg.price }))
+      }))
+      setTurboServices(applyPrices(TURBO_SERVICES))
+      // Only let people select/checkout once live prices (including any
+      // admin overrides) have actually loaded. Without this gate, a package
+      // picked in the brief window before this fetch resolves would submit
+      // the stale default catalog price — which the server correctly
+      // rejects if an admin has since raised that price, but that means a
+      // legitimate user gets a confusing "Invalid price, please refresh"
+      // error for doing nothing wrong.
+      setPricesLoaded(true)
     }
     load()
 
@@ -186,8 +236,7 @@ export default function Boosting() {
       .catch(() => setBroadcast({ enabled: false, message: '' }))
   }, [])
 
-  const goBack = () => {
-    setProvider(null)
+  const resetOrder = () => {
     setSelectedPlatform(null)
     setSelectedPackage(null)
     setLink('')
@@ -195,36 +244,48 @@ export default function Boosting() {
     setSuccess(false)
     setOrderId(null)
     setPlatformPage(0)
+    idempotencyKeyRef.current = null
   }
 
   const handleOrder = async () => {
     if (!selectedPlatform || !selectedPackage || !link.trim()) return
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = crypto.randomUUID()
+    }
     setOrdering(true)
     setError('')
-    const endpoint = isTurbo ? '/api/boost' : '/api/standard-boost'
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: selectedPackage.service_id,
-        link: link.trim(),
-        quantity: selectedPackage.quantity,
-        price_ngn: selectedPackage.price,
-        package_id: selectedPackage.id,
-        package_name: selectedPackage.name,
-        platform: selectedPlatform.name,
-        is_custom: !!selectedPackage.is_custom,
+    try {
+      const res = await fetch('/api/boost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          service_id: selectedPackage.service_id,
+          link: link.trim(),
+          quantity: selectedPackage.quantity,
+          price_ngn: selectedPackage.price,
+          package_id: selectedPackage.id,
+          package_name: selectedPackage.name,
+          platform: selectedPlatform.name,
+          is_custom: !!selectedPackage.is_custom,
+          idempotency_key: idempotencyKeyRef.current,
+        })
       })
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error || 'Order failed. Please try again.'); setOrdering(false); return }
-    setOrderId(data.jap_order_id || data.exo_order_id)
-    setProfile(p => ({ ...p, wallet_balance: (p?.wallet_balance || 0) - selectedPackage.price }))
-    setOrdering(false)
-    setSuccess(true)
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data) {
+        setError(data?.error || 'Order failed. Please try again.')
+        return
+      }
+      setOrderId(data.jap_order_id)
+      setProfile(p => ({ ...p, wallet_balance: (p?.wallet_balance || 0) - selectedPackage.price }))
+      setSuccess(true)
+    } catch (err) {
+      setError('Something went wrong. Please check your connection and try again.')
+    } finally {
+      setOrdering(false)
+    }
   }
 
-  // Dots count for platform grid (4 per page)
+  // Dots count for the platform grid (4 per page — single row, 4 columns)
   const totalPages = Math.ceil(activeServices.length / 4)
 
   return (
@@ -252,30 +313,20 @@ export default function Boosting() {
         .back-btn { transition:background 0.15s; }
         .back-btn:hover { background:var(--card2) !important; }
         .link-input:focus { border-color:var(--purple) !important; box-shadow:0 0 0 3px rgba(108,78,242,0.12); outline:none; }
-        .provider-card { transition:transform 0.18s ease,box-shadow 0.2s ease; cursor:pointer; }
-        .provider-card:hover { transform:translateY(-3px); }
-        .provider-card:active { transform:scale(0.98); }
       `}</style>
 
       {/* HEADER */}
       <div style={{ padding:'1rem 1.2rem', display:'flex', alignItems:'center', gap:'0.85rem', position:'sticky', top:0, zIndex:100, background:'rgba(var(--navy-rgb,10,10,30),0.92)', backdropFilter:'blur(20px)', borderBottom:'1px solid var(--border)' }}>
-        {provider ? (
-          <button className="back-btn" onClick={goBack} style={{ display:'flex', alignItems:'center', justifyContent:'center', width:36, height:36, borderRadius:'10px', background:'var(--card)', border:'1px solid var(--border)', color:'var(--text)', flexShrink:0 }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-        ) : (
-          <Link href="/dashboard" className="back-btn" style={{ display:'flex', alignItems:'center', justifyContent:'center', width:36, height:36, borderRadius:'10px', background:'var(--card)', border:'1px solid var(--border)', color:'var(--text)', textDecoration:'none', flexShrink:0 }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </Link>
-        )}
+        <Link href="/dashboard" className="back-btn" aria-label="Back to dashboard" style={{ display:'flex', alignItems:'center', justifyContent:'center', width:36, height:36, borderRadius:'10px', background:'var(--card)', border:'1px solid var(--border)', color:'var(--text)', textDecoration:'none', flexShrink:0 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </Link>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1rem', color:'var(--text)', letterSpacing:'-0.02em', display:'flex', alignItems:'center', gap:'0.4rem' }}>
-            {provider === 'turbo' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
-            {provider === 'standard' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f5a623" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>}
-            {!provider ? 'Social Boosting' : isTurbo ? 'Turbo Boost' : 'Standard Boost'}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Turbo Boost
           </div>
           <div style={{ fontSize:'0.7rem', color:'var(--muted)', marginTop:'0.05rem' }}>
-            {!provider ? 'Real growth · Choose your service' : isTurbo ? 'Fast delivery · Premium quality' : 'All platforms · Steady growth'}
+            Fast delivery · Premium quality
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', padding:'0.35rem 0.75rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'20px', flexShrink:0 }}>
@@ -309,260 +360,184 @@ export default function Boosting() {
           </div>
         )}
 
-        {/* ── LANDING SCREEN ── */}
-        {!provider && (
-          <div style={{ animation: mounted ? 'fadeSlideIn 0.4s ease both' : 'none' }}>
-            <div style={{ textAlign:'center', padding:'1.4rem 0 1.6rem' }}>
-              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.2rem', color:'var(--text)', marginBottom:'0.35rem' }}>Choose Your Boost</div>
-              <div style={{ fontSize:'0.8rem', color:'var(--muted)' }}>Pick the service that fits your goals</div>
+        {success ? (
+          <div style={{ textAlign:'center', padding:'3rem 1rem', animation:'fadeSlideIn 0.4s ease' }}>
+            <div style={{ width:80, height:80, borderRadius:'50%', background:'rgba(29,158,117,0.15)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1.2rem', color:'#34d399', animation:'successPop 0.5s cubic-bezier(0.175,0.885,0.32,1.275)' }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
-
-            {/* TWO CARDS SIDE BY SIDE */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
-
-              {/* TURBO */}
-              <button className="provider-card" onClick={() => setProvider('turbo')}
-                style={{ padding:'1.2rem 1rem', background:'linear-gradient(145deg, rgba(108,78,242,0.14) 0%, rgba(108,78,242,0.04) 100%)', border:'1.5px solid rgba(108,78,242,0.4)', borderRadius:'18px', textAlign:'left', boxShadow:'0 4px 20px rgba(108,78,242,0.1)' }}>
-                <div style={{ width:40, height:40, borderRadius:'11px', background:'rgba(108,78,242,0.18)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'0.75rem' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                </div>
-                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'0.92rem', color:'var(--text)', marginBottom:'0.2rem' }}>Turbo Boost</div>
-                <div style={{ fontSize:'0.62rem', color:'var(--purple2)', fontWeight:600, marginBottom:'0.6rem' }}>MegaDen Premium</div>
-                <div style={{ fontSize:'0.72rem', color:'var(--muted)', lineHeight:1.55, marginBottom:'0.85rem' }}>
-                  Lightning-fast delivery with Average and High Quality tiers.
-                </div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:'0.3rem', marginBottom:'0.85rem' }}>
-                  {['Instagram','TikTok','Facebook','YouTube','Telegram'].map(p => (
-                    <span key={p} style={{ fontSize:'0.58rem', fontWeight:600, color:'var(--muted)', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'5px', padding:'0.15rem 0.4rem' }}>{p}</span>
-                  ))}
-                </div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(108,78,242,0.15)', paddingTop:'0.7rem' }}>
-                  <span style={{ fontSize:'0.62rem', color:'var(--purple2)', fontWeight:700 }}>FASTEST</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--purple2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                </div>
+            <div style={{ fontFamily:'Outfit, sans-serif', fontSize:'1.3rem', fontWeight:800, color:'var(--text)', marginBottom:'0.4rem' }}>Order Placed!</div>
+            <div style={{ color:'var(--muted)', fontSize:'0.85rem', marginBottom:'1.2rem' }}>Your {selectedPlatform?.name} boost is processing and will be delivered within {selectedPackage?.delivery}.</div>
+            <div style={{ display:'inline-flex', alignItems:'center', gap:'0.6rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'12px', padding:'0.8rem 1.4rem', marginBottom:'0.5rem' }}>
+              <PlatformIcon id={selectedPlatform?.id} size={16} />
+              <span style={{ fontSize:'0.82rem', color:'var(--text)' }}>{selectedPackage?.name}</span>
+              <span style={{ color:'var(--gold)', fontWeight:700, fontFamily:'Outfit, sans-serif' }}>₦{selectedPackage?.price.toLocaleString()}</span>
+            </div>
+            {orderId && <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'1.5rem' }}>Order ID: #{orderId}</div>}
+            <br/>
+            <div style={{ display:'flex', gap:'0.6rem', justifyContent:'center', flexWrap:'wrap' }}>
+              <button onClick={resetOrder} className="buy-btn" style={{ padding:'0.75rem 1.4rem', background:'var(--purple)', color:'#fff', border:'none', borderRadius:'12px', fontFamily:'Outfit, sans-serif', fontSize:'0.9rem', fontWeight:700 }}>
+                New Order
               </button>
-
-              {/* STANDARD */}
-              <button className="provider-card" onClick={() => setProvider('standard')}
-                style={{ padding:'1.2rem 1rem', background:'linear-gradient(145deg, rgba(245,166,35,0.1) 0%, rgba(245,166,35,0.02) 100%)', border:'1.5px solid rgba(245,166,35,0.3)', borderRadius:'18px', textAlign:'left', boxShadow:'0 4px 20px rgba(245,166,35,0.06)' }}>
-                <div style={{ width:40, height:40, borderRadius:'11px', background:'rgba(245,166,35,0.14)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'0.75rem' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f5a623" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
-                </div>
-                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'0.92rem', color:'var(--text)', marginBottom:'0.2rem' }}>Standard Boost</div>
-                <div style={{ fontSize:'0.62rem', color:'#f5a623', fontWeight:600, marginBottom:'0.6rem' }}>MegaDen Standard</div>
-                <div style={{ fontSize:'0.72rem', color:'var(--muted)', lineHeight:1.55, marginBottom:'0.85rem' }}>
-                  Wider coverage including Spotify and Snapchat across 8 platforms.
-                </div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:'0.3rem', marginBottom:'0.85rem' }}>
-                  {['Instagram','TikTok','Twitter','Facebook','YouTube','Telegram','Spotify','Snapchat'].map(p => (
-                    <span key={p} style={{ fontSize:'0.58rem', fontWeight:600, color:'var(--muted)', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'5px', padding:'0.15rem 0.4rem' }}>{p}</span>
-                  ))}
-                </div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(245,166,35,0.15)', paddingTop:'0.7rem' }}>
-                  <span style={{ fontSize:'0.62rem', color:'#f5a623', fontWeight:700 }}>ALL PLATFORMS</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f5a623" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                </div>
-              </button>
-
             </div>
           </div>
-        )}
-
-        {/* ── BOOST SCREEN ── */}
-        {provider && (
-          <>
-            {success ? (
-              <div style={{ textAlign:'center', padding:'3rem 1rem', animation:'fadeSlideIn 0.4s ease' }}>
-                <div style={{ width:80, height:80, borderRadius:'50%', background:'rgba(29,158,117,0.15)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1.2rem', color:'#34d399', animation:'successPop 0.5s cubic-bezier(0.175,0.885,0.32,1.275)' }}>
-                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                </div>
-                <div style={{ fontFamily:'Outfit, sans-serif', fontSize:'1.3rem', fontWeight:800, color:'var(--text)', marginBottom:'0.4rem' }}>Order Placed!</div>
-                <div style={{ color:'var(--muted)', fontSize:'0.85rem', marginBottom:'1.2rem' }}>Your {selectedPlatform?.name} boost is processing and will be delivered within {selectedPackage?.delivery}.</div>
-                <div style={{ display:'inline-flex', alignItems:'center', gap:'0.6rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'12px', padding:'0.8rem 1.4rem', marginBottom:'0.5rem' }}>
-                  <PlatformIcon id={selectedPlatform?.id} size={16} />
-                  <span style={{ fontSize:'0.82rem', color:'var(--text)' }}>{selectedPackage?.name}</span>
-                  <span style={{ color:'var(--gold)', fontWeight:700, fontFamily:'Outfit, sans-serif' }}>₦{selectedPackage?.price.toLocaleString()}</span>
-                </div>
-                {orderId && <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'1.5rem' }}>Order ID: #{orderId}</div>}
-                <br/>
-                <div style={{ display:'flex', gap:'0.6rem', justifyContent:'center', flexWrap:'wrap' }}>
-                  <button onClick={() => { setSuccess(false); setSelectedPlatform(null); setSelectedPackage(null); setLink(''); setOrderId(null) }}
-                    className="buy-btn" style={{ padding:'0.75rem 1.4rem', background:'var(--purple)', color:'#fff', border:'none', borderRadius:'12px', fontFamily:'Outfit, sans-serif', fontSize:'0.9rem', fontWeight:700 }}>
-                    New Order
-                  </button>
-                  <button onClick={goBack} className="buy-btn" style={{ padding:'0.75rem 1.4rem', background:'var(--card)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'12px', fontFamily:'Outfit, sans-serif', fontSize:'0.9rem', fontWeight:700 }}>
-                    Switch Service
-                  </button>
-                </div>
+        ) : (
+          <div style={{ animation:'fadeSlideUp 0.35s ease both' }}>
+            {error && (
+              <div style={{ background:'rgba(220,50,50,0.1)', border:'1px solid rgba(220,50,50,0.3)', color:'#ff6b6b', borderRadius:'12px', padding:'0.8rem 1rem', fontSize:'0.84rem', marginBottom:'1rem', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span>{error}</span>
+                <button onClick={() => setError('')} aria-label="Dismiss error" style={{ background:'none', border:'none', color:'#ff6b6b', cursor:'pointer', fontSize:'1.1rem', lineHeight:1 }}>×</button>
               </div>
-            ) : (
-              <div style={{ animation:'fadeSlideUp 0.35s ease both' }}>
-                {error && (
-                  <div style={{ background:'rgba(220,50,50,0.1)', border:'1px solid rgba(220,50,50,0.3)', color:'#ff6b6b', borderRadius:'12px', padding:'0.8rem 1rem', fontSize:'0.84rem', marginBottom:'1rem', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                    <span>{error}</span>
-                    <button onClick={() => setError('')} style={{ background:'none', border:'none', color:'#ff6b6b', cursor:'pointer', fontSize:'1.1rem', lineHeight:1 }}>×</button>
-                  </div>
+            )}
+
+            {/* STEP 1 — PLATFORM (single row horizontal scroll, same as numbers page) */}
+            <div style={{ marginBottom:'1.5rem', animation: mounted ? 'fadeSlideIn 0.35s ease 0.05s both' : 'none' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
+                <div style={{ width:22, height:22, borderRadius:'50%', background: selectedPlatform ? 'var(--purple)' : 'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  {selectedPlatform
+                    ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    : <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>1</span>}
+                </div>
+                <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Select Platform</span>
+                {selectedPlatform && (
+                  <span style={{ fontSize:'0.7rem', color:'#34d399', marginLeft:'auto', display:'flex', alignItems:'center', gap:'0.3rem' }}>
+                    <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', background: selectedPlatform.color }}/>
+                    {selectedPlatform.name}
+                  </span>
                 )}
+              </div>
 
-                {/* STEP 1 — PLATFORM (single row horizontal scroll, same as numbers page) */}
-                <div style={{ marginBottom:'1.5rem', animation: mounted ? 'fadeSlideIn 0.35s ease 0.05s both' : 'none' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
-                    <div style={{ width:22, height:22, borderRadius:'50%', background: selectedPlatform ? 'var(--purple)' : 'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      {selectedPlatform
-                        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        : <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>1</span>}
-                    </div>
-                    <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Select Platform</span>
-                    {selectedPlatform && (
-                      <span style={{ fontSize:'0.7rem', color:'#34d399', marginLeft:'auto', display:'flex', alignItems:'center', gap:'0.3rem' }}>
-                        <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', background: selectedPlatform.color }}/>
-                        {selectedPlatform.name}
-                      </span>
-                    )}
-                  </div>
-
-                  <div
-                    className="service-grid"
-                    ref={platformRef}
-                    onScroll={e => {
-                      if (isTurbo) {
-                        const page = Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth)
-                        setPlatformPage(page)
-                      }
-                    }}
-                    style={isTurbo
-                      ? { display:'grid', gridTemplateRows:'1fr', gridAutoFlow:'column', gridAutoColumns:'calc(25% - 0.38rem)', gap:'0.5rem', overflowX:'auto', paddingBottom:'0.3rem', scrollbarWidth:'none', msOverflowStyle:'none' }
-                      : { display:'grid', gridTemplateRows:'repeat(2, 1fr)', gridAutoFlow:'column', gridAutoColumns:'calc(25% - 0.38rem)', gap:'0.5rem', overflowX:'auto', paddingBottom:'0.3rem', scrollbarWidth:'none', msOverflowStyle:'none' }
-                    }>
-                    {activeServices.map((p, i) => {
-                      const isSel = selectedPlatform?.id === p.id
-                      return (
-                        <button key={p.id} className="service-chip"
-                          onClick={() => { setSelectedPlatform(p); setSelectedPackage(null) }}
-                          style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.5rem', padding:'1rem 0.4rem', background: isSel ? `${p.color}15` : 'var(--card)', border:`1.5px solid ${isSel ? p.color : 'var(--border)'}`, borderRadius:'14px', boxShadow: isSel ? `0 4px 16px ${p.color}33` : 'none', animation: mounted ? `fadeSlideIn 0.3s ease ${0.04*i}s both` : 'none' }}>
-                          <div style={{ filter: isSel ? 'none' : 'grayscale(20%) opacity(0.85)', transition:'filter 0.2s' }}>
-                            <PlatformIcon id={p.id} size={26} />
-                          </div>
-                          <span style={{ fontSize:'0.62rem', fontWeight:600, color: isSel ? p.color : 'var(--muted)', textAlign:'center', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:'100%', transition:'color 0.2s' }}>
-                            {p.name.replace(' / X', '')}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  {/* Page dots — Turbo only */}
-                  {isTurbo && totalPages > 1 && (
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.3rem', marginTop:'0.5rem' }}>
-                      <div style={{ display:'flex', gap:'0.3rem', alignItems:'center' }}>
-                        {Array.from({ length: totalPages }).map((_, i) => (
-                          <div key={i} style={{ width: platformPage === i ? 16 : 6, height:6, borderRadius:99, background: platformPage === i ? 'var(--purple)' : 'var(--border)', transition:'all 0.3s ease' }}/>
-                        ))}
+              <div
+                className="service-grid"
+                onScroll={e => {
+                  const page = Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth)
+                  setPlatformPage(page)
+                }}
+                style={{ display:'grid', gridTemplateRows:'1fr', gridAutoFlow:'column', gridAutoColumns:'calc(25% - 0.38rem)', gap:'0.5rem', overflowX:'auto', paddingBottom:'0.3rem', scrollbarWidth:'none', msOverflowStyle:'none' }}
+              >
+                {activeServices.map((p, i) => {
+                  const isSel = selectedPlatform?.id === p.id
+                  return (
+                    <button key={p.id} className="service-chip"
+                      onClick={() => { setSelectedPlatform(p); setSelectedPackage(null) }}
+                      style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.5rem', padding:'1rem 0.4rem', background: isSel ? `${p.color}15` : 'var(--card)', border:`1.5px solid ${isSel ? p.color : 'var(--border)'}`, borderRadius:'14px', boxShadow: isSel ? `0 4px 16px ${p.color}33` : 'none', animation: mounted ? `fadeSlideIn 0.3s ease ${0.04*i}s both` : 'none' }}>
+                      <div style={{ filter: isSel ? 'none' : 'grayscale(20%) opacity(0.85)', transition:'filter 0.2s' }}>
+                        <PlatformIcon id={p.id} size={26} />
                       </div>
-                      <span style={{ fontSize:'0.6rem', color:'var(--muted)', letterSpacing:'0.04em' }}>Swipe to see more platforms →</span>
-                    </div>
-                  )}
+                      <span style={{ fontSize:'0.62rem', fontWeight:600, color: isSel ? p.color : 'var(--muted)', textAlign:'center', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', width:'100%', transition:'color 0.2s' }}>
+                        {p.name.replace(' / X', '')}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {totalPages > 1 && (
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.3rem', marginTop:'0.5rem' }}>
+                  <div style={{ display:'flex', gap:'0.3rem', alignItems:'center' }}>
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <div key={i} style={{ width: platformPage === i ? 16 : 6, height:6, borderRadius:99, background: platformPage === i ? 'var(--purple)' : 'var(--border)', transition:'all 0.3s ease' }}/>
+                    ))}
+                  </div>
+                  <span style={{ fontSize:'0.6rem', color:'var(--muted)', letterSpacing:'0.04em' }}>Swipe to see more platforms →</span>
+                </div>
+              )}
+            </div>
+
+            {/* STEP 2 — PACKAGES */}
+            {selectedPlatform && (
+              <div style={{ marginBottom:'1.4rem', animation:'fadeSlideIn 0.35s ease both' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
+                  <div style={{ width:22, height:22, borderRadius:'50%', background: selectedPackage ? 'var(--purple)' : 'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    {selectedPackage
+                      ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      : <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>2</span>}
+                  </div>
+                  <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Select Package</span>
+                  <span style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:'0.35rem' }}>
+                    <PlatformIcon id={selectedPlatform.id} size={13} />
+                    <span style={{ color: selectedPlatform.color, fontSize:'0.72rem', fontWeight:700 }}>{selectedPlatform.name}</span>
+                  </span>
                 </div>
 
-                {/* STEP 2 — PACKAGES */}
-                {selectedPlatform && (
-                  <div style={{ marginBottom:'1.4rem', animation:'fadeSlideIn 0.35s ease both' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
-                      <div style={{ width:22, height:22, borderRadius:'50%', background: selectedPackage ? 'var(--purple)' : 'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        {selectedPackage
-                          ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                          : <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>2</span>}
-                      </div>
-                      <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Select Package</span>
-                      <span style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:'0.35rem' }}>
-                        <PlatformIcon id={selectedPlatform.id} size={13} />
-                        <span style={{ color: selectedPlatform.color, fontSize:'0.72rem', fontWeight:700 }}>{selectedPlatform.name}</span>
-                      </span>
-                    </div>
-                    <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem', maxHeight:320, overflowY:'auto', paddingRight:2 }}>
-                      {selectedPlatform.packages.map((pkg, i) => {
-                        const isSel = selectedPackage?.id === pkg.id
-                        return (
-                          <button key={pkg.id} className="pkg-card"
-                            onClick={() => setSelectedPackage(pkg)}
-                            style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0.85rem 1rem', background: isSel ? `${selectedPlatform.color}12` : 'var(--card)', border:`1px solid ${isSel ? selectedPlatform.color : 'var(--border)'}`, borderRadius:'12px', animation:`fadeSlideIn 0.25s ease ${0.04*i}s both` }}>
-                            <div style={{ display:'flex', alignItems:'center', gap:'0.85rem' }}>
-                              <div style={{ width:8, height:8, borderRadius:'50%', background: isSel ? selectedPlatform.color : 'var(--border)', transition:'all 0.2s', boxShadow: isSel ? `0 0 8px ${selectedPlatform.color}` : 'none', flexShrink:0 }}/>
-                              <div style={{ textAlign:'left' }}>
-                                <div style={{ fontSize:'0.84rem', fontWeight:600, color:'var(--text)' }}>{pkg.name}</div>
-                                <div style={{ fontSize:'0.7rem', color:'var(--muted)', marginTop:'0.1rem' }}>{pkg.desc} · {pkg.delivery}</div>
-                              </div>
-                            </div>
-                            <span style={{ fontSize:'0.88rem', fontWeight:700, color:'var(--gold)', fontFamily:'Outfit, sans-serif', flexShrink:0, marginLeft:'0.5rem' }}>₦{pkg.price.toLocaleString()}</span>
-                          </button>
-                        )
-                      })}
-
-                      {customFamilies.map(family => (
-                        <CustomAmountCard
-                          key={family.service_id}
-                          family={family}
-                          accentColor={selectedPlatform.color}
-                          selected={selectedPackage?.service_id === family.service_id && String(selectedPackage?.id).startsWith('custom_')}
-                          onConfirm={setSelectedPackage}
-                        />
-                      ))}
-                    </div>
+                {!pricesLoaded ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.6rem', padding:'1rem', color:'var(--muted)', fontSize:'0.82rem' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation:'spin 0.8s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    Loading current prices…
                   </div>
-                )}
-
-                {/* STEP 3 — LINK */}
-                {selectedPackage && (
-                  <div style={{ marginBottom:'1.4rem', animation:'fadeSlideIn 0.3s ease both' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
-                      <div style={{ width:22, height:22, borderRadius:'50%', background:'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>3</span>
-                      </div>
-                      <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Your Link</span>
-                    </div>
-                    <input className="link-input"
-                      placeholder={`Paste your ${selectedPlatform.name} profile or post URL...`}
-                      value={link} onChange={e => setLink(e.target.value)}
-                      style={{ width:'100%', padding:'0.85rem 1rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'12px', color:'var(--text)', fontSize:'0.88rem', fontFamily:'Inter, sans-serif', transition:'border-color 0.2s, box-shadow 0.2s' }}
-                    />
-                    <div style={{ fontSize:'0.7rem', color:'var(--muted)', marginTop:'0.4rem' }}>Make sure your account or post is public before ordering.</div>
-                  </div>
-                )}
-
-                {/* SUMMARY + BUY */}
-                {selectedPlatform && selectedPackage && link.trim() && (
-                  <div style={{ animation:'scaleIn 0.3s ease both' }}>
-                    <div style={{ background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.1rem', marginBottom:'1rem' }}>
-                      <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.82rem', color:'var(--text)', marginBottom:'0.8rem' }}>Order Summary</div>
-                      {[
-                        { label:'Service',  value: <span style={{ fontWeight:600, color: isTurbo ? 'var(--purple2)' : '#f5a623' }}>{isTurbo ? 'Turbo Boost' : 'Standard Boost'}</span> },
-                        { label:'Platform', value: <span style={{ display:'flex', alignItems:'center', gap:'0.4rem', justifyContent:'flex-end' }}><PlatformIcon id={selectedPlatform.id} size={13}/>{selectedPlatform.name}</span> },
-                        { label:'Package',  value: selectedPackage.name },
-                        { label:'Delivery', value: selectedPackage.delivery },
-                        { label:'Balance',  value: <span style={{ color:'var(--gold)' }}>₦{(profile?.wallet_balance || 0).toLocaleString()}</span> },
-                      ].map(row => (
-                        <div key={row.label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.8rem', marginBottom:'0.45rem' }}>
-                          <span style={{ color:'var(--muted)' }}>{row.label}</span>
-                          <span style={{ color:'var(--text)', fontWeight:500 }}>{row.value}</span>
-                        </div>
-                      ))}
-                      <div style={{ height:1, background:'var(--border)', margin:'0.6rem 0' }}/>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.92rem' }}>
-                        <span style={{ color:'var(--muted)', fontWeight:600 }}>Total</span>
-                        <span style={{ color:'var(--gold)', fontWeight:800, fontFamily:'Outfit, sans-serif' }}>₦{selectedPackage.price.toLocaleString()}</span>
-                      </div>
-                    </div>
-                    <button onClick={handleOrder} disabled={ordering} className="buy-btn"
-                      style={{ width:'100%', padding:'0.95rem', background: ordering ? 'var(--purple2)' : 'var(--purple)', color:'#fff', border:'none', borderRadius:'12px', fontFamily:'Outfit, sans-serif', fontSize:'0.95rem', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:'0.6rem' }}>
-                      {ordering
-                        ? <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation:'spin 0.8s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Processing...</>
-                        : `${isTurbo ? 'Turbo' : 'Boost'} Now — ₦${selectedPackage.price.toLocaleString()}`}
-                    </button>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem', maxHeight:320, overflowY:'auto', paddingRight:2 }}>
+                    {singleTierPackages.map(pkg => (
+                      <FixedPackageCard
+                        key={pkg.id}
+                        pkg={pkg}
+                        accentColor={selectedPlatform.color}
+                        selected={selectedPackage?.id === pkg.id}
+                        onSelect={setSelectedPackage}
+                      />
+                    ))}
+                    {customFamilies.map(family => (
+                      <CustomAmountCard
+                        key={family.service_id}
+                        family={family}
+                        accentColor={selectedPlatform.color}
+                        selected={selectedPackage?.service_id === family.service_id && String(selectedPackage?.id).startsWith('custom_')}
+                        onConfirm={setSelectedPackage}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
             )}
-          </>
+
+            {/* STEP 3 — LINK */}
+            {selectedPackage && (
+              <div style={{ marginBottom:'1.4rem', animation:'fadeSlideIn 0.3s ease both' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
+                  <div style={{ width:22, height:22, borderRadius:'50%', background:'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>3</span>
+                  </div>
+                  <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Your Link</span>
+                </div>
+                <input className="link-input"
+                  placeholder={`Paste your ${selectedPlatform.name} profile or post URL...`}
+                  value={link} onChange={e => setLink(e.target.value)}
+                  style={{ width:'100%', padding:'0.85rem 1rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'12px', color:'var(--text)', fontSize:'0.88rem', fontFamily:'Inter, sans-serif', transition:'border-color 0.2s, box-shadow 0.2s' }}
+                />
+                <div style={{ fontSize:'0.7rem', color:'var(--muted)', marginTop:'0.4rem' }}>Make sure your account or post is public before ordering.</div>
+              </div>
+            )}
+
+            {/* SUMMARY + BUY */}
+            {selectedPlatform && selectedPackage && link.trim() && (
+              <div style={{ animation:'scaleIn 0.3s ease both' }}>
+                <div style={{ background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.1rem', marginBottom:'1rem' }}>
+                  <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.82rem', color:'var(--text)', marginBottom:'0.8rem' }}>Order Summary</div>
+                  {[
+                    { label:'Platform', value: <span style={{ display:'flex', alignItems:'center', gap:'0.4rem', justifyContent:'flex-end' }}><PlatformIcon id={selectedPlatform.id} size={13}/>{selectedPlatform.name}</span> },
+                    { label:'Package',  value: selectedPackage.name },
+                    { label:'Delivery', value: selectedPackage.delivery },
+                    { label:'Balance',  value: <span style={{ color:'var(--gold)' }}>₦{(profile?.wallet_balance || 0).toLocaleString()}</span> },
+                  ].map(row => (
+                    <div key={row.label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.8rem', marginBottom:'0.45rem' }}>
+                      <span style={{ color:'var(--muted)' }}>{row.label}</span>
+                      <span style={{ color:'var(--text)', fontWeight:500 }}>{row.value}</span>
+                    </div>
+                  ))}
+                  <div style={{ height:1, background:'var(--border)', margin:'0.6rem 0' }}/>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.92rem' }}>
+                    <span style={{ color:'var(--muted)', fontWeight:600 }}>Total</span>
+                    <span style={{ color:'var(--gold)', fontWeight:800, fontFamily:'Outfit, sans-serif' }}>₦{selectedPackage.price.toLocaleString()}</span>
+                  </div>
+                </div>
+                <button onClick={handleOrder} disabled={ordering} className="buy-btn"
+                  style={{ width:'100%', padding:'0.95rem', background: ordering ? 'var(--purple2)' : 'var(--purple)', color:'#fff', border:'none', borderRadius:'12px', fontFamily:'Outfit, sans-serif', fontSize:'0.95rem', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:'0.6rem' }}>
+                  {ordering
+                    ? <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation:'spin 0.8s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Processing...</>
+                    : `Turbo Now — ₦${selectedPackage.price.toLocaleString()}`}
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </main>

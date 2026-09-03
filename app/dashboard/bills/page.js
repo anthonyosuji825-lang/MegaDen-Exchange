@@ -1,15 +1,13 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
-import LoadingScreen from '@/components/LoadingScreen'
+import LoadingScreen from '@/components/RouteLoader'
 
 const TABS = [
   { id: 'airtime', label: 'Airtime' },
   { id: 'data', label: 'Data' },
   { id: 'cable', label: 'Cable TV' },
-  { id: 'electricity', label: 'Electricity' },
-  { id: 'education', label: 'Education' },
 ]
 
 export default function BillsPage() {
@@ -42,15 +40,37 @@ export default function BillsPage() {
   if (pageLoading) return <LoadingScreen />
 
   return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '3rem' }}>
+    <main className="bills-main" style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '3rem', position: 'relative' }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg) } }
         @keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
-        .bills-tab:hover { border-color: rgba(108,78,242,0.4) !important; }
-        .buy-btn:hover:not(:disabled) { filter: brightness(1.08); }
+        .bills-main::before {
+          content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+          background: radial-gradient(640px circle at 50% -8%, rgba(108,78,242,0.12), transparent 62%);
+        }
+        .bills-shell { position: relative; z-index: 1; padding: 1.25rem; max-width: 520px; margin: 0 auto; }
+        @media (min-width: 860px) {
+          .bills-shell {
+            max-width: 600px; margin: 1.75rem auto 0;
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 28px; padding: 2.1rem 2.3rem 2.5rem;
+            box-shadow: 0 32px 80px rgba(0,0,0,0.32);
+          }
+        }
+        .bills-tabs { display: flex; gap: 0.3rem; padding: 0.3rem; background: var(--navy2); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 1.5rem; }
+        .bills-tab { flex: 1; }
+        .bills-tab:hover:not(.active) { background: rgba(255,255,255,0.04) !important; }
+        .buy-btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+        .buy-btn:active:not(:disabled) { transform: translateY(0); }
         .marquee-track { animation: marquee linear infinite; }
         .marquee-track:hover { animation-play-state: paused; }
-        .logo-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 0.6rem; }
+        .bills-shell input:focus, .bills-shell select:focus {
+          border-color: var(--purple) !important;
+          box-shadow: 0 0 0 3px rgba(108,78,242,0.16);
+        }
+        .logo-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 0.6rem; }
+        .logo-picker button:hover { border-color: rgba(108,78,242,0.4) !important; }
+        .plan-option:hover { background: var(--card2) !important; }
         .logo-picker.scroll-mobile::-webkit-scrollbar { display: none; }
         .logo-picker.grid-scroll {
           grid-template-columns: none; grid-template-rows: repeat(2, 1fr);
@@ -70,20 +90,23 @@ export default function BillsPage() {
             -ms-overflow-style: none;
           }
         }
+        @media (min-width: 860px) {
+          .logo-picker:not(.grid-scroll) { grid-template-columns: repeat(5, 1fr); }
+        }
       `}</style>
 
       {/* TOP BAR */}
       <div style={{ padding: '1.1rem 1.25rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.8rem', position: 'sticky', top: 0, zIndex: 100, background: 'var(--header-bg)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}>
-        <Link href="/dashboard" style={{ color: 'var(--header-text)', display: 'flex' }}>
+        <Link href="/dashboard" style={{ color: 'var(--header-text)', display: 'flex', width: 32, height: 32, borderRadius: 9, background: 'var(--card2)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <BackIcon />
         </Link>
         <div>
           <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem', color: 'var(--header-text)' }}>Top-Up & Bills</div>
-          <div style={{ fontSize: '0.68rem', color: 'var(--header-muted)' }}>Airtime, data, TV, electricity & exam pins</div>
+          <div style={{ fontSize: '0.68rem', color: 'var(--header-muted)' }}>Airtime, data & TV subscriptions</div>
         </div>
       </div>
 
-      <div style={{ padding: '1.25rem', maxWidth: 520, margin: '0 auto' }}>
+      <div className="bills-shell">
         {broadcast?.enabled && broadcast.message && (
           <div style={{
             display: 'flex', gap: '0.7rem', alignItems: 'center',
@@ -109,36 +132,41 @@ export default function BillsPage() {
 
         {/* WALLET BALANCE */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(108,78,242,0.14), rgba(108,78,242,0.04))',
-          border: '1px solid rgba(108,78,242,0.25)', borderRadius: 16,
-          padding: '1rem 1.2rem', marginBottom: '1.2rem',
+          background: 'linear-gradient(135deg, rgba(108,78,242,0.16), rgba(108,78,242,0.03))',
+          border: '1px solid rgba(108,78,242,0.25)', borderRadius: 18,
+          padding: '1.1rem 1.3rem', marginBottom: '1.4rem',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
-          <div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Wallet Balance</div>
-            <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.3rem', color: 'var(--text)' }}>
-              ₦{(profile?.wallet_balance || 0).toLocaleString()}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(108,78,242,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <WalletIcon size={19} color="#8b6ff7" />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Wallet Balance</div>
+              <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.4rem', color: 'var(--text)', letterSpacing: '-0.3px' }}>
+                ₦{(profile?.wallet_balance || 0).toLocaleString()}
+              </div>
             </div>
           </div>
-          <Link href="/dashboard/wallet" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--purple2)', textDecoration: 'none' }}>
-            Fund Wallet →
+          <Link href="/dashboard/wallet" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--purple2)', textDecoration: 'none', flexShrink: 0 }}>
+            Fund →
           </Link>
         </div>
 
         {/* TABS */}
-        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', marginBottom: '1.3rem', paddingBottom: '0.2rem' }}>
+        <div className="bills-tabs">
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className="bills-tab"
+              className={`bills-tab${activeTab === t.id ? ' active' : ''}`}
               style={{
-                flexShrink: 0, padding: '0.55rem 1rem', borderRadius: 12,
-                border: `1px solid ${activeTab === t.id ? 'var(--purple)' : 'var(--border)'}`,
-                background: activeTab === t.id ? 'var(--purple)' : 'var(--card)',
-                color: activeTab === t.id ? '#fff' : 'var(--text)',
-                fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
-                fontFamily: 'Outfit, sans-serif', transition: 'border-color 0.2s',
+                padding: '0.6rem 0.5rem', borderRadius: 10, border: 'none',
+                background: activeTab === t.id ? 'var(--purple)' : 'transparent',
+                color: activeTab === t.id ? '#fff' : 'var(--muted)',
+                fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                fontFamily: 'Outfit, sans-serif', transition: 'background 0.2s, color 0.2s',
+                boxShadow: activeTab === t.id ? '0 4px 14px rgba(108,78,242,0.35)' : 'none',
               }}
             >
               {t.label}
@@ -149,8 +177,6 @@ export default function BillsPage() {
         {activeTab === 'airtime' && <AirtimeForm profile={profile} bumpBalance={bumpBalance} />}
         {activeTab === 'data' && <DataForm profile={profile} bumpBalance={bumpBalance} />}
         {activeTab === 'cable' && <CableForm profile={profile} bumpBalance={bumpBalance} />}
-        {activeTab === 'electricity' && <ElectricityForm profile={profile} bumpBalance={bumpBalance} />}
-        {activeTab === 'education' && <EducationForm profile={profile} bumpBalance={bumpBalance} />}
       </div>
     </main>
   )
@@ -160,14 +186,14 @@ export default function BillsPage() {
 
 function Card({ children }) {
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '1.2rem' }}>
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: '1.4rem', boxShadow: '0 12px 32px rgba(0,0,0,0.18)' }}>
       {children}
     </div>
   )
 }
 
 function Label({ children }) {
-  return <div style={{ fontSize: '0.65rem', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>{children}</div>
+  return <div style={{ fontSize: '0.68rem', color: 'var(--muted)', letterSpacing: '0.06em', fontWeight: 600, marginBottom: '0.45rem' }}>{children}</div>
 }
 
 function inputStyle() {
@@ -193,10 +219,6 @@ const LOGOS = {
   gotv:      { shape: 'circle', bg: '#0f9d58', color: '#ffffff', text: 'GOtv',    fontSize: '0.52rem', weight: 800, tracking: '0' },
   startimes: { shape: 'square', bg: '#f7941d', color: '#ffffff', text: 'ST',      fontSize: '0.85rem', weight: 900, tracking: '0.02em' },
   showmax:   { shape: 'square', bg: '#000000', color: '#ffffff', text: 'SM',      fontSize: '0.78rem', weight: 900, tracking: '0.04em' },
-  waec:      { shape: 'circle', bg: '#1d4ed8', color: '#ffffff', text: 'WAEC',    fontSize: '0.44rem', weight: 800, tracking: '0.02em' },
-  neco:      { shape: 'circle', bg: '#059669', color: '#ffffff', text: 'NECO',    fontSize: '0.44rem', weight: 800, tracking: '0.02em' },
-  jamb:      { shape: 'circle', bg: '#7c3aed', color: '#ffffff', text: 'JAMB',    fontSize: '0.44rem', weight: 800, tracking: '0.02em' },
-  nabteb:    { shape: 'circle', bg: '#dc2626', color: '#ffffff', text: 'NABTEB',  fontSize: '0.34rem', weight: 800, tracking: '0.01em' },
 }
 const FALLBACK_PALETTE = ['#6c4ef2', '#0ea5e9', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6']
 
@@ -218,24 +240,10 @@ function brandFor(label) {
   }
 }
 
-// Standard Nigerian DISCO code → friendly name, matching what VTUGATE's own
-// admin dashboard shows (Ikeja, Eko, Port Harcourt, etc.) — the catalog API
-// itself only returns the short code (e.g. 'IKEDC'), not the friendly name.
-const DISCO_NAMES = {
-  AEDC: 'Abuja Electric', APLE: 'Aba Electric', BEDC: 'Benin Electric',
-  EEDC: 'Enugu Electric', EKEDC: 'Eko Electric', IBEDC: 'Ibadan Electric',
-  IKEDC: 'Ikeja Electric', JEDC: 'Jos Electric', KAEDC: 'Kaduna Electric',
-  KEDC: 'Kano Electric', PHEDC: 'Port Harcourt Electric', YEDC: 'Yola Electric',
-}
-
 // VTUGATE names its "display name" field differently per service category
-// (network_name for airtime/data, tv_name for cable, disco for electricity,
-// edu_type for education — confirmed inconsistent across their own API).
-// This tries every variant seen so far instead of assuming one, so a new
-// category doesn't silently render blank/fallback labels again.
+// (network_name for airtime/data, tv_name for cable) — confirmed
+// inconsistent across their own API.
 function serviceLabel(item) {
-  if (item.disco) return DISCO_NAMES[item.disco] || item.disco
-  if (item.edu_type) return item.edu_type.replace(/\b\w/g, c => c.toUpperCase())
   return item.network_name || item.tv_name || item.provider_name || item.name || `#${item.service_id}`
 }
 
@@ -317,6 +325,91 @@ function LogoPicker({ options, value, onChange, subLabel, scrollMobile = false, 
           <span style={{ fontSize: '0.6rem', color: 'var(--muted)', letterSpacing: '0.04em' }}>
             Swipe to see more networks →
           </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// A custom dropdown for plan/package selection, replacing the native
+// <select> — native selects render as an unstyleable OS popup (the plain
+// blue list), so this renders its own themed panel instead. Options are
+// objects with { code, name, price }.
+function PlanPicker({ value, onChange, options, placeholder = 'Select plan', disabled = false, loading = false }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const selected = options.find(o => String(o.code) === String(value))
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen(o => !o)}
+        disabled={disabled}
+        style={{
+          ...inputStyle(),
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.55 : 1,
+          borderColor: open ? 'var(--purple)' : 'var(--border)',
+          boxShadow: open ? '0 0 0 3px rgba(108,78,242,0.16)' : 'none',
+        }}
+      >
+        <span style={{
+          color: selected ? 'var(--text)' : 'var(--muted)', fontWeight: selected ? 600 : 400,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left',
+        }}>
+          {loading ? 'Loading plans…' : selected ? selected.name : placeholder}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
+          {selected && (
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--purple2)' }}>
+              ₦{Number(selected.price).toLocaleString()}
+            </span>
+          )}
+          <ChevronDownIcon size={16} color="var(--muted)" rotated={open} />
+        </div>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 200,
+          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: 280, overflowY: 'auto', padding: '0.4rem',
+        }}>
+          {options.length === 0 ? (
+            <div style={{ padding: '1rem', fontSize: '0.8rem', color: 'var(--muted)', textAlign: 'center' }}>No plans available</div>
+          ) : options.map(opt => {
+            const isSelected = String(opt.code) === String(value)
+            return (
+              <button
+                key={opt.code}
+                type="button"
+                onClick={() => { onChange(opt.code); setOpen(false) }}
+                className="plan-option"
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  gap: '0.8rem', padding: '0.65rem 0.75rem', borderRadius: 10, border: 'none',
+                  background: isSelected ? 'rgba(108,78,242,0.14)' : 'transparent',
+                  cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box',
+                }}
+              >
+                <span style={{ fontSize: '0.82rem', color: 'var(--text)', fontWeight: isSelected ? 700 : 500 }}>{opt.name}</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: isSelected ? 'var(--purple2)' : 'var(--muted)', flexShrink: 0 }}>
+                  ₦{Number(opt.price).toLocaleString()}
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
@@ -581,12 +674,16 @@ function DataForm({ profile, bumpBalance }) {
       </div>
 
       <Label>Data Plan</Label>
-      <select value={planCode} onChange={e => setPlanCode(e.target.value)} disabled={!serviceId || loadingPlans} style={{ ...inputStyle(), marginBottom: '1rem' }}>
-        <option value="">{loadingPlans ? 'Loading plans…' : 'Select plan'}</option>
-        {plans.map(p => (
-          <option key={p.code} value={p.code}>{p.name} — ₦{Number(p.price).toLocaleString()}</option>
-        ))}
-      </select>
+      <div style={{ marginBottom: '1rem' }}>
+        <PlanPicker
+          value={planCode}
+          onChange={setPlanCode}
+          options={plans}
+          disabled={!serviceId || loadingPlans}
+          loading={loadingPlans}
+          placeholder="Select plan"
+        />
+      </div>
 
       <Label>Phone Number</Label>
       <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="08012345678" style={inputStyle()} />
@@ -708,12 +805,12 @@ function CableForm({ profile, bumpBalance }) {
           </div>
 
           <Label>Package</Label>
-          <select value={planCode} onChange={e => setPlanCode(e.target.value)} style={inputStyle()}>
-            <option value="">Select package</option>
-            {(verified.cable_plans || []).map(p => (
-              <option key={p.code} value={p.code}>{p.name} — ₦{Number(p.price).toLocaleString()}</option>
-            ))}
-          </select>
+          <PlanPicker
+            value={planCode}
+            onChange={setPlanCode}
+            options={verified.cable_plans || []}
+            placeholder="Select package"
+          />
 
           <InsufficientBanner show={price > 0 && !hasBalance} />
           <ErrorBanner error={error} />
@@ -732,244 +829,6 @@ function CableForm({ profile, bumpBalance }) {
   )
 }
 
-// ── Electricity ──────────────────────────────────────────────────────────
-
-function ElectricityForm({ profile, bumpBalance }) {
-  const [discos, setDiscos] = useState([])
-  const [serviceId, setServiceId] = useState('')
-  const [meterNo, setMeterNo] = useState('')
-  const [phone, setPhone] = useState('')
-  const [amount, setAmount] = useState('')
-  const [verified, setVerified] = useState(null) // { meter_name, disco }
-  const [verifying, setVerifying] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState(null)
-
-  useEffect(() => {
-    getJson('/api/bills/services?type=electricity')
-      .then(d => setDiscos(d.data || []))
-      .catch(e => setError(e.message))
-  }, [])
-
-  const selectedDisco = discos.find(d => String(d.service_id) === String(serviceId))
-
-  const handleVerify = async () => {
-    setVerifying(true); setError(''); setVerified(null)
-    try {
-      const res = await fetch('/api/bills/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'electricity', serviceId, meterNo, disco: selectedDisco?.disco }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Verification failed')
-      setVerified(data)
-    } catch (e) {
-      setError(e.message)
-    }
-    setVerifying(false)
-  }
-
-  const price = Number(amount) || 0
-  const hasBalance = (profile?.wallet_balance || 0) >= price
-
-  const handleBuy = async () => {
-    setLoading(true); setError('')
-    try {
-      const data = await postBuy({ type: 'electricity', serviceId, meterNo, disco: selectedDisco?.disco, amount: price, phone })
-      bumpBalance(-data.price_ngn)
-      setResult({ meterNo, amount: data.price_ngn, token: data.result?.token, name: verified?.meter_name })
-    } catch (e) {
-      setError(e.message)
-    }
-    setLoading(false)
-  }
-
-  if (result) {
-    return (
-      <SuccessCard
-        title="Electricity Purchased"
-        lines={[
-          { label: 'Account Name', value: result.name || '—' },
-          { label: 'Meter No.', value: result.meterNo },
-          ...(result.token ? [{ label: 'Token', value: result.token }] : []),
-          { label: 'Amount', value: `₦${result.amount.toLocaleString()}` },
-        ]}
-        onReset={() => { setResult(null); setMeterNo(''); setPhone(''); setAmount(''); setServiceId(''); setVerified(null) }}
-      />
-    )
-  }
-
-  return (
-    <Card>
-      <Label>Distribution Company (DISCO)</Label>
-      <div style={{ marginBottom: '1rem' }}>
-        <LogoPicker
-          options={discos.map(d => ({ idKey: d.service_id, label: serviceLabel(d) }))}
-          value={serviceId}
-          onChange={id => { setServiceId(id); setVerified(null) }}
-          gridScroll
-        />
-      </div>
-
-      <Label>Meter Number</Label>
-      <input value={meterNo} onChange={e => { setMeterNo(e.target.value); setVerified(null) }} placeholder="234567890567" style={{ ...inputStyle(), marginBottom: '1rem' }} />
-
-      {!verified ? (
-        <BuyButton
-          onClick={handleVerify}
-          loading={verifying}
-          disabled={!serviceId || !meterNo}
-          label="Verify Meter"
-          loadingLabel="Verifying…"
-        />
-      ) : (
-        <>
-          <div style={{
-            background: 'rgba(52,211,153,0.07)', border: '1px solid rgba(52,211,153,0.2)',
-            borderRadius: 12, padding: '0.75rem 1rem', fontSize: '0.82rem', color: '#34d399',
-            marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem',
-          }}>
-            <CheckIcon size={14} color="#34d399" /> {verified.meter_name}
-          </div>
-
-          <Label>Phone Number</Label>
-          <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="08012345678" style={{ ...inputStyle(), marginBottom: '1rem' }} />
-
-          <Label>Amount (₦)</Label>
-          <input value={amount} onChange={e => setAmount(e.target.value)} type="number" placeholder="1000" style={inputStyle()} />
-
-          <InsufficientBanner show={price > 0 && !hasBalance} />
-          <ErrorBanner error={error} />
-
-          <BuyButton
-            onClick={handleBuy}
-            loading={loading}
-            disabled={!phone || price <= 0 || !hasBalance}
-            label={`Buy Electricity${price > 0 ? ` — ₦${price.toLocaleString()}` : ''}`}
-          />
-        </>
-      )}
-
-      {!verified && <ErrorBanner error={error} />}
-    </Card>
-  )
-}
-
-// ── Education ────────────────────────────────────────────────────────────
-
-function EducationForm({ profile, bumpBalance }) {
-  const [types, setTypes] = useState([])
-  const [serviceId, setServiceId] = useState('')
-  const [unitPrice, setUnitPrice] = useState(0)
-  const [loadingPrice, setLoadingPrice] = useState(false)
-  const [phone, setPhone] = useState('')
-  const [quantity, setQuantity] = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState(null)
-
-  useEffect(() => {
-    getJson('/api/bills/services?type=education')
-      .then(d => setTypes(d.data || []))
-      .catch(e => setError(e.message))
-  }, [])
-
-  useEffect(() => {
-    if (!serviceId) { setUnitPrice(0); return }
-    setLoadingPrice(true); setError('')
-    getJson(`/api/bills/education-price?service_id=${serviceId}`)
-      .then(d => setUnitPrice(Number(d.price) || 0))
-      .catch(e => setError(e.message))
-      .finally(() => setLoadingPrice(false))
-  }, [serviceId])
-
-  const price = unitPrice * (Number(quantity) || 0)
-  const hasBalance = (profile?.wallet_balance || 0) >= price
-  const selectedType = types.find(t => String(t.service_id) === String(serviceId))
-
-  const handleBuy = async () => {
-    setLoading(true); setError('')
-    try {
-      const data = await postBuy({ type: 'education', serviceId, phone, quantity: Number(quantity), productCode: selectedType?.product_code })
-      bumpBalance(-data.price_ngn)
-      setResult({ amount: data.price_ngn, pins: data.result?.pins || [], type: serviceLabel(selectedType || {}) })
-    } catch (e) {
-      setError(e.message)
-    }
-    setLoading(false)
-  }
-
-  if (result) {
-    return (
-      <Card>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-          <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(52,211,153,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <CheckIcon size={16} color="#34d399" />
-          </div>
-          <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem', color: 'var(--text)' }}>{result.type} Pin(s) Purchased</div>
-        </div>
-        {result.pins.map((pin, i) => (
-          <div key={i} style={{
-            fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.1rem', letterSpacing: '0.08em',
-            color: 'var(--text)', background: 'var(--navy2)', border: '1px solid var(--border)',
-            borderRadius: 10, padding: '0.7rem 1rem', marginBottom: '0.5rem', textAlign: 'center',
-          }}>
-            {pin}
-          </div>
-        ))}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '0.6rem 0', borderTop: '1px solid var(--border)', marginTop: '0.5rem' }}>
-          <span style={{ color: 'var(--muted)' }}>Total Paid</span>
-          <span style={{ color: 'var(--text)', fontWeight: 600 }}>₦{result.amount.toLocaleString()}</span>
-        </div>
-        <button onClick={() => { setResult(null); setServiceId(''); setPhone(''); setQuantity(1) }} className="buy-btn" style={{
-          width: '100%', marginTop: '0.5rem', padding: '0.85rem',
-          background: 'var(--card2)', color: 'var(--text)', border: '1px solid var(--border)',
-          borderRadius: 12, fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer',
-        }}>
-          Make Another Purchase
-        </button>
-      </Card>
-    )
-  }
-
-  return (
-    <Card>
-      <Label>Exam Type</Label>
-      <div style={{ marginBottom: '1rem' }}>
-        <LogoPicker
-          options={types.map(t => ({ idKey: t.service_id, label: serviceLabel(t) }))}
-          value={serviceId}
-          onChange={setServiceId}
-        />
-      </div>
-
-      <Label>Phone Number</Label>
-      <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="08012345678" style={{ ...inputStyle(), marginBottom: '1rem' }} />
-
-      <Label>Quantity</Label>
-      <input value={quantity} onChange={e => setQuantity(e.target.value)} type="number" min="1" style={inputStyle()} />
-
-      {serviceId && (
-        <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '0.6rem' }}>
-          {loadingPrice ? 'Loading price…' : `₦${unitPrice.toLocaleString()} per pin`}
-        </div>
-      )}
-
-      <InsufficientBanner show={price > 0 && !hasBalance} />
-      <ErrorBanner error={error} />
-
-      <BuyButton
-        onClick={handleBuy}
-        loading={loading}
-        disabled={!serviceId || !phone || price <= 0 || !hasBalance}
-        label={`Buy Pin${quantity > 1 ? 's' : ''}${price > 0 ? ` — ₦${price.toLocaleString()}` : ''}`}
-      />
-    </Card>
-  )
-}
-
 // ── Icons ────────────────────────────────────────────────────────────────
 
 function BackIcon() {
@@ -980,4 +839,10 @@ function CheckIcon({ size = 14, color = 'currentColor' }) {
 }
 function AlertIcon({ size = 16, color = 'currentColor' }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+}
+function WalletIcon({ size = 20, color = 'currentColor' }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/><path d="M2 10h20"/></svg>
+}
+function ChevronDownIcon({ size = 16, color = 'currentColor', rotated = false }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: rotated ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }}><polyline points="6 9 12 15 18 9" /></svg>
 }

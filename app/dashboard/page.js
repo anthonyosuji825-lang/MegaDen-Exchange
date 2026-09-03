@@ -1,5 +1,5 @@
 'use client'
-import LoadingScreen from '@/components/LoadingScreen'
+import RouteLoader from '@/components/RouteLoader'
 import OnboardingTour from '@/components/OnboardingTour'
 import TurboBoostAnnouncement from '@/components/TurboBoostAnnouncement'
 import FloatingSupport from '@/components/FloatingSupport'
@@ -103,8 +103,6 @@ export default function Dashboard() {
     router.push('/')
   }
 
-  if (loading) return <LoadingScreen />
-
   const firstName = profile?.full_name?.split(' ')[0] || 'User'
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening'
@@ -178,6 +176,20 @@ export default function Dashboard() {
     if (type === 'wallet') return 'rgba(16,185,129,0.1)'
     if (type === 'referral') return 'rgba(240,180,41,0.1)'
     return 'rgba(108,78,242,0.1)'
+  }
+
+  // While the initial auth + profile + orders + notifications fetch is in
+  // flight, render nothing but a full-viewport-centered RouteLoader — same
+  // position and background as NavigationOverlay's transition spinner — so
+  // the handoff from "navigating" to "this page's own data loading" reads
+  // as one continuous spinner instead of a header popping in and the logo
+  // jumping to a lower position.
+  if (loading) {
+    return (
+      <main style={{ background: 'var(--navy)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <RouteLoader />
+      </main>
+    )
   }
 
   return (
@@ -294,7 +306,6 @@ export default function Dashboard() {
       </div>
 
       <div style={{ padding: '1.1rem 1.15rem', display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
-
         {/* WALLET CARD */}
         <div id="tour-balance" style={{ borderRadius: 24, padding: '1.5rem', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg,#130b3e 0%,#3a1fa8 45%,#6c4ef2 75%,#a86020 100%)' }}>
           <div style={{ position: 'absolute', top: -60, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />

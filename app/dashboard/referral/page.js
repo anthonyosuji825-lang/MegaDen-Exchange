@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import LoadingScreen from '@/components/LoadingScreen'
+import LoadingScreen from '@/components/RouteLoader'
 
 export default function Referral() {
   const [profile, setProfile] = useState(null)

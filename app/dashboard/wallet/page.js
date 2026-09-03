@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import LoadingScreen from '@/components/LoadingScreen'
+import LoadingScreen from '@/components/RouteLoader'
 import BottomNav from '@/components/BottomNav'
 
 export default function Wallet() {

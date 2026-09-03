@@ -3,8 +3,12 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import LoadingScreen from '@/components/LoadingScreen'
+import LoadingScreen from '@/components/RouteLoader'
 import BottomNav from '@/components/BottomNav'
+
+// TODO: replace with your real channel links
+const WHATSAPP_CHANNEL_URL = 'https://whatsapp.com/channel/REPLACE_ME'
+const TELEGRAM_CHANNEL_URL = 'https://t.me/REPLACE_ME'
 
 export default function Profile() {
   const router = useRouter()
@@ -81,7 +85,7 @@ export default function Profile() {
   const firstName = profile?.full_name?.split(' ')[0] || 'User'
 
   return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2.5rem' }}>
+    <main className="profile-main" style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2.5rem' }}>
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateY(14px); }
@@ -161,6 +165,23 @@ export default function Profile() {
         .resend-link:disabled { color: var(--muted); cursor: not-allowed; }
         .verified-pill { display:inline-flex; align-items:center; gap:0.35rem; }
         .pulse-dot { animation: shimmer 2s ease-in-out infinite; }
+        .section-label { font-size: 0.72rem; color: var(--muted); font-weight: 600; letter-spacing: 0.03em; margin-bottom: 0.5rem; padding: 0 0.2rem; }
+        main.profile-main { position: relative; }
+        main.profile-main::before {
+          content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+          background: radial-gradient(640px circle at 50% -8%, rgba(108,78,242,0.12), transparent 62%);
+        }
+        .profile-shell { position: relative; z-index: 1; padding: 1.2rem 1.4rem; max-width: 560px; margin: 0 auto; }
+        @media (min-width: 860px) {
+          .profile-shell {
+            max-width: 640px; margin: 1.75rem auto 0;
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 28px; padding: 2.2rem 2.4rem 2.6rem;
+            box-shadow: 0 32px 80px rgba(0,0,0,0.32);
+          }
+        }
+        .whatsapp-item:hover { background: rgba(37,211,102,0.06) !important; }
+        .telegram-item:hover { background: rgba(34,158,217,0.06) !important; }
       `}</style>
 
       {/* HEADER */}
@@ -177,7 +198,7 @@ export default function Profile() {
         </button>
       </div>
 
-      <div style={{ padding: '1.2rem 1.4rem', maxWidth: 560, margin: '0 auto' }}>
+      <div className="profile-shell">
 
         {/* AVATAR / PREMIUM CARD */}
         <div className="premium-card" style={{ borderRadius: '22px', padding: '2rem 1.8rem', textAlign: 'center', marginBottom: '1.2rem', animation: mounted ? 'fadeSlideIn 0.4s ease' : 'none' }}>
@@ -237,6 +258,7 @@ export default function Profile() {
         )}
 
         {/* INFO CARDS */}
+        <div className="section-label">Account details</div>
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '18px', padding: '0.3rem 0', marginBottom: '1.2rem', animation: mounted ? 'fadeSlideIn 0.4s ease 0.1s both' : 'none' }}>
           {[
             { label: 'Email', value: profile?.email, icon: <MailIcon /> },
@@ -258,6 +280,7 @@ export default function Profile() {
         </div>
 
         {/* SECURITY */}
+        <div className="section-label">Security</div>
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '18px', padding: '0.3rem 0', marginBottom: '1.2rem', animation: mounted ? 'fadeSlideIn 0.4s ease 0.13s both' : 'none' }}>
           <div
             className="menu-item"
@@ -282,6 +305,7 @@ export default function Profile() {
         </div>
 
         {/* MENU LINKS */}
+        <div className="section-label">More</div>
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '18px', padding: '0.3rem 0', marginBottom: '1.2rem', animation: mounted ? 'fadeSlideIn 0.4s ease 0.15s both' : 'none' }}>
           {[
             { label: 'My Orders', icon: <PackageIcon />, href: '/dashboard/orders' },
@@ -297,6 +321,33 @@ export default function Profile() {
               <ChevronIcon />
             </Link>
           ))}
+        </div>
+
+        {/* COMMUNITY */}
+        <div className="section-label">Community</div>
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '18px', padding: '0.3rem 0', marginBottom: '1.2rem', animation: mounted ? 'fadeSlideIn 0.4s ease 0.17s both' : 'none' }}>
+          <a href={WHATSAPP_CHANNEL_URL} target="_blank" rel="noopener noreferrer" className="menu-item whatsapp-item"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', padding: '0.9rem 1.1rem', borderBottom: '1px solid var(--border)', textDecoration: 'none' }}>
+            <div style={{ width: 34, height: 34, borderRadius: '9px', background: 'rgba(37,211,102,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <WhatsAppIcon />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.86rem', fontWeight: 500, color: 'var(--text)' }}>Join our WhatsApp Channel</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.1rem' }}>Updates, offers & announcements</div>
+            </div>
+            <ExternalLinkIcon />
+          </a>
+          <a href={TELEGRAM_CHANNEL_URL} target="_blank" rel="noopener noreferrer" className="menu-item telegram-item"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', padding: '0.9rem 1.1rem', textDecoration: 'none' }}>
+            <div style={{ width: 34, height: 34, borderRadius: '9px', background: 'rgba(34,158,217,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <TelegramIcon />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.86rem', fontWeight: 500, color: 'var(--text)' }}>Join our Telegram Channel</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.1rem' }}>Updates, offers & announcements</div>
+            </div>
+            <ExternalLinkIcon />
+          </a>
         </div>
 
         {/* LOGOUT */}
@@ -636,4 +687,24 @@ function ChevronIcon() {
 }
 function LogoutIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+}
+function ExternalLinkIcon() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+}
+// Recreated as an original mark using the brand's real color and silhouette
+// (not the official artwork file) — reads as recognizable at a glance while
+// staying original, in-code SVG.
+function WhatsAppIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="#25D366">
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.03c-.24.68-1.4 1.32-1.93 1.4-.5.08-1.1.11-1.78-.11-.41-.13-.94-.3-1.62-.6-2.85-1.23-4.71-4.1-4.85-4.29-.14-.19-1.16-1.54-1.16-2.94 0-1.4.73-2.09.99-2.38.26-.29.57-.36.76-.36h.55c.18 0 .41-.02.63.49.24.55.81 1.9.88 2.04.07.14.11.31.02.5-.09.19-.14.31-.28.48-.14.17-.29.37-.42.5-.14.14-.29.29-.12.57.17.29.75 1.24 1.62 2.01 1.11.99 2.05 1.3 2.34 1.45.29.14.46.12.63-.07.17-.19.71-.83.9-1.11.19-.29.38-.24.63-.14.26.1 1.62.77 1.9.91.28.14.46.21.53.33.07.12.07.68-.17 1.36z"/>
+    </svg>
+  )
+}
+function TelegramIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="#229ED9">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8-1.6 7.54c-.12.54-.44.67-.88.42l-2.44-1.8-1.18 1.13c-.13.13-.24.24-.49.24l.18-2.5 4.55-4.11c.2-.18-.04-.27-.31-.1L8.1 13.28l-2.44-.76c-.53-.17-.54-.53.11-.78l9.54-3.68c.44-.16.83.1.69.74z"/>
+    </svg>
+  )
 }

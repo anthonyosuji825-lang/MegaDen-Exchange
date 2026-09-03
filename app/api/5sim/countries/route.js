@@ -1,6 +1,7 @@
 // app/api/5sim/countries/route.js
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { formatCountryName, getFlag } from '@/lib/countries'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -30,7 +31,6 @@ export async function GET(request) {
 
     const data = await res.json()
 
-    // Build settings map
     const settingsMap = {}
     ;(settingsRes.data || []).forEach(s => { settingsMap[s.key] = s.value })
     const rate = parseFloat(settingsMap.usd_to_ngn_rate || process.env.USD_TO_NGN_RATE || '1600')
@@ -46,20 +46,13 @@ export async function GET(request) {
       let totalStock = 0
 
       for (const [operator, info] of Object.entries(operators)) {
-        // Skip zero-stock entries — no point showing a country with nothing available
         if (!info || info.count === 0) continue
-
         totalStock += info.count
-
-        // Track the highest price among available operators
-        // (we display the max so the user is never undercharged)
         if (info.cost > bestPrice) bestPrice = info.cost
       }
 
-      // Only list countries that actually have stock
       if (totalStock === 0 || bestPrice === 0) continue
 
-      // Floor at $0.50 so we never display a suspiciously cheap price
       const displayPrice = Math.max(bestPrice, 0.50)
 
       countries.push({
@@ -72,7 +65,6 @@ export async function GET(request) {
       })
     }
 
-    // Preferred countries appear first, rest sorted alphabetically
     const preferred = [
       'usa', 'uk', 'russia', 'ukraine', 'canada',
       'indonesia', 'india', 'nigeria', 'ghana',
@@ -93,85 +85,4 @@ export async function GET(request) {
     console.error('[5sim/countries]', error)
     return NextResponse.json({ error: 'Failed to fetch countries' }, { status: 500 })
   }
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function formatCountryName(code) {
-  const names = {
-    usa: 'United States', uk: 'United Kingdom', russia: 'Russia',
-    ukraine: 'Ukraine', canada: 'Canada', indonesia: 'Indonesia',
-    india: 'India', brazil: 'Brazil', germany: 'Germany',
-    france: 'France', philippines: 'Philippines', vietnam: 'Vietnam',
-    nigeria: 'Nigeria', ghana: 'Ghana', kenya: 'Kenya',
-    poland: 'Poland', spain: 'Spain', italy: 'Italy',
-    netherlands: 'Netherlands', sweden: 'Sweden', norway: 'Norway',
-    australia: 'Australia', japan: 'Japan', china: 'China',
-    mexico: 'Mexico', colombia: 'Colombia', argentina: 'Argentina',
-    egypt: 'Egypt', pakistan: 'Pakistan', bangladesh: 'Bangladesh',
-    myanmar: 'Myanmar', thailand: 'Thailand', malaysia: 'Malaysia',
-    cambodia: 'Cambodia', laos: 'Laos', hongkong: 'Hong Kong',
-    taiwan: 'Taiwan', southkorea: 'South Korea', estonia: 'Estonia',
-    latvia: 'Latvia', lithuania: 'Lithuania', moldova: 'Moldova',
-    georgia: 'Georgia', armenia: 'Armenia', kazakhstan: 'Kazakhstan',
-    uzbekistan: 'Uzbekistan', kyrgyzstan: 'Kyrgyzstan', tajikistan: 'Tajikistan',
-    azerbaijan: 'Azerbaijan', romania: 'Romania', bulgaria: 'Bulgaria',
-    serbia: 'Serbia', croatia: 'Croatia', czechia: 'Czech Republic',
-    hungary: 'Hungary', slovakia: 'Slovakia', austria: 'Austria',
-    switzerland: 'Switzerland', belgium: 'Belgium', portugal: 'Portugal',
-    denmark: 'Denmark', finland: 'Finland', ireland: 'Ireland',
-    newzealand: 'New Zealand', southafrica: 'South Africa',
-    morocco: 'Morocco', ethiopia: 'Ethiopia', tanzania: 'Tanzania',
-    uganda: 'Uganda', senegal: 'Senegal', cameroon: 'Cameroon',
-    afghanistan: 'Afghanistan', albania: 'Albania', algeria: 'Algeria',
-    angola: 'Angola', belarus: 'Belarus', bolivia: 'Bolivia',
-    bosniaandherzegovina: 'Bosnia & Herzegovina', chile: 'Chile',
-    costarica: 'Costa Rica', cuba: 'Cuba', dominicanrepublic: 'Dominican Republic',
-    ecuador: 'Ecuador', elsalvador: 'El Salvador', guatemala: 'Guatemala',
-    haiti: 'Haiti', honduras: 'Honduras', iraq: 'Iraq',
-    iran: 'Iran', israel: 'Israel', jamaica: 'Jamaica',
-    jordan: 'Jordan', kuwait: 'Kuwait', lebanon: 'Lebanon',
-    libya: 'Libya', madagascar: 'Madagascar', mongolia: 'Mongolia',
-    mozambique: 'Mozambique', namibia: 'Namibia', nepal: 'Nepal',
-    nicaragua: 'Nicaragua', oman: 'Oman', panama: 'Panama',
-    paraguay: 'Paraguay', peru: 'Peru', qatar: 'Qatar',
-    saudiarabia: 'Saudi Arabia', srilanka: 'Sri Lanka', sudan: 'Sudan',
-    syria: 'Syria', tunisia: 'Tunisia', turkey: 'Turkey',
-    uae: 'UAE', uruguay: 'Uruguay', venezuela: 'Venezuela',
-    yemen: 'Yemen', zambia: 'Zambia', zimbabwe: 'Zimbabwe',
-  }
-  return names[code] || code.charAt(0).toUpperCase() + code.slice(1).replace(/([a-z])([A-Z])/g, '$1 $2')
-}
-
-function getFlag(code) {
-  const flags = {
-    usa: '🇺🇸', uk: '🇬🇧', russia: '🇷🇺', ukraine: '🇺🇦', canada: '🇨🇦',
-    indonesia: '🇮🇩', india: '🇮🇳', brazil: '🇧🇷', germany: '🇩🇪',
-    france: '🇫🇷', philippines: '🇵🇭', vietnam: '🇻🇳', nigeria: '🇳🇬',
-    ghana: '🇬🇭', kenya: '🇰🇪', poland: '🇵🇱', spain: '🇪🇸', italy: '🇮🇹',
-    netherlands: '🇳🇱', sweden: '🇸🇪', norway: '🇳🇴', australia: '🇦🇺',
-    japan: '🇯🇵', china: '🇨🇳', mexico: '🇲🇽', colombia: '🇨🇴',
-    argentina: '🇦🇷', egypt: '🇪🇬', pakistan: '🇵🇰', bangladesh: '🇧🇩',
-    myanmar: '🇲🇲', thailand: '🇹🇭', malaysia: '🇲🇾', cambodia: '🇰🇭',
-    laos: '🇱🇦', hongkong: '🇭🇰', taiwan: '🇹🇼', southkorea: '🇰🇷',
-    estonia: '🇪🇪', latvia: '🇱🇻', lithuania: '🇱🇹', moldova: '🇲🇩',
-    georgia: '🇬🇪', armenia: '🇦🇲', kazakhstan: '🇰🇿', uzbekistan: '🇺🇿',
-    romania: '🇷🇴', bulgaria: '🇧🇬', serbia: '🇷🇸', czechia: '🇨🇿',
-    hungary: '🇭🇺', austria: '🇦🇹', switzerland: '🇨🇭', belgium: '🇧🇪',
-    portugal: '🇵🇹', denmark: '🇩🇰', finland: '🇫🇮', ireland: '🇮🇪',
-    newzealand: '🇳🇿', southafrica: '🇿🇦', morocco: '🇲🇦',
-    ethiopia: '🇪🇹', tanzania: '🇹🇿', uganda: '🇺🇬', senegal: '🇸🇳',
-    cameroon: '🇨🇲', afghanistan: '🇦🇫', albania: '🇦🇱', algeria: '🇩🇿',
-    angola: '🇦🇴', belarus: '🇧🇾', bolivia: '🇧🇴', chile: '🇨🇱',
-    cuba: '🇨🇺', ecuador: '🇪🇨', guatemala: '🇬🇹', haiti: '🇭🇹',
-    honduras: '🇭🇳', iraq: '🇮🇶', iran: '🇮🇷', israel: '🇮🇱',
-    jamaica: '🇯🇲', jordan: '🇯🇴', kuwait: '🇰🇼', lebanon: '🇱🇧',
-    libya: '🇱🇾', mongolia: '🇲🇳', nepal: '🇳🇵', nicaragua: '🇳🇮',
-    oman: '🇴🇲', panama: '🇵🇦', paraguay: '🇵🇾', peru: '🇵🇪',
-    qatar: '🇶🇦', saudiarabia: '🇸🇦', srilanka: '🇱🇰', sudan: '🇸🇩',
-    syria: '🇸🇾', tunisia: '🇹🇳', turkey: '🇹🇷', uae: '🇦🇪',
-    uruguay: '🇺🇾', venezuela: '🇻🇪', yemen: '🇾🇪', zambia: '🇿🇲',
-    zimbabwe: '🇿🇼',
-  }
-  return flags[code] || '🌍'
 }

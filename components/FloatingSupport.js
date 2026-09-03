@@ -1,9 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import MegaBotChat from './MegaBotChat'
 
 export default function FloatingSupport() {
   const [open, setOpen] = useState(false)
+  const [view, setView] = useState('menu') // 'menu' | 'chat'
   const [theme, setTheme] = useState('dark')
 
   useEffect(() => {
@@ -22,6 +24,12 @@ export default function FloatingSupport() {
   }, [])
 
   const isLight = theme === 'light'
+
+  const closeAll = () => {
+    setOpen(false)
+    // reset to menu after the close animation would run, so it doesn't flash chat->menu
+    setTimeout(() => setView('menu'), 200)
+  }
 
   return (
     <>
@@ -67,7 +75,7 @@ export default function FloatingSupport() {
 
       {open && (
         <div
-          onClick={() => setOpen(false)}
+          onClick={closeAll}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(8,10,22,0.7)',
             backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
@@ -79,43 +87,70 @@ export default function FloatingSupport() {
             onClick={e => e.stopPropagation()}
             style={{
               background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20,
-              padding: '1.4rem', width: '100%', maxWidth: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.45)',
+              padding: view === 'chat' ? 0 : '1.4rem',
+              width: '100%',
+              maxWidth: view === 'chat' ? 420 : 380,
+              height: view === 'chat' ? 560 : 'auto',
+              maxHeight: '85vh',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.45)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
             }}
           >
-            <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.1rem', color: 'var(--text)', marginBottom: '0.3rem' }}>Need Help?</div>
-            <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1.2rem' }}>Reach us through any of these channels</div>
+            {view === 'menu' && (
+              <>
+                <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.1rem', color: 'var(--text)', marginBottom: '0.3rem' }}>Need Help?</div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '1.2rem' }}>Reach us through any of these channels</div>
 
-            <a href="https://wa.me/17656822078" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none', marginBottom: '0.7rem' }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SupportIcon size={18} color="#10b981" /></div>
-              <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>WhatsApp Support</div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Chat directly with our team</div>
-              </div>
-            </a>
+                <button
+                  onClick={() => setView('chat')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none', marginBottom: '0.7rem', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                >
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(108,78,242,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BotIcon size={18} color="#8b5cf6" /></div>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>Chat with MegaBot</div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Instant answers, 24/7</div>
+                  </div>
+                </button>
 
-            <a href="https://whatsapp.com/channel/0029Vb6NItO3gvWZxYJHZN17" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none', marginBottom: '0.7rem' }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SupportIcon size={18} color="#10b981" /></div>
-              <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>WhatsApp Channel</div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Get updates & announcements</div>
-              </div>
-            </a>
+                <a href="https://wa.me/17656822078" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none', marginBottom: '0.7rem' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SupportIcon size={18} color="#10b981" /></div>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>WhatsApp Support</div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Chat directly with our team</div>
+                  </div>
+                </a>
 
-            <a href="https://t.me/+3cblEJBfh1owOTJk" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none', marginBottom: '0.7rem' }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(70,135,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SupportIcon size={18} color="#4687ff" /></div>
-              <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>Telegram Channel</div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Join our Telegram community</div>
-              </div>
-            </a>
+                <a href="https://whatsapp.com/channel/0029Vb6NItO3gvWZxYJHZN17" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none', marginBottom: '0.7rem' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SupportIcon size={18} color="#10b981" /></div>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>WhatsApp Channel</div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Get updates & announcements</div>
+                  </div>
+                </a>
 
-            <Link href="/dashboard/help" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none' }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(240,180,41,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><HelpIcon size={18} color="#f0b429" /></div>
-              <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>Help Center</div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>FAQs & answers to common questions</div>
-              </div>
-            </Link>
+                <a href="https://t.me/+3cblEJBfh1owOTJk" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none', marginBottom: '0.7rem' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(70,135,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><SupportIcon size={18} color="#4687ff" /></div>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>Telegram Channel</div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>Join our Telegram community</div>
+                  </div>
+                </a>
+
+                <Link href="/dashboard/help" onClick={closeAll} style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem', background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: 12, textDecoration: 'none' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(240,180,41,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><HelpIcon size={18} color="#f0b429" /></div>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>Help Center</div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>FAQs & answers to common questions</div>
+                  </div>
+                </Link>
+              </>
+            )}
+
+            {view === 'chat' && (
+              <MegaBotChat onBack={() => setView('menu')} onClose={closeAll} />
+            )}
           </div>
         </div>
       )}
@@ -134,3 +169,15 @@ function SupportIcon({ size = 20, color = 'currentColor' }) {
   )
 }
 function HelpIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12" y2="17"/></svg> }
+function BotIcon({ size = 20, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="9" width="18" height="11" rx="2"/>
+      <circle cx="8.5" cy="14.5" r="1.2" fill={color} stroke="none"/>
+      <circle cx="15.5" cy="14.5" r="1.2" fill={color} stroke="none"/>
+      <path d="M12 9V5"/>
+      <circle cx="12" cy="3.5" r="1.2" fill={color} stroke="none"/>
+      <path d="M3 13H1M23 13h-2"/>
+    </svg>
+  )
+}

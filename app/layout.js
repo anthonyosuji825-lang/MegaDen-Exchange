@@ -1,6 +1,7 @@
 import { Outfit, Inter } from 'next/font/google'
 import './globals.css'
 import InstallAppBanner from '@/components/InstallAppBanner'
+import NavigationOverlay from '@/components/NavigationOverlay'
 
 const outfit = Outfit({ 
   subsets: ['latin'], 
@@ -72,6 +73,7 @@ export default function RootLayout({ children }) {
         `}} />
       </head>
       <body>
+        <NavigationOverlay />
         {children}
         <InstallAppBanner />
       </body>

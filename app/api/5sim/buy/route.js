@@ -4,28 +4,55 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { log } from '@/lib/logger'
+import { formatCountryName, getFlag } from '@/lib/countries'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// ── Operator priority lists for problem countries ──────────────────────────
-// USA and Canada are dominated by virtual operators on 5sim that accept
-// purchases but don't deliver SMS. For these two countries only, we try
-// known real carriers in priority order before falling back to 'any'.
-// All other countries work fine with 'any' — don't touch them.
-
 const OPERATOR_PRIORITY = {
   usa:    ['att', 'tmobile', 'verizon', 'sprint', 'metropcs'],
   canada: ['rogers', 'bell', 'telus', 'fido', 'koodo'],
 }
 
-// For USA/Canada: fetch available operators and pick the best real one.
-// Returns the operator name string, or null if none found (caller falls back to 'any').
+async function getExpectedPriceNgn(country, service) {
+  const [priceRes, settingsRes] = await Promise.all([
+    fetch(`https://5sim.net/v1/guest/prices?country=${country}&product=${service}`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
+        'Accept': 'application/json',
+      },
+    }),
+    supabaseAdmin.from('app_settings').select('key, value'),
+  ])
+
+  if (!priceRes.ok) return null
+  const data = await priceRes.json()
+  const operators = data?.[country]?.[service]
+  if (!operators) return null
+
+  let bestPrice = 0
+  let totalStock = 0
+  for (const [, info] of Object.entries(operators)) {
+    if (!info || info.count === 0) continue
+    totalStock += info.count
+    if (info.cost > bestPrice) bestPrice = info.cost
+  }
+  if (totalStock === 0 || bestPrice === 0) return null
+
+  const settingsMap = {}
+  ;(settingsRes.data || []).forEach(s => { settingsMap[s.key] = s.value })
+  const rate = parseFloat(settingsMap.usd_to_ngn_rate || process.env.USD_TO_NGN_RATE || '1600')
+  const multiplier = parseFloat(settingsMap.markup_multiplier || '3.5')
+
+  const displayPrice = Math.max(bestPrice, 0.50)
+  return Math.ceil(displayPrice * rate * multiplier)
+}
+
 async function pickOperatorForCountry(country, service) {
   const priority = OPERATOR_PRIORITY[country]
-  if (!priority) return null // Not a problem country — use 'any'
+  if (!priority) return null
 
   let data
   try {
@@ -47,7 +74,6 @@ async function pickOperatorForCountry(country, service) {
   const operators = data?.[country]?.[service]
   if (!operators) return null
 
-  // Walk the priority list — first operator with stock wins
   for (const op of priority) {
     const info = operators[op]
     if (info && info.count > 0) {
@@ -55,13 +81,9 @@ async function pickOperatorForCountry(country, service) {
     }
   }
 
-  // None of our preferred operators had stock — let 5sim decide
   return null
 }
 
-// ── Purchase a number from 5sim ────────────────────────────────────────────
-// Tries `operator` first. If that fails and operator wasn't already 'any',
-// retries once with 'any'. Returns { ok, data, error, operatorUsed }.
 async function purchaseNumber(country, operator, service) {
   const headers = {
     'Authorization': `Bearer ${process.env.FIVESIM_API_KEY}`,
@@ -78,7 +100,6 @@ async function purchaseNumber(country, operator, service) {
     return { ok: true, data, operatorUsed: operator }
   }
 
-  // First attempt failed — if we used a specific operator, retry with 'any'
   if (operator !== 'any') {
     const retryRes = await fetch(
       `https://5sim.net/v1/user/buy/activation/${country}/any/${service}`,
@@ -96,11 +117,8 @@ async function purchaseNumber(country, operator, service) {
   return { ok: false, error: err, operatorUsed: operator }
 }
 
-// ── Main handler ───────────────────────────────────────────────────────────
-
 export async function POST(request) {
   try {
-    // ── Auth ──
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -122,7 +140,6 @@ export async function POST(request) {
 
     const userEmail = profile?.email || user.email || null
 
-    // ── Validate body ──
     const { country, service, price_ngn } = await request.json()
 
     if (!country || !service || !price_ngn) {
@@ -130,15 +147,25 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const priceNgn = Math.round(price_ngn)
-    if (priceNgn < 100) {
-      await log('warning', 'number', 'Suspiciously low price submitted', user.id, userEmail, { price_ngn, country, service })
-      return NextResponse.json({ error: 'Invalid price.' }, { status: 400 })
+    const expectedPriceNgn = await getExpectedPriceNgn(country, service)
+
+    if (expectedPriceNgn === null) {
+      await log('warning', 'number', 'Purchase attempted for a country/service with no live pricing', user.id, userEmail, { country, service, price_ngn })
+      return NextResponse.json({ error: 'This number is no longer available. Please refresh and try again.' }, { status: 400 })
     }
 
+    const submittedPriceNgn = Math.round(price_ngn)
+
+    if (submittedPriceNgn < expectedPriceNgn) {
+      await log('warning', 'number', 'Possible price tampering detected on number purchase', user.id, userEmail, {
+        submitted_price: submittedPriceNgn, expected_price: expectedPriceNgn, country, service,
+      })
+      return NextResponse.json({ error: 'Invalid price. Please refresh and try again.' }, { status: 400 })
+    }
+
+    const priceNgn = expectedPriceNgn
+
     // ── Decide operator ──
-    // For USA/Canada: try to find a known real carrier with stock.
-    // For everywhere else: use 'any' — it works reliably for most countries.
     const pickedOperator = await pickOperatorForCountry(country, service)
     const operator = pickedOperator || 'any'
 
@@ -161,8 +188,23 @@ export async function POST(request) {
     const result = await purchaseNumber(country, operator, service)
 
     if (!result.ok) {
-      // Refund wallet — purchase failed
-      await supabaseAdmin.rpc('credit_wallet_balance', { p_user_id: user.id, p_amount: priceNgn })
+      // ── FIXED: previously this refund call's result was never checked —
+      // if it failed, the log said "wallet refunded" regardless, and the
+      // user just saw a generic error while their money silently stayed
+      // deducted. Now we branch on the actual result. ──────────────────────
+      const { data: refundResult, error: refundError } = await supabaseAdmin
+        .rpc('credit_wallet_balance', { p_user_id: user.id, p_amount: priceNgn })
+
+      if (refundError || !refundResult) {
+        const failRef = `FAILREFUND-${user.id}-${Date.now()}`
+        await log('error', 'wallet', 'CRITICAL: refund failed after purchase failure — wallet NOT restored', user.id, userEmail, {
+          attempted_amount: priceNgn, country, service, operator_attempted: operator,
+          fivesim_error: result.error, rpc_error: refundError?.message, failure_reference: failRef,
+        })
+        return NextResponse.json({
+          error: `Purchase failed and we could not automatically refund your wallet. Please contact support with reference ${failRef}.`,
+        }, { status: 500 })
+      }
 
       await log('error', 'number', '5sim failed to return a number — wallet refunded', user.id, userEmail, {
         country, service, operator_attempted: operator,
@@ -189,8 +231,6 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Failed to purchase number' }, { status: 500 })
   }
 }
-
-// ── Finalize: save order + transaction, return response ───────────────────
 
 async function finalizeOrder({ numberData, country, service, priceNgn, user, userEmail, operatorUsed }) {
   const { data: order } = await supabaseAdmin
@@ -242,27 +282,4 @@ async function finalizeOrder({ numberData, country, service, priceNgn, user, use
     expires_in: 1200,
     price_ngn: priceNgn,
   })
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function formatCountryName(code) {
-  const names = {
-    usa: 'United States', uk: 'United Kingdom', russia: 'Russia',
-    ukraine: 'Ukraine', canada: 'Canada', indonesia: 'Indonesia',
-    india: 'India', brazil: 'Brazil', germany: 'Germany',
-    france: 'France', philippines: 'Philippines', vietnam: 'Vietnam',
-    nigeria: 'Nigeria', ghana: 'Ghana',
-  }
-  return names[code] || code.charAt(0).toUpperCase() + code.slice(1)
-}
-
-function getFlag(code) {
-  const flags = {
-    usa: '🇺🇸', uk: '🇬🇧', russia: '🇷🇺', ukraine: '🇺🇦', canada: '🇨🇦',
-    indonesia: '🇮🇩', india: '🇮🇳', brazil: '🇧🇷', germany: '🇩🇪',
-    france: '🇫🇷', philippines: '🇵🇭', vietnam: '🇻🇳', nigeria: '🇳🇬',
-    ghana: '🇬🇭',
-  }
-  return flags[code] || '🌍'
 }

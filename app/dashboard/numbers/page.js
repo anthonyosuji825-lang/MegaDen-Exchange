@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
-import LoadingScreen from '@/components/LoadingScreen'
+import LoadingScreen from '@/components/RouteLoader'
 
 const services = [
   { id: 'whatsapp',   name: 'WhatsApp',    color: '#25d366' },

@@ -10,19 +10,76 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
+async function getAuthedUser(cookieStore) {
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    { cookies: { get(name) { return cookieStore.get(name)?.value } } }
+  )
+  const { data: { user }, error } = await supabase.auth.getUser()
+  return { user, error }
+}
+
 // ── GET: check for SMS ─────────────────────────────────────────────────────
+// FIXED: this endpoint previously had NO auth check at all, and trusted the
+// `id` (fivesim_id) query param directly — meaning anyone who could guess or
+// observe a fivesim_id could pull another user's OTP code with a plain GET
+// request. Now: auth is required, order_id is required, ownership of the
+// order is verified, and the fivesim_id actually used for the 5sim API call
+// always comes from the order record in the DB — never from the query
+// string. A client-supplied `id` that doesn't match is logged, not trusted.
 
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const fivesimId = searchParams.get('id')
-    const orderId = searchParams.get('order_id')
-
-    if (!fivesimId) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+    const cookieStore = await cookies()
+    const { user, error: authError } = await getAuthedUser(cookieStore)
+    if (!user || authError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // ── Ask 5sim for the current order state ──
+    const { searchParams } = new URL(request.url)
+    const orderId = searchParams.get('order_id')
+    const clientFivesimId = searchParams.get('id') // never trusted for the actual API call — see below
+
+    if (!orderId) {
+      return NextResponse.json({ error: 'Missing order_id' }, { status: 400 })
+    }
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('email')
+      .eq('id', user.id)
+      .single()
+    const userEmail = profile?.email || user.email || null
+
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .select('details, user_id, amount, status')
+      .eq('id', orderId)
+      .single()
+
+    if (orderError || !order) {
+      return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+    }
+
+    if (order.user_id !== user.id) {
+      await log('warning', 'number', 'Attempted to check SMS for another user\'s order', user.id, userEmail, {
+        order_id: orderId, actual_owner: order.user_id,
+      })
+      return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+    }
+
+    // ── Source of truth for which number we actually check ──
+    const fivesimId = order.details?.fivesim_id
+    if (!fivesimId) {
+      return NextResponse.json({ error: 'Order has no associated number.' }, { status: 400 })
+    }
+    if (clientFivesimId && clientFivesimId !== fivesimId) {
+      await log('warning', 'number', 'SMS check id param did not match order record — ignored client value', user.id, userEmail, {
+        order_id: orderId, client_id: clientFivesimId, order_fivesim_id: fivesimId,
+      })
+    }
+
     const res = await fetch(
       `https://5sim.net/v1/user/check/${fivesimId}`,
       {
@@ -34,7 +91,7 @@ export async function GET(request) {
     )
 
     if (!res.ok) {
-      await log('error', 'number', '5sim SMS check failed', null, null, {
+      await log('error', 'number', '5sim SMS check failed', user.id, userEmail, {
         fivesim_id: fivesimId, order_id: orderId, http_status: res.status,
       })
       return NextResponse.json({ error: 'Failed to check SMS' }, { status: 502 })
@@ -42,44 +99,27 @@ export async function GET(request) {
 
     const data = await res.json()
 
-    // ── SMS arrived ──
     if (data.sms && data.sms.length > 0) {
-      if (orderId) {
-        // Fetch order once to get user context for logging
-        const { data: order } = await supabaseAdmin
+      if (order.status === 'pending') {
+        await supabaseAdmin
           .from('orders')
-          .select('details, user_id, status')
-          .eq('id', orderId)
-          .single()
-
-        // Only update if still pending — avoid double-writing on repeated polls
-        if (order?.status === 'pending') {
-          await supabaseAdmin
-            .from('orders')
-            .update({
-              status: 'completed',
-              details: {
-                ...(order.details || {}),
-                sms_code: data.sms[0].code,
-                sms_text: data.sms[0].text,
-              },
-            })
-            .eq('id', orderId)
-
-          const { data: profile } = await supabaseAdmin
-            .from('profiles')
-            .select('email')
-            .eq('id', order.user_id)
-            .single()
-
-          await log('info', 'number', 'SMS received — order completed', order.user_id, profile?.email || null, {
-            fivesim_id: fivesimId,
-            order_id: orderId,
-            sms_code: data.sms[0].code,
-            sms_text: data.sms[0].text,
-            phone: data.phone,
+          .update({
+            status: 'completed',
+            details: {
+              ...(order.details || {}),
+              sms_code: data.sms[0].code,
+              sms_text: data.sms[0].text,
+            },
           })
-        }
+          .eq('id', orderId)
+
+        await log('info', 'number', 'SMS received — order completed', user.id, userEmail, {
+          fivesim_id: fivesimId,
+          order_id: orderId,
+          sms_code: data.sms[0].code,
+          sms_text: data.sms[0].text,
+          phone: data.phone,
+        })
       }
 
       return NextResponse.json({
@@ -89,30 +129,11 @@ export async function GET(request) {
       })
     }
 
-    // ── No SMS yet — check if the order has expired ──
-    // We only do this check when orderId is provided (i.e. a tracked order).
-    // Expiry is driven by the `expires` timestamp we wrote at buy time.
-    if (orderId) {
-      const { data: order } = await supabaseAdmin
-        .from('orders')
-        .select('details, user_id, amount, status')
-        .eq('id', orderId)
-        .single()
-
-      const isStillPending = order?.status === 'pending'
-      const expiresAt = order?.details?.expires ? new Date(order.details.expires) : null
+    if (order.status === 'pending') {
+      const expiresAt = order.details?.expires ? new Date(order.details.expires) : null
       const isExpired = expiresAt && Date.now() > expiresAt.getTime()
 
-      if (isStillPending && isExpired) {
-        const { data: profile } = await supabaseAdmin
-          .from('profiles')
-          .select('email')
-          .eq('id', order.user_id)
-          .single()
-
-        const userEmail = profile?.email || null
-
-        // Cancel on 5sim — best effort, don't block refund if this fails
+      if (isExpired) {
         try {
           await fetch(
             `https://5sim.net/v1/user/cancel/${fivesimId}`,
@@ -125,12 +146,11 @@ export async function GET(request) {
             }
           )
         } catch (cancelErr) {
-          await log('warning', 'number', '5sim cancel call threw — proceeding with refund', order.user_id, userEmail, {
+          await log('warning', 'number', '5sim cancel call threw — proceeding with refund', user.id, userEmail, {
             fivesim_id: fivesimId, order_id: orderId, error: cancelErr?.message,
           })
         }
 
-        // Refund wallet
         const { data: refundResult, error: refundError } = await supabaseAdmin
           .rpc('credit_wallet_balance', { p_user_id: order.user_id, p_amount: order.amount })
 
@@ -138,7 +158,6 @@ export async function GET(request) {
           await log('error', 'wallet', 'Auto-refund RPC failed after expiry', order.user_id, userEmail, {
             fivesim_id: fivesimId, order_id: orderId, amount: order.amount, rpc_error: refundError?.message,
           })
-          // Still mark expired even if refund failed — don't leave it stuck as pending
         } else {
           await supabaseAdmin.from('transactions').insert({
             user_id: order.user_id,
@@ -174,7 +193,6 @@ export async function GET(request) {
       }
     }
 
-    // ── Still waiting — return current status ──
     return NextResponse.json({
       status: data.status,
       sms: data.sms || [],
@@ -188,26 +206,25 @@ export async function GET(request) {
 }
 
 // ── DELETE: cancel a number and refund ────────────────────────────────────
-// Authenticates via session — does NOT trust userId from the request body.
+// FIXED: previously trusted `fivesimId` from the request body directly — a
+// user could submit their own valid orderId paired with a DIFFERENT user's
+// fivesimId, and this would cancel a stranger's active number on 5sim (their
+// own refund would still be correct, since that was always tied to their own
+// order.amount, but the victim's number would be silently killed). Now the
+// fivesim_id used for the actual 5sim calls always comes from the order
+// record — the body's fivesimId (if sent) is only used for mismatch logging.
 
 export async function DELETE(request) {
   try {
-    // ── Verify session server-side ──
     const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      { cookies: { get(name) { return cookieStore.get(name)?.value } } }
-    )
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { user, error: authError } = await getAuthedUser(cookieStore)
     if (!user || authError) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { fivesimId, orderId, amount } = await request.json()
+    const { fivesimId: clientFivesimId, orderId } = await request.json()
 
-    if (!fivesimId || !amount) {
+    if (!orderId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -219,7 +236,39 @@ export async function DELETE(request) {
 
     const userEmail = profile?.email || null
 
-    // ── Confirm no SMS has arrived yet ──
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .select('id, user_id, amount, status, details')
+      .eq('id', orderId)
+      .single()
+
+    if (orderError || !order) {
+      await log('warning', 'number', 'Cancel attempted on unknown order', user.id, userEmail, { order_id: orderId })
+      return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+    }
+
+    if (order.user_id !== user.id) {
+      await log('warning', 'number', 'Attempted to cancel another user\'s order', user.id, userEmail, { order_id: orderId, actual_owner: order.user_id })
+      return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
+    }
+
+    if (order.status !== 'pending') {
+      await log('warning', 'number', 'Cancel attempted on non-pending order', user.id, userEmail, { order_id: orderId, current_status: order.status })
+      return NextResponse.json({ error: 'This order can no longer be cancelled.' }, { status: 400 })
+    }
+
+    const fivesimId = order.details?.fivesim_id
+    if (!fivesimId) {
+      return NextResponse.json({ error: 'Order has no associated number.' }, { status: 400 })
+    }
+    if (clientFivesimId && clientFivesimId !== fivesimId) {
+      await log('warning', 'number', 'Cancel id param did not match order record — ignored client value', user.id, userEmail, {
+        order_id: orderId, client_id: clientFivesimId, order_fivesim_id: fivesimId,
+      })
+    }
+
+    const amount = order.amount
+
     try {
       const checkRes = await fetch(
         `https://5sim.net/v1/user/check/${fivesimId}`,
@@ -243,7 +292,6 @@ export async function DELETE(request) {
       // If the check fails we still proceed — better to refund than leave user stuck
     }
 
-    // ── Cancel on 5sim ──
     try {
       await fetch(
         `https://5sim.net/v1/user/cancel/${fivesimId}`,
@@ -261,7 +309,6 @@ export async function DELETE(request) {
       })
     }
 
-    // ── Refund wallet ──
     const { data: refundResult, error: refundError } = await supabaseAdmin
       .rpc('credit_wallet_balance', { p_user_id: user.id, p_amount: amount })
 
@@ -272,7 +319,6 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Refund failed. Please contact support.' }, { status: 500 })
     }
 
-    // ── Record transaction + update order ──
     await supabaseAdmin.from('transactions').insert({
       user_id: user.id,
       type: 'credit',
@@ -282,18 +328,16 @@ export async function DELETE(request) {
       status: 'success',
     })
 
-    if (orderId) {
-      await supabaseAdmin
-        .from('orders')
-        .update({ status: 'cancelled' })
-        .eq('id', orderId)
-    }
+    await supabaseAdmin
+      .from('orders')
+      .update({ status: 'cancelled' })
+      .eq('id', orderId)
 
     await log('info', 'number', `Number cancelled — refunded ₦${amount?.toLocaleString()}`, user.id, userEmail, {
       fivesim_id: fivesimId, order_id: orderId, refunded_amount: amount,
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, refunded_amount: amount })
 
   } catch (error) {
     console.error('[5sim/sms DELETE]', error)

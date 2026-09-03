@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import BottomNav from '@/components/BottomNav'
+import LoadingScreen from '@/components/RouteLoader'
 
 export default function Orders() {
   const [orders, setOrders] = useState([])

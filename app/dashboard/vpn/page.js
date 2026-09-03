@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import LoadingScreen from '@/components/LoadingScreen'
+import LoadingScreen from '@/components/RouteLoader'
 
 const VPN_PLANS = [
   { id: '1m', name: '1 Month', days: 30, price: 1500, badge: null, desc: 'Great for short-term use' },

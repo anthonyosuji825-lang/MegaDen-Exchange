@@ -14,12 +14,6 @@ const supabaseAdmin = createClient(
 const EXO_API_URL = 'https://exosupplier.com/api/v2'
 const EXO_API_KEY = process.env.EXO_API_KEY
 
-// Looks up a fixed package's own definition (including its real quantity)
-// directly from the catalog, by package_id. This is the source of truth for
-// how much a non-custom order actually delivers — the client's submitted
-// `quantity` is never used for this branch, because trusting it would let
-// someone pass a cheap package_id (which passes the price check) alongside
-// an arbitrary large quantity, getting a big order at a small package's price.
 function getPackageDefinition(services, packageId) {
   for (const platform of services) {
     const pkg = platform.packages?.find(p => String(p.id) === String(packageId))
@@ -43,7 +37,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Fetch user profile for richer logs
     const { data: profile } = await supabaseAdmin.from('profiles').select('email, full_name, wallet_balance').eq('id', user.id).single()
     const userEmail = profile?.email || user.email || null
 
@@ -56,10 +49,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // ── Idempotency: if this exact checkout attempt already went through
-    // (client retried after a dropped response, a double-tap slipped past
-    // the disabled button, etc.), return the original result instead of
-    // charging the wallet and placing a second order.
     if (idempotency_key) {
       const { data: existing } = await supabaseAdmin
         .from('orders')
@@ -75,36 +64,23 @@ export async function POST(request) {
         return NextResponse.json({
           success: true,
           order_id: existing.id,
-          jap_order_id: existing.details?.jap_order_id,
+          exo_order_id: existing.details?.exo_order_id,
           message: 'Your boost has already been placed and is processing.',
         })
       }
     }
 
-    // This is the client-submitted quantity. For custom orders it's the
-    // real, authoritative quantity (fully bounded below by the tier range).
-    // For fixed orders it's NOT trusted for the actual order — see
-    // `orderQuantity` further down.
     const submittedQty = Number(quantity)
     if (!Number.isFinite(submittedQty) || submittedQty <= 0 || !Number.isInteger(submittedQty)) {
       await log('warning', 'boost', 'Invalid quantity on boost order', user.id, userEmail, { quantity, package_id })
       return NextResponse.json({ error: 'Invalid quantity.' }, { status: 400 })
     }
 
-    // Pull any admin price overrides so the curve/lookup below always
-    // reflects live pricing, not just the hardcoded catalog defaults.
     const { data: priceRows } = await supabaseAdmin.from('boost_prices').select('package_id, price')
     const priceMap = {}
     ;(priceRows || []).forEach(r => { priceMap[r.package_id] = r.price })
 
-    // Server always recomputes the expected price itself — it never just
-    // checks whether a matching row exists, because a missing row (e.g. a
-    // custom package_id, or a fixed package_id the admin never priced)
-    // must NOT be treated as "no check needed".
     let expectedPrice = null
-    // The quantity that will actually be sent to the supplier and stored.
-    // Determined per-branch below — never taken directly from client input
-    // for fixed packages.
     let orderQuantity = null
 
     if (is_custom || String(package_id).startsWith('custom_')) {
@@ -119,8 +95,6 @@ export async function POST(request) {
         return NextResponse.json({ error: `Quantity must be between ${min} and ${max}.` }, { status: 400 })
       }
       expectedPrice = interpolatePrice(tiers, submittedQty)
-      // Custom orders: the client's quantity IS the real quantity — it's
-      // fully bounded above and price is derived directly from it.
       orderQuantity = submittedQty
     } else {
       const pkgDef = getPackageDefinition(TURBO_SERVICES, package_id)
@@ -129,9 +103,6 @@ export async function POST(request) {
         return NextResponse.json({ error: 'Unknown package. Please refresh and try again.' }, { status: 400 })
       }
       expectedPrice = getDefaultPackagePrice(TURBO_SERVICES, package_id, priceMap)
-      // Fixed-package orders always use the catalog's own quantity for this
-      // package_id — never the client's submitted value. See
-      // getPackageDefinition's comment for why.
       orderQuantity = pkgDef.quantity
     }
 
@@ -157,14 +128,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid price.' }, { status: 400 })
     }
 
-    // The actual charge is always the server-recomputed expectedPrice —
-    // never the client-submitted price_ngn. price_ngn is only used above as
-    // a floor to catch tampering (submitting less than expected).
     const priceNgn = expectedPrice
 
-    // Check-and-deduct happen as a single atomic DB operation, so two
-    // concurrent requests from the same user can't both read the same
-    // starting balance and both succeed.
     const { data: deductResult, error: deductError } = await supabaseAdmin
       .rpc('deduct_wallet_balance', { p_user_id: user.id, p_amount: priceNgn })
       .single()
@@ -183,15 +148,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Insufficient wallet balance' }, { status: 400 })
     }
 
-    // ── Place order on the panel. The fetch, the JSON parse, a non-2xx
+    // ── Place order on Exosupplier. The fetch, the JSON parse, a non-2xx
     // response, an explicit `error` field, and a missing `order` id are ALL
-    // treated as the same failure and refunded the same way — nothing here
-    // is assumed to have succeeded just because it didn't throw. Previously
-    // only an explicit `japData.error` triggered a refund, so a thrown
-    // exception (timeout, dropped connection, non-JSON response during an
-    // outage) skipped the refund entirely and fell through to the generic
-    // catch-all below, which never refunds.
-    let japData
+    // treated as the same failure and refunded the same way.
+    let exoData
     try {
       const formData = new URLSearchParams()
       formData.append('key', EXO_API_KEY)
@@ -200,21 +160,18 @@ export async function POST(request) {
       formData.append('link', link)
       formData.append('quantity', orderQuantity)
 
-      const japRes = await fetch(EXO_API_URL, {
+      const exoRes = await fetch(EXO_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData.toString()
       })
 
-      japData = await japRes.json()
+      exoData = await exoRes.json()
 
-      if (!japRes.ok || japData.error || !japData.order) {
-        throw new Error(japData?.error || `Panel returned ${japRes.status} with no order id`)
+      if (!exoRes.ok || exoData.error || !exoData.order) {
+        throw new Error(exoData?.error || `Panel returned ${exoRes.status} with no order id`)
       }
     } catch (panelError) {
-      // Refund wallet — increments off the current balance rather than
-      // overwriting with a stale snapshot, so it's safe regardless of
-      // anything else that may have touched the balance in between.
       const { error: refundError } = await supabaseAdmin.rpc('refund_wallet_balance', { p_user_id: user.id, p_amount: priceNgn })
       if (refundError) {
         await log('error', 'wallet', 'CRITICAL: refund RPC failed after panel failure — user was charged with no order placed', user.id, userEmail, {
@@ -230,12 +187,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Boost order failed. Please try again.' }, { status: 400 })
     }
 
-    // Save order. At this point the wallet has already been debited and
-    // the order has already been placed with the supplier — a failure here
-    // is NOT the same as a normal validation failure. We must not let it
-    // fall through to the generic catch block, which would tell the user
-    // "order failed" while they were actually charged and the boost is
-    // already running on EXO's side.
     const { data: order, error: orderInsertError } = await supabaseAdmin
       .from('orders')
       .insert({
@@ -245,19 +196,16 @@ export async function POST(request) {
         amount: priceNgn,
         status: 'processing',
         idempotency_key: idempotency_key || null,
-        details: { jap_order_id: japData.order, service_id, link, quantity: orderQuantity, platform, package_name }
+        details: { exo_order_id: exoData.order, service_id, link, quantity: orderQuantity, platform, package_name }
       })
       .select()
       .single()
 
     if (orderInsertError || !order) {
-      // Refund the wallet so the user isn't left out of pocket for an order
-      // we have no record of, then log this loudly — it needs a human to
-      // reconcile against the supplier order id, not just a warning.
       const { error: refundError } = await supabaseAdmin.rpc('refund_wallet_balance', { p_user_id: user.id, p_amount: priceNgn })
 
       await log('error', 'boost', `CRITICAL: order placed on EXO but failed to save locally — wallet refund ${refundError ? 'FAILED' : 'succeeded'}, needs manual reconciliation`, user.id, userEmail, {
-        jap_order_id: japData.order, service_id, link, quantity: orderQuantity,
+        exo_order_id: exoData.order, service_id, link, quantity: orderQuantity,
         platform, package_name, amount_ngn: priceNgn,
         db_error: orderInsertError?.message,
         refund_error: refundError?.message,
@@ -269,28 +217,24 @@ export async function POST(request) {
       )
     }
 
-    // Save transaction
     const { error: txnInsertError } = await supabaseAdmin.from('transactions').insert({
       user_id: user.id,
       type: 'debit',
       amount: priceNgn,
       description: `${platform} Boost - ${package_name}`,
-      reference: `BOOST-${japData.order}-${Date.now()}`,
+      reference: `BOOST-${exoData.order}-${Date.now()}`,
       status: 'success',
     })
 
     if (txnInsertError) {
-      // The order itself is safely saved at this point, so we don't refund
-      // or fail the request — we just need to know the audit trail has a gap.
       await log('error', 'boost', `Order saved but transaction record failed to save`, user.id, userEmail, {
-        order_id: order.id, jap_order_id: japData.order, amount_ngn: priceNgn,
+        order_id: order.id, exo_order_id: exoData.order, amount_ngn: priceNgn,
         db_error: txnInsertError.message,
       })
     }
 
-    // ✅ Success log
     await log('info', 'boost', `Boost order placed — ${platform} · ${package_name}`, user.id, userEmail, {
-      jap_order_id: japData.order,
+      exo_order_id: exoData.order,
       service_id, link, quantity: orderQuantity,
       platform, package_name,
       amount_ngn: priceNgn,
@@ -300,7 +244,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       order_id: order.id,
-      jap_order_id: japData.order,
+      exo_order_id: exoData.order,
       message: `Your ${platform} boost has been placed and is now processing.`
     })
 

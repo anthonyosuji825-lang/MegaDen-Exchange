@@ -52,10 +52,10 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? ''
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? ''
 
 const MODEL_CHAIN = [
-  { provider: 'groq', model: 'llama-3.3-70b-versatile' },
-  { provider: 'groq', model: 'gemma2-9b-it' },
-  { provider: 'gemini', model: 'gemini-2.5-flash' },
-  { provider: 'openrouter', model: 'google/gemma-4-31b-it:free' },
+  { provider: 'groq', model: 'openai/gpt-oss-120b' },
+  { provider: 'groq', model: 'openai/gpt-oss-20b' },
+  { provider: 'gemini', model: 'gemini-3.6-flash' },
+  { provider: 'openrouter', model: 'openrouter/free' },
 ]
 
 function buildProviderRequest(config, systemPrompt, messages) {

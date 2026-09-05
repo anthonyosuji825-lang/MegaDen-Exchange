@@ -331,23 +331,64 @@ export default function AdminPanel() {
   }
 
   const updateOrderStatus = async (orderId, status) => {
-    const supabase = createClient()
-    await supabase.from('orders').update({ status }).eq('id', orderId)
+    const prevOrders = orders
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o))
+    try {
+      const res = await fetch('/api/admin/update-order-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, status }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setOrders(prevOrders) // revert the optimistic update — it never actually saved
+        alert(data.error || 'Failed to update order status')
+      }
+    } catch {
+      setOrders(prevOrders)
+      alert('Failed to update order status — please try again')
+    }
   }
 
   const updateBalance = async (userId) => {
-    const supabase = createClient()
-    await supabase.from('profiles').update({ wallet_balance: Number(newBalance) }).eq('id', userId)
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, wallet_balance: Number(newBalance) } : u))
-    setEditingBalance(null)
-    setNewBalance('')
+    const targetNewBalance = Number(newBalance)
+    try {
+      const res = await fetch('/api/admin/edit-balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, newBalance: targetNewBalance }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || 'Failed to update balance')
+        return
+      }
+      // Only update local state once the server confirms the write actually
+      // happened — no more optimistic-only updates that silently revert.
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, wallet_balance: data.new_balance } : u))
+      setEditingBalance(null)
+      setNewBalance('')
+    } catch {
+      alert('Failed to update balance — please try again')
+    }
   }
 
   const toggleBan = async (userId, currentStatus) => {
-    const supabase = createClient()
-    await supabase.from('profiles').update({ is_banned: !currentStatus }).eq('id', userId)
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_banned: !currentStatus } : u))
+    try {
+      const res = await fetch('/api/admin/ban-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, banned: !currentStatus }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || 'Failed to update user')
+        return
+      }
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_banned: data.banned } : u))
+    } catch {
+      alert('Failed to update user — please try again')
+    }
   }
 
   const saveVpnKey = async () => {

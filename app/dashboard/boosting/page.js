@@ -275,7 +275,7 @@ export default function Boosting() {
         setError(data?.error || 'Order failed. Please try again.')
         return
       }
-      setOrderId(data.jap_order_id)
+      setOrderId(data.exo_order_id)
       setProfile(p => ({ ...p, wallet_balance: (p?.wallet_balance || 0) - selectedPackage.price }))
       setSuccess(true)
     } catch (err) {

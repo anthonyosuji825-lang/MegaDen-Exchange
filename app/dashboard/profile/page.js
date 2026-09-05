@@ -6,9 +6,8 @@ import { createClient } from '@/lib/supabase'
 import LoadingScreen from '@/components/RouteLoader'
 import BottomNav from '@/components/BottomNav'
 
-// TODO: replace with your real channel links
-const WHATSAPP_CHANNEL_URL = 'https://whatsapp.com/channel/REPLACE_ME'
-const TELEGRAM_CHANNEL_URL = 'https://t.me/REPLACE_ME'
+const WHATSAPP_CHANNEL_URL = 'https://wa.me/17656822078'
+const TELEGRAM_CHANNEL_URL = 'https://t.me/+3cblEJBfh1owOTJk'
 
 export default function Profile() {
   const router = useRouter()

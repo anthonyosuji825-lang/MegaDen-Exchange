@@ -310,13 +310,26 @@ export default function AdminPanel() {
 
   const saveBoostPrices = async () => {
     setSavingPrices(true)
-    const supabase = createClient()
-    const upserts = Object.entries(editedPrices).map(([package_id, price]) => ({ package_id, price: Number(price) }))
-    await supabase.from('boost_prices').upsert(upserts, { onConflict: 'package_id' })
-    setBoostPrices({ ...editedPrices })
-    setSavingPrices(false)
-    setPricesSaved(true)
-    setTimeout(() => setPricesSaved(false), 2500)
+    try {
+      const res = await fetch('/api/admin/save-boost-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prices: editedPrices }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || 'Failed to save prices')
+        setSavingPrices(false)
+        return
+      }
+      setBoostPrices({ ...editedPrices })
+      setPricesSaved(true)
+      setTimeout(() => setPricesSaved(false), 2500)
+    } catch {
+      alert('Failed to save prices — please try again')
+    } finally {
+      setSavingPrices(false)
+    }
   }
 
   const saveSettings = async () => {

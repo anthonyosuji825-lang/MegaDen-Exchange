@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import AdminSidebar from '@/components/AdminSidebar'
 
 // Boosting packages — mirrors boosting page exactly
 // Prices stored in Supabase `boost_prices` table; fallback to these defaults
@@ -127,11 +128,39 @@ const subPlans = ['1 Month', '3 Months', '6 Months', '1 Year']
 const subServiceIds = { 'Spotify': 'spotify', 'Netflix': 'netflix', 'YouTube Premium': 'youtube', 'Canva Pro': 'canva', 'ChatGPT Plus': 'chatgpt' }
 const platforms = [...new Set(DEFAULT_BOOST_PACKAGES.map(p => p.platform))]
 
+// Provider balance cards. Used by BOTH the card grid and the low-balance
+// banner so the two can never disagree. `low` / `mid` are in each card's own
+// currency (defaults: 5 / 20, which suit the $ providers). Fleexa is in naira
+// and a US OTP number costs roughly N2,500, so N5,000 is about two purchases.
+const PROVIDER_CARDS = [
+  { key:'fivesim',  label:'5sim',      emoji:'📱', color:'#25d366', bg:'rgba(37,211,102,0.08)',  border:'rgba(37,211,102,0.2)',  currency:'$' },
+  { key:'jap',      label:'JAP Panel', emoji:'📣', color:'#1877f2', bg:'rgba(24,119,242,0.08)',  border:'rgba(24,119,242,0.2)',  currency:'$' },
+  { key:'smspool',  label:'SMSPool',   emoji:'📲', color:'#f0b429', bg:'rgba(240,180,41,0.08)',  border:'rgba(240,180,41,0.2)',  currency:'$' },
+  { key:'exo',      label:'Exo Panel', emoji:'🚀', color:'#fb923c', bg:'rgba(251,146,60,0.08)',  border:'rgba(251,146,60,0.2)',  currency:'$' },
+  { key:'fleexa',   label:'Fleexa',    emoji:'📞', color:'#22d3ee', bg:'rgba(34,211,238,0.08)',  border:'rgba(34,211,238,0.2)',  currency:'₦', low:5000, mid:15000 },
+  { key:'vtugate',  label:'VTUGATE',   emoji:'📶', color:'#6c4ef2', bg:'rgba(108,78,242,0.08)',  border:'rgba(108,78,242,0.2)',  currency:'₦' },
+]
+
 export default function AdminPanel() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
   const [mounted, setMounted] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
+    const handleChange = (e) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/')
+  }
 
   // Data
   const [stats, setStats] = useState({ users: 0, orders: 0, revenue: 0, pending: 0 })
@@ -141,10 +170,11 @@ export default function AdminPanel() {
   const [subKeys, setSubKeys] = useState([])
 
   // Settings
-  const [settings, setSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
-  const [editedSettings, setEditedSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
+  const [settings, setSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', fleexa_markup_percent: '15', fleexa_sms6_markup_percent: '', fleexa_rent_margin_percent: '50', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
+  const [editedSettings, setEditedSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', fleexa_markup_percent: '15', fleexa_sms6_markup_percent: '', fleexa_rent_margin_percent: '50', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
+  const [settingsError, setSettingsError] = useState('')
   const [boostPrices, setBoostPrices] = useState({})
   const [editedPrices, setEditedPrices] = useState({})
   const [savingPrices, setSavingPrices] = useState(false)
@@ -175,9 +205,11 @@ export default function AdminPanel() {
   // Order filter
   const [orderFilter, setOrderFilter] = useState('all')
   const [userSort, setUserSort] = useState('recent')
+  const [userSearch, setUserSearch] = useState('')
+  const [userSearching, setUserSearching] = useState(false)
 
   // Provider balances
-  const [providerBalances, setProviderBalances] = useState({ fivesim: { balance: null, error: null }, jap: { balance: null, error: null }, vtugate: { balance: null, error: null } })
+  const [providerBalances, setProviderBalances] = useState({ fivesim: { balance: null, error: null }, jap: { balance: null, error: null }, vtugate: { balance: null, error: null }, smspool: { balance: null, error: null }, exo: { balance: null, error: null }, fleexa: { balance: null, error: null } })
   const [balancesLoading, setBalancesLoading] = useState(false)
   const [balancesLastFetched, setBalancesLastFetched] = useState(null)
 
@@ -249,6 +281,47 @@ export default function AdminPanel() {
     load()
     fetchProviderBalances()
   }, [router])
+
+  // Search beyond the loaded list. The initial load fetches profiles with no
+  // explicit limit, but Supabase caps API responses (1,000 rows by default),
+  // so on a large user base the OLDEST accounts are not in `users` at all —
+  // the Overview count comes from a real COUNT and can exceed the list. When
+  // that is the case, the query is also run against the database and any
+  // accounts not already loaded are added to `users`, which keeps Edit
+  // Balance / Ban working on them like any other row. Skipped entirely when
+  // everyone is already loaded.
+  const usersLenRef = useRef(0)
+  usersLenRef.current = users.length
+  useEffect(() => {
+    const q = userSearch.trim()
+    if (!q || stats.users <= usersLenRef.current) { setUserSearching(false); return }
+
+    let cancelled = false
+    setUserSearching(true)
+    const timer = setTimeout(async () => {
+      try {
+        // Inside .or() the characters , ( ) are filter syntax and % * are
+        // wildcards — strip them from what the admin typed, then add our own *.
+        const safe = q.replace(/[,()%*\\]/g, ' ').replace(/\s+/g, ' ').trim()
+        if (!safe) return
+        const filters = [`full_name.ilike.*${safe}*`, `email.ilike.*${safe}*`]
+        if (/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(safe)) filters.push(`id.eq.${safe}`)
+        const { data } = await createClient()
+          .from('profiles').select('*').or(filters.join(',')).order('created_at', { ascending: false }).limit(50)
+        if (cancelled || !data) return
+        setUsers(prev => {
+          const have = new Set(prev.map(u => u.id))
+          const extra = data.filter(u => !have.has(u.id))
+          return extra.length ? [...prev, ...extra] : prev
+        })
+      } catch (e) {
+        console.error('[admin user search]', e)
+      } finally {
+        if (!cancelled) setUserSearching(false)
+      }
+    }, 350)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [userSearch, stats.users])
 
   const fetchProviderBalances = async () => {
     setBalancesLoading(true)
@@ -334,13 +407,36 @@ export default function AdminPanel() {
 
   const saveSettings = async () => {
     setSavingSettings(true)
-    const supabase = createClient()
-    const upserts = Object.entries(editedSettings).map(([key, value]) => ({ key, value }))
-    await supabase.from('app_settings').upsert(upserts, { onConflict: 'key' })
-    setSettings({ ...editedSettings })
+    setSettingsError('')
+    try {
+      // FIXED (2026-09-20): this used to upsert directly from the
+      // browser with the anon key, which silently failed for any
+      // BRAND-NEW setting key due to RLS (existing keys could be
+      // updated, but new ones couldn't be inserted) — with no error
+      // check, so it showed "Saved!" even when the write failed.
+      // Confirmed live: fleexa_markup_percent and
+      // fleexa_rent_margin_percent never reached the database despite
+      // the UI saying they were saved. Routing through a server route
+      // with the service role key bypasses RLS and lets us check the
+      // real result.
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editedSettings),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setSettingsError(data.error || 'Failed to save settings.')
+        setSavingSettings(false)
+        return
+      }
+      setSettings({ ...editedSettings })
+      setSettingsSaved(true)
+      setTimeout(() => setSettingsSaved(false), 2500)
+    } catch (err) {
+      setSettingsError('Failed to save settings — check your connection and try again.')
+    }
     setSavingSettings(false)
-    setSettingsSaved(true)
-    setTimeout(() => setSettingsSaved(false), 2500)
   }
 
   const updateOrderStatus = async (orderId, status) => {
@@ -468,6 +564,15 @@ export default function AdminPanel() {
     used: vpnKeys.filter(k => k.provider === p && k.is_used).length,
   }))
 
+  // User search: every whitespace-separated word must appear somewhere in the
+  // name, email or user id (case-insensitive).
+  const userTerms = userSearch.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const matchedUsers = userTerms.length === 0 ? users : users.filter(u => {
+    const hay = `${u.full_name || ''} ${u.email || ''} ${u.id || ''}`.toLowerCase()
+    return userTerms.every(t => hay.includes(t))
+  })
+  const usersTruncated = stats.users > users.length
+
   const filteredOrders = orderFilter === 'all' ? orders : orders.filter(o => o.status === orderFilter)
 
   const statusStyle = (status) => {
@@ -475,8 +580,27 @@ export default function AdminPanel() {
     if (status === 'pending')   return { bg: 'rgba(240,180,41,0.12)',  color: '#f0b429' }
     if (status === 'processing')return { bg: 'rgba(108,78,242,0.12)', color: 'var(--purple2)' }
     if (status === 'failed')    return { bg: 'rgba(220,50,50,0.12)',   color: '#ff6b6b' }
+    // 'resolving' is normally a few-second internal state; an order that
+    // STAYS here was deliberately left for manual review (see the warning
+    // shown on the order card).
+    if (status === 'resolving') return { bg: 'rgba(255,159,67,0.14)',  color: '#ff9f43' }
     return { bg: 'var(--card2)', color: 'var(--muted)' }
   }
+
+  // Mirrors lib/numberSettings.js exactly: a blank/invalid SMS OTP 6 markup
+  // follows the SMS OTP 4/5 markup, which itself falls back to 15.
+  const sms6EffectivePct = (() => {
+    const own = parseFloat(editedSettings.fleexa_sms6_markup_percent)
+    if (Number.isFinite(own) && own >= 0) return own
+    const shared = parseFloat(editedSettings.fleexa_markup_percent)
+    return Number.isFinite(shared) && shared >= 0 ? shared : 15
+  })()
+  // Fleexa's own SMS OTP 6 docs example: WhatsApp costs $0.16 = ₦269 wholesale.
+  const SMS6_EXAMPLE_COST_NGN = 269
+  const SMS6_EXAMPLE_COST_USD = 0.16
+  const sms6SellPreview = Math.ceil(SMS6_EXAMPLE_COST_NGN * (1 + sms6EffectivePct / 100))
+  const sms6Benchmark = Math.ceil(SMS6_EXAMPLE_COST_USD * Number(editedSettings.usd_to_ngn_rate) * Number(editedSettings.markup_multiplier))
+  const sms6BenchmarkPct = Math.round((sms6Benchmark / SMS6_EXAMPLE_COST_NGN - 1) * 100)
 
   const inputStyle = { width: '100%', padding: '0.65rem 0.9rem', background: 'var(--navy)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text)', fontSize: '0.85rem', outline: 'none', fontFamily: 'Inter, sans-serif' }
   const selectStyle = { ...inputStyle }
@@ -503,7 +627,7 @@ export default function AdminPanel() {
   )
 
   return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '5rem' }}>
+    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: isDesktop ? 'flex' : 'block' }}>
       <style>{`
         @keyframes fadeSlideIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
         @keyframes scaleIn { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
@@ -531,6 +655,14 @@ export default function AdminPanel() {
         .plat-btn { transition:background 0.15s,border-color 0.15s,color 0.15s; cursor:pointer; }
       `}</style>
 
+      {isDesktop && (
+        <AdminSidebar tabs={tabs} activeTab={activeTab} onTabChange={(id) => {
+          setActiveTab(id)
+          if (id === 'logs' && logs.length === 0) fetchLogs()
+        }} onLogout={handleLogout} />
+      )}
+
+      <div style={{ flex: isDesktop ? 1 : 'none', minWidth: 0, paddingBottom: isDesktop ? 0 : '5rem' }}>
       {/* TOP BAR */}
       <div style={{ padding:'1rem 1.4rem', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100, background:'rgba(var(--navy-rgb,10,10,30),0.95)', backdropFilter:'blur(20px)', borderBottom:'1px solid var(--border)' }}>
         <div>
@@ -540,7 +672,7 @@ export default function AdminPanel() {
         <a href="/dashboard" style={{ padding:'0.4rem 0.9rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--muted)', fontSize:'0.75rem', textDecoration:'none', fontWeight:500 }}>← App</a>
       </div>
 
-      <div style={{ padding:'1.2rem 1.4rem', maxWidth:520, margin:'0 auto' }}>
+      <div style={{ padding:'1.2rem 1.4rem', maxWidth: isDesktop ? 900 : 520, margin:'0 auto' }}>
 
         {/* OVERVIEW */}
         {activeTab === 'overview' && (
@@ -577,16 +709,14 @@ export default function AdminPanel() {
                 </button>
               </div>
 
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'0.6rem' }}>
-                {[
-                  { key:'fivesim',  label:'5sim',    emoji:'📱', color:'#25d366', bg:'rgba(37,211,102,0.08)',  border:'rgba(37,211,102,0.2)', currency:'$' },
-                  { key:'jap',      label:'JAP Panel', emoji:'📣', color:'#1877f2', bg:'rgba(24,119,242,0.08)', border:'rgba(24,119,242,0.2)', currency:'$' },
-                  { key:'vtugate',  label:'VTUGATE', emoji:'📶', color:'#6c4ef2', bg:'rgba(108,78,242,0.08)', border:'rgba(108,78,242,0.2)', currency:'₦' },
-                ].map(p => {
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'0.6rem' }}>
+                {PROVIDER_CARDS.map(p => {
                   const val = providerBalances[p.key]?.balance
                   const err = providerBalances[p.key]?.error
-                  const isLow = val !== null && val !== undefined && Number(val) < 5
-                  const isMid = val !== null && val !== undefined && Number(val) >= 5 && Number(val) < 20
+                  const lowAt = p.low ?? 5
+                  const midAt = p.mid ?? 20
+                  const isLow = val !== null && val !== undefined && Number(val) < lowAt
+                  const isMid = val !== null && val !== undefined && Number(val) >= lowAt && Number(val) < midAt
                   const balColor = err ? '#f43f5e' : val === null || val === undefined ? 'var(--muted)' : isLow ? '#f43f5e' : isMid ? '#f0b429' : '#34d399'
                   return (
                     <div key={p.key} style={{ position:'relative', background: isLow ? 'rgba(244,63,94,0.06)' : p.bg, border:`1px solid ${isLow ? 'rgba(244,63,94,0.3)' : p.border}`, borderRadius:'16px', padding:'1rem 0.75rem 0.85rem', overflow:'hidden', display:'flex', flexDirection:'column', gap:'0.35rem' }}>
@@ -601,7 +731,7 @@ export default function AdminPanel() {
                       {balancesLoading ? (
                         <div style={{ height:18, width:'70%', background:'var(--border)', borderRadius:6, animation:'shimmer 1.2s ease infinite' }} />
                       ) : err ? (
-                        <div style={{ fontSize:'0.68rem', color:'#f43f5e', fontWeight:600 }}>Error</div>
+                        <div title={String(err)} style={{ fontSize:'0.68rem', color:'#f43f5e', fontWeight:600 }}>Error</div>
                       ) : val === null || val === undefined ? (
                         <div style={{ fontSize:'0.8rem', color:'var(--muted)' }}>—</div>
                       ) : (
@@ -615,11 +745,10 @@ export default function AdminPanel() {
               </div>
 
               {/* Low balance warning banner */}
-              {!balancesLoading && (
-                providerBalances.fivesim?.balance < 5 ||
-                providerBalances.jap?.balance < 5 ||
-                providerBalances.vtugate?.balance < 5
-              ) && (
+              {!balancesLoading && PROVIDER_CARDS.some(p => {
+                const v = providerBalances[p.key]?.balance
+                return v !== null && v !== undefined && Number(v) < (p.low ?? 5)
+              }) && (
                 <div style={{ marginTop:'0.6rem', padding:'0.65rem 0.9rem', background:'rgba(244,63,94,0.07)', border:'1px solid rgba(244,63,94,0.22)', borderRadius:'12px', fontSize:'0.7rem', color:'#f43f5e', display:'flex', alignItems:'center', gap:'0.5rem', fontWeight:500 }}>
                   <span style={{ fontSize:'0.9rem' }}>⚠️</span> One or more provider balances are low — top up to avoid service disruptions.
                 </div>
@@ -690,7 +819,7 @@ export default function AdminPanel() {
         {activeTab === 'users' && (
           <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.9rem' }}>
-              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)' }}>All Users ({users.length})</div>
+              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)' }}>{userTerms.length ? `Users — ${matchedUsers.length} found` : `All Users (${users.length})`}</div>
               <select value={userSort} onChange={e => setUserSort(e.target.value)}
                 style={{ padding:'0.35rem 0.7rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--text)', fontSize:'0.72rem', outline:'none', fontFamily:'Outfit, sans-serif' }}>
                 <option value="recent">Recently Joined</option>
@@ -698,12 +827,27 @@ export default function AdminPanel() {
                 <option value="alpha">A → Z</option>
               </select>
             </div>
+            <div style={{ position:'relative', marginBottom:'0.9rem' }}>
+              <input type="text" value={userSearch} onChange={e => setUserSearch(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') setUserSearch('') }}
+                placeholder="Search by name, email or user ID…" aria-label="Search users" autoComplete="off" spellCheck={false}
+                style={{ ...inputStyle, paddingRight: userSearch ? '2.4rem' : undefined }} />
+              {userSearch && (
+                <button onClick={() => setUserSearch('')} aria-label="Clear search"
+                  style={{ position:'absolute', right:'0.5rem', top:'1.3rem', transform:'translateY(-50%)', width:26, height:26, borderRadius:'50%', background:'var(--card2)', border:'1px solid var(--border)', color:'var(--muted)', fontSize:'0.7rem', cursor:'pointer' }}>✕</button>
+              )}
+              {(usersTruncated || userSearching) && (
+                <div style={{ fontSize:'0.66rem', color:'var(--muted)', marginTop:'0.35rem' }}>
+                  {userSearching ? 'Searching all users…' : `Only ${users.length.toLocaleString()} of ${stats.users.toLocaleString()} users are loaded here — search also checks the full database.`}
+                </div>
+              )}
+            </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'0.6rem' }}>
               {[
                 // Admin always first
-                ...users.filter(u => u.is_admin),
+                ...matchedUsers.filter(u => u.is_admin),
                 // Then non-admins sorted by chosen method
-                ...[...users.filter(u => !u.is_admin)].sort((a, b) => {
+                ...[...matchedUsers.filter(u => !u.is_admin)].sort((a, b) => {
                   if (userSort === 'recent') return new Date(b.created_at) - new Date(a.created_at)
                   if (userSort === 'oldest') return new Date(a.created_at) - new Date(b.created_at)
                   if (userSort === 'alpha') return (a.full_name || '').localeCompare(b.full_name || '')
@@ -758,6 +902,11 @@ export default function AdminPanel() {
                 </div>
               ))}
               {users.length === 0 && <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'2rem', textAlign:'center', color:'var(--muted)', fontSize:'0.82rem' }}>No users yet</div>}
+              {users.length > 0 && matchedUsers.length === 0 && (
+                <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'2rem', textAlign:'center', color:'var(--muted)', fontSize:'0.82rem' }}>
+                  {userSearching ? 'Searching…' : `No users match “${userSearch.trim()}”`}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -774,6 +923,10 @@ export default function AdminPanel() {
                 <option value="processing">Processing</option>
                 <option value="completed">Completed</option>
                 <option value="failed">Failed</option>
+                <option value="resolving">Resolving (needs review)</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="expired">Expired</option>
+                <option value="banned">Banned</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'0.6rem' }}>
@@ -791,6 +944,12 @@ export default function AdminPanel() {
                         <span style={{ padding:'0.2rem 0.55rem', borderRadius:'50px', background:s.bg, color:s.color, fontSize:'0.65rem', fontWeight:600, textTransform:'capitalize' }}>{order.status}</span>
                       </div>
                     </div>
+
+                    {order.status === 'resolving' && (
+                      <div style={{ marginBottom:'0.7rem', padding:'0.6rem 0.75rem', background:'rgba(255,159,67,0.1)', border:'1px solid rgba(255,159,67,0.3)', borderRadius:'10px', fontSize:'0.7rem', color:'#ff9f43', lineHeight:1.5 }}>
+                        ⚠ Stuck mid-resolution. The customer's wallet may ALREADY have been refunded — check their Transactions before changing anything, and do not set this back to Pending (the system would refund it again).
+                      </div>
+                    )}
 
                     {order.status === 'pending' && (
                       <div style={{ marginBottom:'0.7rem' }}>
@@ -817,12 +976,18 @@ export default function AdminPanel() {
                     )}
 
                     <div style={{ display:'flex', gap:'0.5rem' }}>
-                      {['pending','completed','failed'].map(status => (
-                        <button key={status} className="action-btn" onClick={() => updateOrderStatus(order.id, status)}
-                          style={{ flex:1, padding:'0.45rem', background: order.status === status ? statusStyle(status).bg : 'var(--card2)', border:`1px solid ${order.status === status ? statusStyle(status).color : 'var(--border)'}`, borderRadius:'8px', color: order.status === status ? statusStyle(status).color : 'var(--muted)', fontSize:'0.65rem', fontWeight:600, textTransform:'capitalize' }}>
+                      {['pending','completed','failed'].map(status => {
+                        // Re-opening a number order that is stuck or already refunded would put it
+                        // back into the automatic poll/sweep, which can refund it a second time.
+                        const reopenRisky = status === 'pending' && order.product_type === 'number' && ['resolving','cancelled','expired','banned'].includes(order.status)
+                        return (
+                        <button key={status} className="action-btn" disabled={reopenRisky}
+                          title={reopenRisky ? 'Disabled: this order may already be refunded — re-opening it could refund it twice.' : undefined}
+                          onClick={() => updateOrderStatus(order.id, status)}
+                          style={{ flex:1, padding:'0.45rem', background: order.status === status ? statusStyle(status).bg : 'var(--card2)', border:`1px solid ${order.status === status ? statusStyle(status).color : 'var(--border)'}`, borderRadius:'8px', color: order.status === status ? statusStyle(status).color : 'var(--muted)', fontSize:'0.65rem', fontWeight:600, textTransform:'capitalize', opacity: reopenRisky ? 0.35 : 1, cursor: reopenRisky ? 'not-allowed' : 'pointer' }}>
                           {status}
                         </button>
-                      ))}
+                        )})}
                     </div>
                   </div>
                 )
@@ -1203,6 +1368,7 @@ export default function AdminPanel() {
                 style={{ flex:1, minWidth:100, padding:'0.45rem 0.7rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--text)', fontSize:'0.72rem', outline:'none' }}>
                 <option value="all">All Categories</option>
                 <option value="number">📱 Numbers</option>
+                <option value="rent">🗓️ Rent Numbers</option>
                 <option value="boost">📣 Boost</option>
                 <option value="vpn">🔒 VPN</option>
                 <option value="wallet">💰 Wallet</option>
@@ -1227,7 +1393,11 @@ export default function AdminPanel() {
               ) : (() => {
                 const filtered = logs.filter(l => {
                   if (logLevelFilter !== 'all' && l.level !== logLevelFilter) return false
-                  if (logCategoryFilter !== 'all' && l.category !== logCategoryFilter) return false
+                  if (logCategoryFilter === 'rent') {
+                    if (l.context?.feature !== 'rent_numbers') return false
+                  } else if (logCategoryFilter !== 'all' && l.category !== logCategoryFilter) {
+                    return false
+                  }
                   if (logSearch) {
                     const q = logSearch.toLowerCase()
                     return (l.message || '').toLowerCase().includes(q) ||
@@ -1277,6 +1447,9 @@ export default function AdminPanel() {
                           <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', marginBottom:'0.25rem', flexWrap:'wrap' }}>
                             <span style={{ padding:'0.1rem 0.4rem', borderRadius:'50px', background: ls.bg, color: ls.color, fontSize:'0.58rem', fontWeight:800, letterSpacing:'0.05em' }}>{ls.label}</span>
                             <span style={{ fontSize:'0.65rem', color:'var(--muted)' }}>{categoryEmoji(entry.category)} {entry.category}</span>
+                            {entry.context?.feature === 'rent_numbers' && (
+                              <span style={{ padding:'0.1rem 0.4rem', borderRadius:'50px', background:'rgba(108,78,242,0.12)', color:'var(--purple2)', fontSize:'0.58rem', fontWeight:700 }}>🗓️ Rent</span>
+                            )}
                             <span style={{ fontSize:'0.62rem', color:'var(--muted)', marginLeft:'auto', flexShrink:0 }}>
                               {new Date(entry.created_at).toLocaleString('en-NG', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' })}
                             </span>
@@ -1331,6 +1504,12 @@ export default function AdminPanel() {
                 {savingSettings ? 'Saving...' : settingsSaved ? '✓ Saved' : 'Save'}
               </button>
             </div>
+
+            {settingsError && (
+              <div style={{ padding:'0.75rem 1rem', marginBottom:'1rem', background:'rgba(244,63,94,0.08)', border:'1px solid rgba(244,63,94,0.25)', borderRadius:'10px', color:'#f43f5e', fontSize:'0.78rem' }}>
+                ⚠️ {settingsError}
+              </div>
+            )}
 
             {/* Bills page broadcast */}
             <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginBottom:'1rem' }}>
@@ -1452,11 +1631,69 @@ export default function AdminPanel() {
             <div style={{ padding:'0.9rem', background:'rgba(108,78,242,0.06)', border:'1px solid rgba(108,78,242,0.2)', borderRadius:'12px', fontSize:'0.75rem', color:'var(--muted)', lineHeight:1.6 }}>
               💡 <strong style={{ color:'var(--text)' }}>How it works:</strong> Settings are saved to Supabase <code style={{ background:'var(--card2)', padding:'0.1rem 0.3rem', borderRadius:'4px' }}>app_settings</code> table and read live by your number buy route. Changes apply immediately — no redeployment needed.
             </div>
+
+            {/* Fleexa markup */}
+            <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginTop:'1rem', marginBottom:'1rem' }}>
+              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.85rem', color:'var(--text)', marginBottom:'0.3rem' }}>Fleexa Pricing (OTP & Rent Numbers)</div>
+              <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'1rem' }}>
+                Fleexa's own price_ngn is your wholesale cost, not a retail price — these settings control your margin on top of it.
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'0.8rem' }}>
+                <div>
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Flat Markup — SMS OTP 4/5 (no retail price to compare against)</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                    <input type="number" step="1" value={editedSettings.fleexa_markup_percent}
+                      onChange={e => setEditedSettings(s => ({ ...s, fleexa_markup_percent: e.target.value }))}
+                      style={{ flex:1, padding:'0.7rem 0.9rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--gold)', fontSize:'1rem', fontWeight:700, fontFamily:'Outfit, sans-serif', outline:'none' }} />
+                    <span style={{ fontSize:'0.75rem', color:'var(--muted)', whiteSpace:'nowrap' }}>% over cost</span>
+                  </div>
+                  <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.3rem' }}>Current: +{settings.fleexa_markup_percent}% over Fleexa's wholesale price_ngn</div>
+                </div>
+                <div>
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Flat Markup — SMS OTP 6 (multi-country). Leave blank to follow the SMS OTP 4/5 markup</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                    <input type="number" step="1" min="0" placeholder={`Following SMS OTP 4/5: +${editedSettings.fleexa_markup_percent}%`} value={editedSettings.fleexa_sms6_markup_percent ?? ''}
+                      onChange={e => setEditedSettings(s => ({ ...s, fleexa_sms6_markup_percent: e.target.value }))}
+                      style={{ flex:1, padding:'0.7rem 0.9rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--gold)', fontSize:'1rem', fontWeight:700, fontFamily:'Outfit, sans-serif', outline:'none' }} />
+                    <span style={{ fontSize:'0.75rem', color:'var(--muted)', whiteSpace:'nowrap' }}>% over cost</span>
+                  </div>
+                  <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.3rem' }}>
+                    Effective: +{sms6EffectivePct}% — e.g. Fleexa's docs example (WhatsApp, cost ₦{SMS6_EXAMPLE_COST_NGN}) would sell for ₦{sms6SellPreview.toLocaleString()}.
+                    {Number.isFinite(sms6BenchmarkPct) && ` For comparison, your 5sim/SMSPool-style price for the same $${SMS6_EXAMPLE_COST_USD} is ₦${sms6Benchmark.toLocaleString()}, which is about +${sms6BenchmarkPct}% over Fleexa's cost.`}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Margin Share — Rent Numbers (% of the gap to Fleexa's own retail price)</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                    <input type="number" step="1" min="0" max="100" value={editedSettings.fleexa_rent_margin_percent}
+                      onChange={e => setEditedSettings(s => ({ ...s, fleexa_rent_margin_percent: e.target.value }))}
+                      style={{ flex:1, padding:'0.7rem 0.9rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--gold)', fontSize:'1rem', fontWeight:700, fontFamily:'Outfit, sans-serif', outline:'none' }} />
+                    <span style={{ fontSize:'0.75rem', color:'var(--muted)', whiteSpace:'nowrap' }}>% of gap</span>
+                  </div>
+                  <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.3rem' }}>
+                    Current: you keep {settings.fleexa_rent_margin_percent}% of the gap between your cost and Fleexa's retail price. 100% would match Fleexa's own retail price exactly (no price advantage for your customers); 0% means no margin at all.
+                  </div>
+                </div>
+              </div>
+
+              {/* Live preview using the real WhatsApp/1-month numbers we confirmed: cost ₦7,768, Fleexa retail ₦8,768 */}
+              <div style={{ marginTop:'1rem', padding:'0.8rem', background:'rgba(108,78,242,0.06)', border:'1px solid rgba(108,78,242,0.15)', borderRadius:'10px' }}>
+                <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'0.3rem' }}>Rent Preview (WhatsApp, 1 month — cost ₦7,768, Fleexa retail ₦8,768)</div>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'1.1rem', color:'var(--gold)' }}>
+                  ₦{Math.round(7768 + (8768 - 7768) * (Number(editedSettings.fleexa_rent_margin_percent) / 100)).toLocaleString()}
+                </div>
+                <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.1rem' }}>
+                  ₦{(Math.round(7768 + (8768 - 7768) * (Number(editedSettings.fleexa_rent_margin_percent) / 100)) - 7768).toLocaleString()} margin per rental
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
+      </div>
 
       {/* BOTTOM NAV */}
+      {!isDesktop && (
       <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'var(--navy)', backdropFilter:'blur(12px)', borderTop:'1px solid var(--border)', zIndex:100 }}>
         <div className="bottom-nav-row" style={{ padding:'0.6rem 0.5rem 0.9rem' }}>
           {tabs.map(tab => (
@@ -1471,6 +1708,7 @@ export default function AdminPanel() {
           ))}
         </div>
       </div>
+      )}
     </main>
   )
 }

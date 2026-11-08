@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
+import BottomNav from '@/components/BottomNav'
+import DesktopSidebar from '@/components/DesktopSidebar'
 import LoadingScreen from '@/components/LoadingScreen'
 
 const DEFAULT_SERVICES = [
@@ -100,6 +102,21 @@ export default function DigitalSubscriptions() {
   const [copiedKey, setCopiedKey] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
+    const handleChange = (e) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -109,7 +126,7 @@ export default function DigitalSubscriptions() {
       if (!user) { window.location.href = '/login'; return }
 
       const [profileRes, pricesRes] = await Promise.all([
-        supabase.from('profiles').select('wallet_balance').eq('id', user.id).single(),
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
         supabase.from('subscription_prices').select('plan_id, price'),
       ])
 
@@ -181,7 +198,7 @@ export default function DigitalSubscriptions() {
   if (loading) return <LoadingScreen />
 
   return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2rem' }}>
+    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: isDesktop ? 'flex' : 'block' }}>
       <style>{`
         @keyframes fadeSlideIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
         @keyframes scaleIn { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
@@ -200,6 +217,9 @@ export default function DigitalSubscriptions() {
         .back-btn:hover { background: var(--card2) !important; transform: translateX(-2px); }
       `}</style>
 
+      {isDesktop && <DesktopSidebar profile={profile} onLogout={handleLogout} />}
+
+      <div style={{ flex: isDesktop ? 1 : 'none', minWidth: 0, paddingBottom: isDesktop ? '2rem' : '6.5rem' }}>
       {/* HEADER */}
       <div style={{ padding: '1.1rem 1.4rem', display: 'flex', alignItems: 'center', gap: '0.9rem', position: 'sticky', top: 0, zIndex: 100, background: 'var(--header-bg)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}>
         <Link href="/dashboard" className="back-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none', flexShrink: 0 }}>
@@ -216,7 +236,7 @@ export default function DigitalSubscriptions() {
         </div>
       </div>
 
-      <div style={{ padding: '1.2rem 1.4rem' }}>
+      <div style={{ padding: '1.2rem 1.4rem', maxWidth: isDesktop ? 560 : 'none', margin: isDesktop ? '0 auto' : 0 }}>
         {success ? (
           /* SUCCESS SCREEN */
           <div style={{ animation: 'fadeSlideIn 0.4s ease' }}>
@@ -406,6 +426,9 @@ export default function DigitalSubscriptions() {
           </>
         )}
       </div>
+      </div>
+
+      {!isDesktop && <BottomNav />}
     </main>
   )
 }

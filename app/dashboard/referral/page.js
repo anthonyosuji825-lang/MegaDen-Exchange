@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import BottomNav from '@/components/BottomNav'
+import DesktopSidebar from '@/components/DesktopSidebar'
 import LoadingScreen from '@/components/RouteLoader'
 
 export default function Referral() {
@@ -11,6 +13,21 @@ export default function Referral() {
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
+    const handleChange = (e) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -62,7 +79,7 @@ export default function Referral() {
   if (loading) return <LoadingScreen />
 
   return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2rem' }}>
+    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: isDesktop ? 'flex' : 'block' }}>
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateY(14px); }
@@ -113,6 +130,9 @@ export default function Referral() {
         }
       `}</style>
 
+      {isDesktop && <DesktopSidebar profile={profile} onLogout={handleLogout} />}
+
+      <div style={{ flex: isDesktop ? 1 : 'none', minWidth: 0, paddingBottom: isDesktop ? '2rem' : '6.5rem' }}>
       {/* HEADER */}
       <div style={{ padding: '1.1rem 1.4rem', display: 'flex', alignItems: 'center', gap: '0.9rem', position: 'sticky', top: 0, zIndex: 100, background: 'var(--navy)', backdropFilter: 'blur(16px)', borderBottom: '1px solid var(--border)' }}>
         <Link href="/dashboard" className="back-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none' }}>
@@ -124,7 +144,7 @@ export default function Referral() {
         </div>
       </div>
 
-      <div style={{ padding: '1.2rem 1.4rem' }}>
+      <div style={{ padding: '1.2rem 1.4rem', maxWidth: isDesktop ? 600 : 'none', margin: isDesktop ? '0 auto' : 0 }}>
 
         {/* HERO BANNER */}
         <div className="premium-card" style={{ borderRadius: '24px', padding: '2.2rem 1.5rem', background: 'linear-gradient(145deg, #1a0a5e 0%, #6c4ef2 50%, #b3790a 100%)', marginBottom: '1.4rem', textAlign: 'center', animation: mounted ? 'fadeSlideIn 0.4s ease' : 'none', boxShadow: '0 16px 48px rgba(108,78,242,0.28)' }}>
@@ -251,6 +271,9 @@ export default function Referral() {
         </div>
 
       </div>
+      </div>
+
+      {!isDesktop && <BottomNav />}
     </main>
   )
 }

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
+import BottomNav from '@/components/BottomNav'
 
 const platforms = [
   {

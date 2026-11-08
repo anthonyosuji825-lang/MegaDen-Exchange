@@ -1,50 +1,53 @@
-// components/BottomNav.js
 'use client'
-import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { HomeIcon, PackageIcon, WalletIcon, UserIcon } from './NavIcons'
+
+// The four primary destinations. Sub-pages (e.g. /dashboard/bills) simply
+// render with no tab highlighted — same convention most apps use for a
+// "more" or standalone flow that lives a level below the main tabs.
+const TABS = [
+  { label: 'Home', href: '/dashboard', icon: HomeIcon },
+  { label: 'Orders', href: '/dashboard/orders', icon: PackageIcon },
+  { label: 'Wallet', href: '/dashboard/wallet', icon: WalletIcon },
+  { label: 'Profile', href: '/dashboard/profile', icon: UserIcon },
+]
 
 export default function BottomNav() {
   const pathname = usePathname()
 
-  const getTab = () => {
-    if (pathname === '/dashboard' || pathname === '/dashboard/') return 'home'
-    if (pathname.startsWith('/dashboard/orders')) return 'orders'
-    if (pathname.startsWith('/dashboard/wallet')) return 'wallet'
-    if (pathname.startsWith('/dashboard/profile')) return 'profile'
-    return ''
-  }
-
-  const activeTab = getTab()
-
-  const navItems = [
-    { icon: <HomeIcon size={20} />, label: 'Home', tab: 'home', href: '/dashboard' },
-    { icon: <PackageIcon size={20} />, label: 'Orders', tab: 'orders', href: '/dashboard/orders' },
-    { icon: <WalletIcon size={20} />, label: 'Wallet', tab: 'wallet', href: '/dashboard/wallet' },
-    { icon: <UserIcon size={20} />, label: 'Profile', tab: 'profile', href: '/dashboard/profile' },
-  ]
-
   return (
-    <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'rgba(11,14,26,0.94)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderTop: '1px solid var(--border)', padding: '0.6rem 2rem 0.85rem', display: 'flex', justifyContent: 'space-around', zIndex: 100 }}>
-      {navItems.map(n => (
-        <Link key={n.tab} href={n.href} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', textDecoration: 'none', minWidth: 48 }}>
-          <div style={{ color: activeTab === n.tab ? 'var(--purple2)' : 'var(--muted)' }}>{n.icon}</div>
-          <span style={{ fontSize: '0.58rem', color: activeTab === n.tab ? 'var(--purple2)' : 'var(--muted)', fontWeight: activeTab === n.tab ? 600 : 400 }}>{n.label}</span>
-          {activeTab === n.tab && <div style={{ width: 6, height: 3, borderRadius: 2, background: 'var(--purple2)' }} />}
-        </Link>
-      ))}
+    <div style={{
+      position: 'fixed', left: '0.9rem', right: '0.9rem', bottom: 'calc(0.85rem + env(safe-area-inset-bottom))',
+      background: 'rgba(22,27,48,0.92)', backdropFilter: 'blur(24px)', border: '1px solid var(--border)',
+      borderRadius: 26, boxShadow: '0 12px 32px rgba(0,0,0,0.35)', padding: '0.55rem 0.6rem',
+      display: 'flex', justifyContent: 'space-between', zIndex: 100,
+    }}>
+      <style>{`
+        .bottom-nav-item { -webkit-tap-highlight-color: transparent; }
+        .bottom-nav-item:active { transform: scale(0.93); }
+      `}</style>
+      {TABS.map(t => {
+        const active = pathname === t.href
+        const Icon = t.icon
+        return (
+          <Link key={t.href} href={t.href} className="bottom-nav-item"
+            style={{ display: 'flex', justifyContent: 'center', flex: 1, textDecoration: 'none' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 34, height: 34, borderRadius: 12,
+                background: active ? 'var(--purple2)' : 'transparent',
+                color: active ? '#fff' : 'var(--muted)',
+                transition: 'background 0.25s cubic-bezier(0.34,1.56,0.64,1), color 0.2s ease',
+              }}>
+                <Icon size={18} />
+              </div>
+              <span style={{ fontSize: '0.58rem', color: active ? 'var(--purple2)' : 'var(--muted)', fontWeight: active ? 700 : 500, transition: 'color 0.2s ease' }}>{t.label}</span>
+            </div>
+          </Link>
+        )
+      })}
     </div>
   )
-}
-
-function HomeIcon({ size = 20 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-}
-function PackageIcon({ size = 20 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-}
-function WalletIcon({ size = 20 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/><path d="M2 10h20"/></svg>
-}
-function UserIcon({ size = 20 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import LoadingScreen from '@/components/RouteLoader'
 import BottomNav from '@/components/BottomNav'
+import DesktopSidebar from '@/components/DesktopSidebar'
 
 const WHATSAPP_CHANNEL_URL = 'https://wa.me/17656822078'
 const TELEGRAM_CHANNEL_URL = 'https://t.me/+3cblEJBfh1owOTJk'
@@ -24,6 +25,15 @@ export default function Profile() {
   // Modals
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showPhoneModal, setShowPhoneModal] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
+    const handleChange = (e) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
 
   useEffect(() => {
     setMounted(true)
@@ -84,7 +94,7 @@ export default function Profile() {
   const firstName = profile?.full_name?.split(' ')[0] || 'User'
 
   return (
-    <main className="profile-main" style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2.5rem' }}>
+    <main className="profile-main" style={{ background: 'var(--navy)', minHeight: '100vh', display: isDesktop ? 'flex' : 'block' }}>
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateY(14px); }
@@ -183,6 +193,9 @@ export default function Profile() {
         .telegram-item:hover { background: rgba(34,158,217,0.06) !important; }
       `}</style>
 
+      {isDesktop && <DesktopSidebar profile={profile} onLogout={handleLogout} />}
+
+      <div style={{ flex: isDesktop ? 1 : 'none', minWidth: 0, paddingBottom: isDesktop ? '2.5rem' : '6.5rem' }}>
       {/* HEADER */}
       <div style={{ padding: '1.1rem 1.4rem', display: 'flex', alignItems: 'center', gap: '0.9rem', position: 'sticky', top: 0, zIndex: 100, background: 'var(--navy)', backdropFilter: 'blur(16px)', borderBottom: '1px solid var(--border)' }}>
         <Link href="/dashboard" className="back-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none' }}>
@@ -373,7 +386,9 @@ export default function Profile() {
       {showPasswordModal && (
         <PasswordModal onClose={() => setShowPasswordModal(false)} />
       )}
-    <BottomNav />
+      </div>
+
+      {!isDesktop && <BottomNav />}
     </main>
   )
 }

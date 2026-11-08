@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import LoadingScreen from '@/components/RouteLoader'
+import BottomNav from '@/components/BottomNav'
+import DesktopSidebar from '@/components/DesktopSidebar'
 
 const services = [
   { id: 'whatsapp',   name: 'WhatsApp',    color: '#25d366' },
@@ -215,10 +217,41 @@ export default function BuyNumbers() {
   const [copied, setCopied] = useState(false)
   const [servicePage, setServicePage] = useState(0)
   const [smsStatus, setSmsStatus] = useState(null)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
+    const handleChange = (e) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
 
   // Single refs — one interval each, no nesting
   const pollRef = useRef(null)
   const cdRef = useRef(null)
+  // Guards a fast double-click/double-submit from firing two purchase
+  // requests before React re-renders the disabled button — a ref check
+  // is synchronous, unlike waiting on the `ordering` state update.
+  const orderingRef = useRef(false)
+  // True while handleCancel's request is in flight. The poll loop uses it
+  // to stay out of the way: a poll tick can read 'cancelled' a moment
+  // before handleCancel's own response lands, and both would then update
+  // the wallet balance — showing the refund twice.
+  const cancellingRef = useRef(false)
+  // Mirrors `purchased` for the polling effect below. The effect is
+  // deliberately keyed on order_id only (not the whole `purchased`
+  // object — see the effect itself), so its interval callbacks need a
+  // way to see the LATEST phone/expiresAt without the effect re-running
+  // every time either of those changes (e.g. on a mid-flight reissue).
+  const purchasedRef = useRef(null)
+  useEffect(() => { purchasedRef.current = purchased }, [purchased])
 
   useEffect(() => {
     setMounted(true)
@@ -234,35 +267,70 @@ export default function BuyNumbers() {
     load()
   }, [])
 
-  // ── Polling effect — runs once when `purchased` is set ──────────────────
+  // ── Polling effect — runs once per order, not once per state change ──
   // One countdown interval. One poll interval. No nesting. No racing.
-  // The server drives expiry logic — the client just reacts to what comes back.
+  // The server drives expiry — the client just reads a real deadline.
+  //
+  // Deliberately keyed on `purchased?.order_id`, not the whole
+  // `purchased` object. Previously this depended on `[purchased]`
+  // wholesale, so ANY change to it — including a reissue swapping in a
+  // new phone — tore down and rebuilt both intervals from scratch. The
+  // countdown looked correct after a reissue only because every
+  // provider happens to hardcode the same 20-minute window, so
+  // resetting the local counter to that same constant landed on the
+  // right number by coincidence, not because the client was ever told
+  // the real deadline. Now the countdown is computed from
+  // purchasedRef.current.expiresAt on every tick — an authoritative
+  // server timestamp — so it's correct regardless of whether the window
+  // length is ever different per provider in the future, and a reissue
+  // updates state in place without needing to restart the poll loop.
   useEffect(() => {
     if (!purchased) return
+    const orderId = purchased.order_id
 
-    setCountdown(purchased.expires_in)
     setSmsStatus(null)
 
-    // Countdown — purely cosmetic, does not drive any cancellation logic
+    // Seed immediately so there's no flash of a stale/zero value before
+    // the first interval tick, one second later.
+    const seedRemaining = purchased.expiresAt
+      ? Math.max(0, Math.floor((new Date(purchased.expiresAt).getTime() - Date.now()) / 1000))
+      : 0
+    setCountdown(seedRemaining)
+
+    // Countdown — purely cosmetic, does not drive any cancellation logic.
+    // Recomputed from the real deadline every tick, not decremented.
     cdRef.current = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(cdRef.current)
-          return 0
-        }
-        return prev - 1
-      })
+      const current = purchasedRef.current
+      if (!current?.expiresAt) return
+      const remaining = Math.max(0, Math.floor((new Date(current.expiresAt).getTime() - Date.now()) / 1000))
+      setCountdown(remaining)
+      if (remaining <= 0) clearInterval(cdRef.current)
     }, 1000)
 
     // Poll every 5 seconds — single interval, no inner intervals
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(
-          `/api/5sim/sms?id=${purchased.fivesim_id}&order_id=${purchased.order_id}`
-        )
+        const res = await fetch(`/api/numbers/sms?order_id=${orderId}`)
         const data = await res.json()
 
         setSmsStatus(data.status)
+
+        // ── Reissued onto a different provider's number (and/or a new
+        // deadline) — the order stays 'pending' but details.phone and
+        // details.expires changed server-side. Update in place; this no
+        // longer tears down/rebuilds the polling interval, since the
+        // effect isn't keyed on these fields.
+        const current = purchasedRef.current
+        const phoneChanged = data.phone && data.phone !== current?.phone
+        const expiryChanged = data.expires_at && data.expires_at !== current?.expiresAt
+        if (phoneChanged || expiryChanged) {
+          if (phoneChanged) setError('')
+          setPurchased(p => (p ? {
+            ...p,
+            phone: data.phone || p.phone,
+            expiresAt: data.expires_at || p.expiresAt,
+          } : p))
+        }
 
         // ── SMS arrived ──
         if (data.sms && data.sms.length > 0) {
@@ -272,23 +340,59 @@ export default function BuyNumbers() {
           return
         }
 
-        // ── Server says order expired and refunded ──
-        if (data.status === 'expired') {
+        // ── Server-side refund happened (e.g. expired with no SMS) ──
+        if (data.refunded && data.refunded_amount) {
           clearInterval(pollRef.current)
           clearInterval(cdRef.current)
-          if (data.refunded && data.refunded_amount) {
-            setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + data.refunded_amount }))
-          }
+          setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + data.refunded_amount }))
           setError('No SMS received in time — your wallet has been automatically refunded.')
           setPurchased(null)
           setSms([])
           return
         }
 
-        // ── Terminal statuses from 5sim — stop polling ──
-        if (['FINISHED', 'BANNED', 'TIMEOUT', 'CANCEL'].includes(data.status)) {
+        // ── Any status other than 'pending' is terminal — the backend
+        // already resolved it (completed / cancelled / banned / expired /
+        // unknown), so just stop polling instead of matching old
+        // 5sim-specific status strings that no longer apply.
+        //
+        // EXCEPT 'resolving': that is a brief in-flight state while the
+        // server (a cancel request, or the cron sweep) holds the order to
+        // act on it, and it normally flips back to 'pending' within a few
+        // seconds — e.g. a cancel the provider hasn't confirmed yet, or a
+        // reissue onto a new number. Treating it as terminal would stop
+        // polling for good and the user would never see their code.
+        if (data.status && data.status !== 'pending' && data.status !== 'resolving') {
           clearInterval(pollRef.current)
           clearInterval(cdRef.current)
+
+          // The server can resolve an order between two polls (e.g. the
+          // cron sweep auto-refunds an expired one), in which case this
+          // response has the final status but no `refunded` flag — the
+          // branch above never fires and the screen would say "Time
+          // expired" with an unchanged balance. These three statuses are
+          // only ever set after the refund went through, so re-read the
+          // REAL balance from the database (never add an amount locally:
+          // that could double-count) and tell the user. Skipped while a
+          // manual cancel is in flight — handleCancel owns that update.
+          if (['expired', 'cancelled', 'banned'].includes(data.status) && !cancellingRef.current) {
+            try {
+              const { data: fresh } = await createClient()
+                .from('profiles').select('wallet_balance').eq('id', user.id).single()
+              if (fresh) setProfile(p => ({ ...p, wallet_balance: fresh.wallet_balance }))
+            } catch (e) {
+              console.error('[balance refresh]', e)
+            }
+            // Don't clobber a newer purchase if the user already moved on
+            // while the balance request was in flight.
+            if (purchasedRef.current?.order_id === orderId) {
+              setError(data.status === 'banned'
+                ? 'The provider flagged this number — your wallet has been refunded.'
+                : 'No SMS received in time — your wallet has been refunded.')
+              setPurchased(null)
+              setSms([])
+            }
+          }
         }
 
       } catch (e) {
@@ -301,7 +405,7 @@ export default function BuyNumbers() {
       clearInterval(pollRef.current)
       clearInterval(cdRef.current)
     }
-  }, [purchased])
+  }, [purchased?.order_id])
 
   const fetchCountries = async (serviceId) => {
     setLoadingCountries(true)
@@ -309,9 +413,14 @@ export default function BuyNumbers() {
     setSelectedCountry(null)
     setError('')
     try {
-      const res = await fetch(`/api/5sim/countries?service=${serviceId}`)
+      const res = await fetch(`/api/numbers/countries?service=${serviceId}`)
       const data = await res.json()
-      setCountries(data.countries || [])
+      if (!res.ok || data.error) {
+        setError(data.error || 'Failed to load countries. Please refresh.')
+        setCountries([])
+      } else {
+        setCountries(data.countries || [])
+      }
     } catch {
       setError('Failed to load countries. Please refresh.')
     }
@@ -325,23 +434,33 @@ export default function BuyNumbers() {
   }
 
   const handleOrder = async () => {
-    if (!selectedCountry || !selectedService || !user) return
+    if (!selectedCountry || !selectedService || !user || orderingRef.current) return
+    orderingRef.current = true
     setOrdering(true)
     setError('')
     try {
-      const res = await fetch('/api/5sim/buy', {
+      const res = await fetch('/api/numbers/buy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           country: selectedCountry.code,
           service: selectedService.id,
-          price_ngn: selectedCountry.price_ngn,
+          // The price on screen. The server uses it as a ceiling only: it
+          // will never charge more than this without asking first.
+          expected_price_ngn: selectedCountry.price_ngn,
         }),
       })
       const data = await res.json()
       if (!res.ok) {
+        // The price rose since the list was loaded and nothing was
+        // bought. Show the new price on the button and in the list, and
+        // let the user decide — a second tap on Buy is their confirmation.
+        if (res.status === 409 && data.code === 'PRICE_CHANGED' && Number.isFinite(data.price_ngn)) {
+          const code = selectedCountry.code
+          setSelectedCountry(c => (c && c.code === code ? { ...c, price_ngn: data.price_ngn } : c))
+          setCountries(list => list.map(c => (c.code === code ? { ...c, price_ngn: data.price_ngn } : c)))
+        }
         setError(data.error || 'Purchase failed. Try again.')
-        setOrdering(false)
         return
       }
       setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) - data.price_ngn }))
@@ -349,30 +468,35 @@ export default function BuyNumbers() {
       setSmsStatus(null)
       setPurchased({
         phone: data.phone,
-        fivesim_id: data.fivesim_id,
         order_id: data.order_id,
         expires_in: data.expires_in,
+        // Falls back to computing one client-side only if the server
+        // response is ever missing it — expected to always be present
+        // now, this is just so a purchase doesn't break if that ever
+        // regresses.
+        expiresAt: data.expires_at || new Date(Date.now() + (data.expires_in || 1200) * 1000).toISOString(),
         price_ngn: data.price_ngn,
         country: selectedCountry,
         service: selectedService,
       })
     } catch {
       setError('Something went wrong. Please try again.')
+    } finally {
+      orderingRef.current = false
+      setOrdering(false)
     }
-    setOrdering(false)
   }
 
   const handleCancel = async () => {
     if (!purchased) return
+    cancellingRef.current = true
     setError('')
     try {
-      const res = await fetch('/api/5sim/sms', {
+      const res = await fetch('/api/numbers/sms', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fivesimId: purchased.fivesim_id,
           orderId: purchased.order_id,
-          amount: purchased.price_ngn,
         }),
       })
       const data = await res.json()
@@ -382,7 +506,7 @@ export default function BuyNumbers() {
       }
       clearInterval(pollRef.current)
       clearInterval(cdRef.current)
-      setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + purchased.price_ngn }))
+      setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + (data.refunded_amount ?? purchased.price_ngn) }))
       setPurchased(null)
       setSms([])
       setSelectedCountry(null)
@@ -390,6 +514,8 @@ export default function BuyNumbers() {
       setCountries([])
     } catch {
       setError('Cancel failed. Contact support.')
+    } finally {
+      cancellingRef.current = false
     }
   }
 
@@ -416,7 +542,7 @@ export default function BuyNumbers() {
   if (pageLoading) return <LoadingScreen />
 
   return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '5rem' }}>
+    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: isDesktop ? 'flex' : 'block' }}>
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateY(16px); }
@@ -471,6 +597,9 @@ export default function BuyNumbers() {
         @media (max-width: 380px) { .country-grid { grid-template-columns: 1fr !important; } }
       `}</style>
 
+      {isDesktop && <DesktopSidebar profile={profile} onLogout={handleLogout} />}
+
+      <div style={{ flex: isDesktop ? 1 : 'none', minWidth: 0, paddingBottom: isDesktop ? '2rem' : '6.5rem' }}>
       {/* ── STICKY HEADER ── */}
       <div style={{
         padding: '1rem 1.2rem',
@@ -636,12 +765,12 @@ export default function BuyNumbers() {
               </div>
             ) : (
               <div style={{
-                background: smsStatus === 'RECEIVED' ? 'rgba(108,78,242,0.07)' : 'var(--card)',
-                border: smsStatus === 'RECEIVED' ? '1px solid rgba(108,78,242,0.3)' : '1px solid var(--border)',
+                background: smsStatus === 'received' ? 'rgba(108,78,242,0.07)' : 'var(--card)',
+                border: smsStatus === 'received' ? '1px solid rgba(108,78,242,0.3)' : '1px solid var(--border)',
                 borderRadius: '14px', padding: '1rem',
                 marginBottom: '1rem', textAlign: 'center',
               }}>
-                {smsStatus === 'RECEIVED' ? (
+                {smsStatus === 'received' ? (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 1.2s linear infinite' }}>
@@ -827,7 +956,8 @@ export default function BuyNumbers() {
                     </span>
                     <span style={{ fontSize: '0.76rem', color: 'var(--text)', lineHeight: 1.5 }}>
                       <strong style={{ color: '#25d366' }}>Tip:</strong> WhatsApp numbers work best with the{' '}
-                      <strong>WhatsApp Business</strong> app.
+                      <strong>WhatsApp Business</strong> app. Choose <strong>SMS</strong> (not a call) and request the code only once —
+                      repeated requests can make WhatsApp block your device for hours.
                     </span>
                   </div>
                 )}
@@ -843,7 +973,8 @@ export default function BuyNumbers() {
                     <InfoIcon size={15} color="var(--purple2)" />
                   </span>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text)', lineHeight: 1.5 }}>
-                    Having issues receiving your code? Consider using a <strong>VPN</strong> for a smoother experience.
+                    <strong>USA numbers</strong> have the highest success rate. Other countries have a lower success rate and work best
+                    with a <strong>VPN or proxy set to that country</strong> while you request the code.
                   </span>
                 </div>
 
@@ -894,6 +1025,9 @@ export default function BuyNumbers() {
                             </div>
                             <div style={{ fontSize: '0.67rem', color: 'var(--gold)', fontWeight: 700, marginTop: '0.1rem' }}>
                               ₦{c.price_ngn?.toLocaleString()}
+                              {c.provider === 'fleexa_sms6' && (
+                                <span style={{ marginLeft: '0.4rem', fontSize: '0.58rem', fontWeight: 600, color: 'var(--muted)' }}>· lower success rate</span>
+                              )}
                             </div>
                           </div>
                           {isSelected && (
@@ -945,6 +1079,18 @@ export default function BuyNumbers() {
                     </SummaryRow>
                   </div>
                 </div>
+
+                {selectedCountry.provider === 'fleexa_sms6' && (
+                  <div style={{
+                    background: 'rgba(240,180,41,0.08)', border: '1px solid rgba(240,180,41,0.25)',
+                    borderRadius: '12px', padding: '0.75rem 1rem', marginBottom: '0.75rem',
+                    fontSize: '0.78rem', color: 'var(--text)', lineHeight: 1.5,
+                  }}>
+                    <strong style={{ color: 'var(--gold)' }}>Lower success rate for {selectedCountry.name}.</strong>{' '}
+                    Codes for this country don't always arrive. For the best chance, connect a <strong>VPN or proxy set to {selectedCountry.name}</strong> before requesting the code.
+                    If no code arrives, tap <strong>Cancel &amp; Refund</strong> after 6 minutes — or it is refunded automatically when the number expires.
+                  </div>
+                )}
 
                 {!hasBalance && (
                   <div style={{
@@ -1002,6 +1148,9 @@ export default function BuyNumbers() {
           </>
         )}
       </div>
+      </div>
+
+      {!isDesktop && <BottomNav />}
     </main>
   )
 }

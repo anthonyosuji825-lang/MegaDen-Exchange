@@ -8,6 +8,8 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import BottomNav from '@/components/BottomNav'
+import DesktopSidebar from '@/components/DesktopSidebar'
 
 export default function Dashboard() {
   const router = useRouter()
@@ -16,13 +18,13 @@ export default function Dashboard() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [balanceHidden, setBalanceHidden] = useState(false)
-  const [activeTab, setActiveTab] = useState('home')
   const [showAllActions, setShowAllActions] = useState(false)
   const [theme, setTheme] = useState('dark')
   const [notifications, setNotifications] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
   const [showGreeting, setShowGreeting] = useState(false)
   const [greetingLeaving, setGreetingLeaving] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
   const timerRef = useRef(null)
   const notifRef = useRef(null)
 
@@ -58,6 +60,14 @@ export default function Dashboard() {
     }
     load()
   }, [router])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
+    const handleChange = (e) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -158,6 +168,7 @@ export default function Dashboard() {
 
   const services = [
     { title: 'Foreign Numbers', desc: 'USA, UK, Canada & 40+ countries', icon: <PhoneIcon size={22} color="#8b6ff7" />, bg: 'rgba(108,78,242,0.12)', href: '/dashboard/numbers', badge: 'HOT', badgeBg: 'rgba(108,78,242,0.12)', badgeColor: '#8b6ff7' },
+    { title: 'Rent Number', desc: 'Keep a US number for months, not minutes', icon: <CalendarIcon size={22} color="#2dd4bf" />, bg: 'rgba(45,212,191,0.12)', href: '/dashboard/numbers/rent', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
     { title: 'Digital Subscriptions', desc: 'Spotify, Netflix, Canva, ChatGPT & more', icon: <SubsIcon size={22} color="#f0b429" />, bg: 'rgba(240,180,41,0.12)', href: '/dashboard/subscriptions', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
     { title: 'Account Boosting', desc: 'Grow your online presence fast', icon: <BoostIcon size={22} color="#10b981" />, bg: 'rgba(16,185,129,0.12)', href: '/dashboard/boosting' },
     { title: 'VPN Subscriptions', desc: 'NordVPN, ExpressVPN & more', icon: <VpnIcon size={22} color="#4687ff" />, bg: 'rgba(70,135,255,0.12)', href: '/dashboard/vpn', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
@@ -189,6 +200,37 @@ export default function Dashboard() {
       <main style={{ background: 'var(--navy)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <RouteLoader />
       </main>
+    )
+  }
+
+  if (isDesktop) {
+    return (
+      <DesktopDashboard
+        profile={profile}
+        orders={orders}
+        notifications={notifications}
+        unreadCount={unreadCount}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        showNotifications={showNotifications}
+        setShowNotifications={setShowNotifications}
+        notifRef={notifRef}
+        markAllRead={markAllRead}
+        markOneRead={markOneRead}
+        notifIcon={notifIcon}
+        notifIconBg={notifIconBg}
+        firstName={firstName}
+        greeting={greeting}
+        balanceHidden={balanceHidden}
+        setBalanceHidden={setBalanceHidden}
+        sliderIndex={sliderIndex}
+        goToSlide={goToSlide}
+        slides={slides}
+        row1Actions={row1Actions}
+        row2Actions={row2Actions}
+        services={services}
+        handleLogout={handleLogout}
+      />
     )
   }
 
@@ -473,25 +515,223 @@ export default function Dashboard() {
       </div>
 
       {/* BOTTOM NAV */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'rgba(11,14,26,0.94)', backdropFilter: 'blur(24px)', borderTop: '1px solid var(--border)', padding: '0.6rem 2rem 0.85rem', display: 'flex', justifyContent: 'space-around', zIndex: 100 }}>
-        {[
-          { icon: <HomeIcon size={20} />, label: 'Home', tab: 'home', href: '/dashboard' },
-          { icon: <PackageIcon size={20} />, label: 'Orders', tab: 'orders', href: '/dashboard/orders' },
-          { icon: <WalletIcon size={20} />, label: 'Wallet', tab: 'wallet', href: '/dashboard/wallet' },
-          { icon: <UserIcon size={20} />, label: 'Profile', tab: 'profile', href: '/dashboard/profile' },
-        ].map(n => (
-          <Link key={n.tab} href={n.href} onClick={() => setActiveTab(n.tab)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.18rem', textDecoration: 'none' }}>
-            <div style={{ color: activeTab === n.tab ? 'var(--purple2)' : 'var(--muted)' }}>{n.icon}</div>
-            <span style={{ fontSize: '0.58rem', color: activeTab === n.tab ? 'var(--purple2)' : 'var(--muted)', fontWeight: activeTab === n.tab ? 600 : 400 }}>{n.label}</span>
-            {activeTab === n.tab && <div style={{ width: 6, height: 3, borderRadius: 2, background: 'var(--purple2)' }} />}
-          </Link>
-        ))}
-      </div>
+      <BottomNav />
 
       <OnboardingTour
         onStart={() => setShowAllActions(true)}
         onFinish={() => setShowAllActions(false)}
       />
+      <FloatingSupport />
+      <ReferEarnPopupGate />
+    </main>
+  )
+}
+
+// ── DESKTOP LAYOUT ──
+// Separate render path for viewports >=1024px. Reuses the same data and
+// handlers as the mobile dashboard above but with its own layout: a fixed
+// sidebar for navigation instead of the bottom tab bar, and a two-column
+// content grid instead of a single stacked column, so the extra width is
+// actually used rather than just stretching the mobile layout.
+function DesktopDashboard({
+  profile, orders, notifications, unreadCount, theme, toggleTheme,
+  showNotifications, setShowNotifications, notifRef, markAllRead, markOneRead,
+  notifIcon, notifIconBg, firstName, greeting, balanceHidden, setBalanceHidden,
+  sliderIndex, goToSlide, slides, row1Actions, row2Actions, services,
+  handleLogout,
+}) {
+  const quickServices = [...row1Actions, ...row2Actions]
+
+  return (
+    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: 'flex' }}>
+      <TurboBoostAnnouncement />
+      <style>{`
+        @keyframes slideProgress { from{width:0%} to{width:100%} }
+        @keyframes notifSlideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+        .prog-bar { position:absolute; bottom:0; left:0; height:3px; width:0; border-radius:0 2px 2px 0; background:linear-gradient(90deg,rgba(255,255,255,0.3),rgba(255,255,255,0.75)); }
+        .prog-bar.go { animation: slideProgress 10s linear forwards; }
+        .d-qa:hover { border-color: rgba(108,78,242,0.4) !important; background: var(--card2) !important; }
+        .d-svc:hover { border-color: rgba(108,78,242,0.35) !important; }
+        .d-notif:hover { background: var(--card2) !important; }
+      `}</style>
+
+      <DesktopSidebar profile={profile} onLogout={handleLogout} />
+
+      {/* MAIN */}
+      <div style={{ flex: 1, minWidth: 0, maxWidth: 1180, margin: '0 auto', padding: '1.5rem 2.2rem 3rem' }}>
+        {/* TOP BAR */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.4rem' }}>
+          <div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{greeting},</div>
+            <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '1.15rem', color: 'var(--text)' }}>{firstName} 👋</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button onClick={toggleTheme} style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--card2)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {theme === 'dark' ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+            </button>
+            <div ref={notifRef} style={{ position: 'relative' }}>
+              <button onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications && unreadCount > 0) markAllRead() }}
+                style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--card2)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                <BellIcon size={16} />
+                {unreadCount > 0 && <div style={{ position: 'absolute', top: 7, right: 7, width: 8, height: 8, borderRadius: '50%', background: '#f43f5e', border: '1.5px solid var(--navy2)' }} />}
+              </button>
+              {showNotifications && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 320, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', zIndex: 300, overflow: 'hidden', animation: 'notifSlideDown 0.25s ease' }}>
+                  <div style={{ padding: '0.9rem 1.1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)' }}>Notifications</div>
+                    {notifications.length > 0 && (
+                      <button onClick={markAllRead} style={{ background: 'none', border: 'none', fontSize: '0.7rem', color: 'var(--purple2)', cursor: 'pointer', fontWeight: 500 }}>Mark all read</button>
+                    )}
+                  </div>
+                  <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                    {notifications.length === 0 ? (
+                      <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem' }}>No notifications yet</div>
+                    ) : notifications.map((n, i) => (
+                      <Link key={n.id} href={n.link || '/dashboard'} onClick={() => { markOneRead(n.id); setShowNotifications(false) }} className="d-notif"
+                        style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.85rem 1.1rem', borderBottom: i < notifications.length - 1 ? '1px solid var(--border)' : 'none', textDecoration: 'none', background: n.is_read ? 'transparent' : 'rgba(108,78,242,0.04)' }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: notifIconBg(n.type) }}>{notifIcon(n.type)}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)' }}>{n.title}</div>
+                          <div style={{ fontSize: '0.71rem', color: 'var(--muted)', lineHeight: 1.45 }}>{n.message}</div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* WALLET + STATS ROW */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1rem', marginBottom: '1.2rem' }}>
+          <div style={{ borderRadius: 20, padding: '1.4rem 1.6rem', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg,#130b3e 0%,#3a1fa8 45%,#6c4ef2 75%,#a86020 100%)' }}>
+            <div style={{ position: 'absolute', top: -60, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
+            <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.5rem', position: 'relative' }}>Main Balance</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', marginBottom: '1.1rem', position: 'relative' }}>
+              <div style={{ fontFamily: 'Outfit, sans-serif', fontSize: '2rem', fontWeight: 800, color: '#fff', letterSpacing: -1 }}>
+                {balanceHidden ? '₦ ••••••' : `₦${(profile?.wallet_balance || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`}
+              </div>
+              <button onClick={() => setBalanceHidden(!balanceHidden)} style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.12)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.8)' }}>
+                {balanceHidden ? <EyeOffIcon size={14} /> : <EyeIcon size={14} />}
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: '0.55rem', position: 'relative' }}>
+              {[
+                { label: 'Add Funds', icon: <WalletIcon size={16} />, href: '/dashboard/wallet' },
+                { label: 'History', icon: <HistoryIcon size={16} />, href: '/dashboard/orders' },
+                { label: 'Buy Number', icon: <PhoneIcon size={16} />, href: '/dashboard/numbers' },
+                { label: 'Refer', icon: <ReferIcon size={16} />, href: '/dashboard/referral' },
+              ].map(a => (
+                <Link key={a.label} href={a.href} className="w-act" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.12)', borderRadius: 10, padding: '0.5rem 0.85rem', textDecoration: 'none', transition: 'background 0.2s' }}>
+                  <div style={{ color: '#fff' }}>{a.icon}</div>
+                  <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>{a.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '0.9rem 1.1rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.3rem' }}>Total Spent</div>
+              <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.3rem', color: 'var(--text)' }}>₦{((profile?.total_spent || 0) / 1000).toFixed(1)}K</div>
+            </div>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '0.9rem 1.1rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.3rem' }}>Orders</div>
+              <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.3rem', color: 'var(--text)' }}>{orders.length}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* TWO-COLUMN BODY */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1.2rem', alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.3rem' }}>
+            {/* PROMO SLIDER */}
+            <div>
+              <div style={{ borderRadius: 20, overflow: 'hidden', minHeight: 168, position: 'relative', padding: '1.4rem 1.6rem', background: slides[sliderIndex].bg }}>
+                <div style={{ position: 'relative', zIndex: 2, maxWidth: 380 }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 50, padding: '0.2rem 0.6rem', fontSize: '0.62rem', fontWeight: 700, color: 'rgba(255,255,255,0.9)', marginBottom: '0.6rem' }}>{slides[sliderIndex].tag}</div>
+                  <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: '1.3rem', color: '#fff', lineHeight: 1.15, marginBottom: '0.4rem', whiteSpace: 'pre-line' }}>{slides[sliderIndex].title}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', lineHeight: 1.5, marginBottom: '0.9rem' }}>{slides[sliderIndex].desc}</div>
+                  <Link href={slides[sliderIndex].href} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 1rem', background: '#fff', borderRadius: 50, fontSize: '0.75rem', fontWeight: 700, color: '#111', textDecoration: 'none' }}>
+                    {slides[sliderIndex].btn} <span>→</span>
+                  </Link>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 5, justifyContent: 'center', marginTop: '0.8rem' }}>
+                {slides.map((slide, d) => (
+                  <button key={d} onClick={() => goToSlide(d)} style={{ height: 4, width: d === sliderIndex ? 22 : 4, borderRadius: 50, background: d === sliderIndex ? slide.dotColor : 'var(--muted)', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.35s ease' }} />
+                ))}
+              </div>
+            </div>
+
+            {/* QUICK SERVICES */}
+            <div>
+              <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text)', marginBottom: '0.8rem' }}>Quick Services</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.65rem' }}>
+                {quickServices.map(a => (
+                  <Link key={a.label} href={a.href} className="d-qa" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '1rem 0.4rem', textDecoration: 'none', transition: 'border-color 0.2s, background 0.2s' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: a.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{a.icon}</div>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text)', fontWeight: 600, textAlign: 'center' }}>{a.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* OUR SERVICES */}
+            <div>
+              <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text)', marginBottom: '0.8rem' }}>Our Services</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
+                {services.map(s => (
+                  <Link key={s.title} href={s.href} className="d-svc" style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '0.9rem 1rem', textDecoration: 'none', transition: 'border-color 0.2s' }}>
+                    <div style={{ width: 46, height: 46, borderRadius: 14, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.icon}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)', marginBottom: '0.1rem' }}>{s.title}</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>{s.desc}</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* RECENT ORDERS — RIGHT RAIL */}
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '1.1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.9rem' }}>
+              <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>Recent Orders</span>
+              <Link href="/dashboard/orders" style={{ fontSize: '0.7rem', color: 'var(--purple2)', textDecoration: 'none', fontWeight: 600 }}>View All →</Link>
+            </div>
+            {orders.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem' }}>
+                <div style={{ color: 'var(--muted)', marginBottom: '0.3rem' }}><PackageIcon size={28} /></div>
+                <div style={{ color: 'var(--muted)', fontSize: '0.78rem', marginBottom: '0.7rem' }}>No orders yet.</div>
+                <Link href="/dashboard/numbers" style={{ display: 'inline-block', padding: '0.42rem 0.9rem', background: 'var(--purple)', color: '#fff', borderRadius: 8, fontSize: '0.75rem', textDecoration: 'none', fontWeight: 500 }}>Browse Services</Link>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                {orders.map(order => (
+                  <div key={order.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--card2)', borderRadius: 14, padding: '0.7rem 0.85rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(108,78,242,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--purple2)', flexShrink: 0 }}>
+                        <PackageIcon size={14} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{order.product_name}</div>
+                        <div style={{ fontSize: '0.63rem', color: 'var(--muted)', marginTop: '0.06rem' }}>{new Date(order.created_at).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--gold)' }}>₦{order.amount?.toLocaleString()}</div>
+                      <span style={{ fontSize: '0.56rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: 50, display: 'inline-block', marginTop: '0.18rem', background: order.status === 'completed' ? 'rgba(16,185,129,0.12)' : 'rgba(240,180,41,0.12)', color: order.status === 'completed' ? '#10b981' : 'var(--gold)' }}>
+                        {order.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
       <FloatingSupport />
       <ReferEarnPopupGate />
     </main>
@@ -506,6 +746,7 @@ function BoostIcon({ size = 20, color = 'currentColor' }) { return <svg width={s
 function VpnIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> }
 function ReferIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> }
 function HistoryIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> }
+function CalendarIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> }
 function BillsIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2h13a2 2 0 0 1 2 2v18l-3-2-3 2-3-2-3 2-3-2-3 2V4a2 2 0 0 1 2-2z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg> }
 function HomeIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> }
 function PackageIcon({ size = 20, color = 'currentColor' }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> }

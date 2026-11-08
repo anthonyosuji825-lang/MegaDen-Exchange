@@ -143,3 +143,10 @@ html[data-theme="light"] [style*="rgba(22, 27, 48"] {
   background: rgba(255, 255, 255, 0.92) !important;
   border-color: rgba(108, 78, 242, 0.18) !important;
 }
+
+/* ── Desktop sidebar light mode fix ── */
+html[data-theme="light"] [style*="background: var(--navy2)"][style*="borderRight"],
+html[data-theme="light"] [style*="background:var(--navy2)"] {
+  background: #ffffff !important;
+  border-right: 1px solid rgba(108, 78, 242, 0.12) !important;
+}

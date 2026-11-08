@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import LoadingScreen from '@/components/RouteLoader'
 import BottomNav from '@/components/BottomNav'
+import DesktopSidebar from '@/components/DesktopSidebar'
 
 export default function Wallet() {
   const [profile, setProfile] = useState(null)
@@ -15,6 +16,15 @@ export default function Wallet() {
   const [success, setSuccess] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [balanceHidden, setBalanceHidden] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
+    const handleChange = (e) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
 
   useEffect(() => {
     setMounted(true)
@@ -32,6 +42,12 @@ export default function Wallet() {
   }, [])
 
   const quickAmounts = [500, 1000, 2000, 5000, 10000, 20000]
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
 
   const handlePaymentSuccess = async (user) => {
     await new Promise(resolve => setTimeout(resolve, 2000))
@@ -92,7 +108,7 @@ export default function Wallet() {
   if (loading) return <LoadingScreen />
 
   return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2rem' }}>
+    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: isDesktop ? 'flex' : 'block' }}>
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateY(14px); }
@@ -119,6 +135,9 @@ export default function Wallet() {
         .amount-input:focus { border-color: var(--purple) !important; box-shadow: 0 0 0 3px rgba(108,78,242,0.12); }
       `}</style>
 
+      {isDesktop && <DesktopSidebar profile={profile} onLogout={handleLogout} />}
+
+      <div style={{ flex: isDesktop ? 1 : 'none', minWidth: 0, paddingBottom: isDesktop ? '2rem' : '6.5rem' }}>
       {/* HEADER */}
       <div style={{ padding: '1.1rem 1.4rem', display: 'flex', alignItems: 'center', gap: '0.9rem', position: 'sticky', top: 0, zIndex: 100, background: 'var(--navy)', backdropFilter: 'blur(16px)', borderBottom: '1px solid var(--border)' }}>
         <Link href="/dashboard" className="back-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none' }}>
@@ -130,7 +149,7 @@ export default function Wallet() {
         </div>
       </div>
 
-      <div style={{ padding: '1.2rem 1.4rem' }}>
+      <div style={{ padding: '1.2rem 1.4rem', maxWidth: isDesktop ? 560 : 'none', margin: isDesktop ? '0 auto' : 0 }}>
 
         {/* BALANCE CARD */}
         <div style={{ borderRadius: '22px', padding: '1.6rem 1.5rem', background: 'linear-gradient(135deg, #1a0a5e 0%, #6c4ef2 55%, #c0781a 100%)', marginBottom: '1.4rem', position: 'relative', overflow: 'hidden', animation: mounted ? 'fadeSlideIn 0.4s ease' : 'none' }}>
@@ -259,7 +278,9 @@ export default function Wallet() {
         </div>
 
       </div>
-    <BottomNav />
+      </div>
+
+      {!isDesktop && <BottomNav />}
     </main>
   )
 }

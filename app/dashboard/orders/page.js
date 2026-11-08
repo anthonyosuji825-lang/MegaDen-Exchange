@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import BottomNav from '@/components/BottomNav'
+import DesktopSidebar from '@/components/DesktopSidebar'
 import LoadingScreen from '@/components/RouteLoader'
 
 export default function Orders() {
@@ -10,6 +11,22 @@ export default function Orders() {
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [activeFilter, setActiveFilter] = useState('all')
+  const [profile, setProfile] = useState(null)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
+    const handleChange = (e) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -19,12 +36,16 @@ export default function Orders() {
       if (!user) return
       const { data } = await supabase.from('orders').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
       setOrders(data || [])
+      const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      setProfile(profileData)
       setLoading(false)
     }
     load()
   }, [])
 
-  const filters = ['all', 'completed', 'pending', 'failed']
+  // 'active' only appears once the user actually has an active rental, so people
+  // who never rent a number don't see an always-empty chip.
+  const filters = ['all', 'completed', 'pending', ...(orders.some(o => o.status === 'active') ? ['active'] : []), 'failed']
 
   const filtered = activeFilter === 'all' ? orders : orders.filter(o => o.status === activeFilter)
 
@@ -32,6 +53,7 @@ export default function Orders() {
     if (type === 'number') return <PhoneIcon />
     if (type === 'log') return <LogIcon />
     if (type === 'boosting') return <BoostIcon />
+    if (type === 'number_rental') return <CalendarIcon />
     return <PackageIcon />
   }
 
@@ -39,6 +61,7 @@ export default function Orders() {
     if (type === 'number') return 'var(--purple)'
     if (type === 'log') return '#f0b429'
     if (type === 'boosting') return '#1d9e75'
+    if (type === 'number_rental') return '#2dd4bf'
     return 'var(--muted)'
   }
 
@@ -46,11 +69,17 @@ export default function Orders() {
     if (status === 'completed') return { bg: 'rgba(29,158,117,0.12)', color: '#34d399' }
     if (status === 'pending') return { bg: 'rgba(240,180,41,0.12)', color: '#f0b429' }
     if (status === 'failed') return { bg: 'rgba(220,50,50,0.12)', color: '#ff6b6b' }
+    if (status === 'active') return { bg: 'rgba(29,158,117,0.12)', color: '#34d399' }
+    if (status === 'unresolved_billing') return { bg: 'rgba(240,180,41,0.12)', color: '#f0b429' }
     return { bg: 'var(--card2)', color: 'var(--muted)' }
   }
 
+  // Raw status/type codes shouldn't leak into the UI ("Unresolved_billing", "Number_rental").
+  const statusLabel = (status) => status === 'unresolved_billing' ? 'under review' : status
+  const typeLabel = (type) => type === 'number_rental' ? 'Number rental' : (type || 'Service')
+
   return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2rem' }}>
+    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: isDesktop ? 'flex' : 'block' }}>
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateY(14px); }
@@ -64,6 +93,9 @@ export default function Orders() {
         .back-btn:hover { background: var(--card2) !important; transform: translateX(-2px); }
       `}</style>
 
+      {isDesktop && <DesktopSidebar profile={profile} onLogout={handleLogout} />}
+
+      <div style={{ flex: isDesktop ? 1 : 'none', minWidth: 0, paddingBottom: isDesktop ? '2rem' : '6.5rem' }}>
       {/* HEADER */}
       <div style={{ padding: '1.1rem 1.4rem', display: 'flex', alignItems: 'center', gap: '0.9rem', position: 'sticky', top: 0, zIndex: 100, background: 'var(--navy)', backdropFilter: 'blur(16px)', borderBottom: '1px solid var(--border)' }}>
         <Link href="/dashboard" className="back-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none' }}>
@@ -75,7 +107,7 @@ export default function Orders() {
         </div>
       </div>
 
-      <div style={{ padding: '1.2rem 1.4rem' }}>
+      <div style={{ padding: '1.2rem 1.4rem', maxWidth: isDesktop ? 640 : 'none', margin: isDesktop ? '0 auto' : 0 }}>
 
         {/* STATS */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.7rem', marginBottom: '1.4rem', animation: mounted ? 'fadeSlideIn 0.4s ease 0.05s both' : 'none' }}>
@@ -129,7 +161,7 @@ export default function Orders() {
                       </div>
                       <div>
                         <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text)' }}>{order.product_name || 'Order'}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.1rem', textTransform: 'capitalize' }}>{order.product_type || 'Service'}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.1rem', textTransform: 'capitalize' }}>{typeLabel(order.product_type)}</div>
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -141,16 +173,23 @@ export default function Orders() {
                       {new Date(order.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </div>
                     <div style={{ padding: '0.2rem 0.7rem', borderRadius: '50px', background: s.bg, color: s.color, fontSize: '0.7rem', fontWeight: 600, textTransform: 'capitalize' }}>
-                      {order.status}
+                      {statusLabel(order.status)}
                     </div>
                   </div>
+                  {order.product_type === 'number_rental' && (
+                    <Link href="/dashboard/numbers/rent?tab=mine" style={{ display: 'inline-block', marginTop: '0.6rem', fontSize: '0.74rem', fontWeight: 600, color: 'var(--purple2)', textDecoration: 'none' }}>
+                      View number and messages →
+                    </Link>
+                  )}
                 </div>
               )
             })}
           </div>
         )}
       </div>
-    <BottomNav />
+      </div>
+
+      {!isDesktop && <BottomNav />}
     </main>
   )
 }
@@ -166,6 +205,9 @@ function PhoneIcon({ size = 18 }) {
 }
 function LogIcon({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+}
+function CalendarIcon({ size = 18 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
 }
 function BoostIcon({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>

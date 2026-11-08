@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
+import BottomNav from '@/components/BottomNav'
+import DesktopSidebar from '@/components/DesktopSidebar'
 import LoadingScreen from '@/components/RouteLoader'
 
 const VPN_PLANS = [
@@ -31,6 +33,21 @@ export default function VPN() {
   const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState(null)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
+    const handleChange = (e) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -40,7 +57,7 @@ export default function VPN() {
       if (!user) { window.location.href = '/login'; return }
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('wallet_balance, full_name')
+        .select('wallet_balance, full_name, avatar_url')
         .eq('id', user.id)
         .single()
       setProfile(profileData)
@@ -109,7 +126,7 @@ export default function VPN() {
   if (loading) return <LoadingScreen />
 
   return (
-    <main style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '2rem' }}>
+    <main style={{ background: 'var(--navy)', minHeight: '100vh', display: isDesktop ? 'flex' : 'block' }}>
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateY(14px); }
@@ -136,6 +153,9 @@ export default function VPN() {
         .feature-pill { display: inline-flex; align-items: center; gap: 0.35rem; }
       `}</style>
 
+      {isDesktop && <DesktopSidebar profile={profile} onLogout={handleLogout} />}
+
+      <div style={{ flex: isDesktop ? 1 : 'none', minWidth: 0, paddingBottom: isDesktop ? '2rem' : '6.5rem' }}>
       {/* HEADER */}
       <div style={{ padding: '1.1rem 1.4rem', display: 'flex', alignItems: 'center', gap: '0.9rem', position: 'sticky', top: 0, zIndex: 100, background: 'var(--navy)', backdropFilter: 'blur(16px)', borderBottom: '1px solid var(--border)' }}>
         <Link href="/dashboard" className="back-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none' }}>
@@ -340,6 +360,9 @@ export default function VPN() {
           </>
         )}
       </div>
+      </div>
+
+      {!isDesktop && <BottomNav />}
     </main>
   )
 }

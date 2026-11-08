@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import LoadingScreen from '@/components/RouteLoader'
+import BottomNav from '@/components/BottomNav'
+import DesktopSidebar from '@/components/DesktopSidebar'
 
 const TABS = [
   { id: 'airtime', label: 'Airtime' },
@@ -15,6 +17,15 @@ export default function BillsPage() {
   const [profile, setProfile] = useState(null)
   const [activeTab, setActiveTab] = useState('airtime')
   const [broadcast, setBroadcast] = useState(null) // { enabled, message } | null while loading
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsDesktop(mq.matches)
+    const handleChange = (e) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -37,10 +48,16 @@ export default function BillsPage() {
     setProfile(p => ({ ...p, wallet_balance: (p.wallet_balance || 0) + delta }))
   }
 
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
+
   if (pageLoading) return <LoadingScreen />
 
   return (
-    <main className="bills-main" style={{ background: 'var(--navy)', minHeight: '100vh', paddingBottom: '3rem', position: 'relative' }}>
+    <main className="bills-main" style={{ background: 'var(--navy)', minHeight: '100vh', position: 'relative', display: isDesktop ? 'flex' : 'block' }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg) } }
         @keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
@@ -95,6 +112,9 @@ export default function BillsPage() {
         }
       `}</style>
 
+      {isDesktop && <DesktopSidebar profile={profile} onLogout={handleLogout} />}
+
+      <div style={{ flex: isDesktop ? 1 : 'none', minWidth: 0, paddingBottom: isDesktop ? 0 : '6.5rem' }}>
       {/* TOP BAR */}
       <div style={{ padding: '1.1rem 1.25rem 0.9rem', display: 'flex', alignItems: 'center', gap: '0.8rem', position: 'sticky', top: 0, zIndex: 100, background: 'var(--header-bg)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)' }}>
         <Link href="/dashboard" style={{ color: 'var(--header-text)', display: 'flex', width: 32, height: 32, borderRadius: 9, background: 'var(--card2)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -178,6 +198,9 @@ export default function BillsPage() {
         {activeTab === 'data' && <DataForm profile={profile} bumpBalance={bumpBalance} />}
         {activeTab === 'cable' && <CableForm profile={profile} bumpBalance={bumpBalance} />}
       </div>
+      </div>
+
+      {!isDesktop && <BottomNav />}
     </main>
   )
 }

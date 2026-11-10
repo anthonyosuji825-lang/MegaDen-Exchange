@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import LogoMark from './LogoMark'
 import {
   HomeIcon, PackageIcon, WalletIcon, UserIcon,
-  PhoneIcon, SubsIcon, BoostIcon, VpnIcon, BillsIcon, LogoutIcon,
+  PhoneIcon, SubsIcon, BoostIcon, VpnIcon, BillsIcon, LogoutIcon, MailIcon, GlobeIcon,
 } from './NavIcons'
 
 const NAV_ITEMS = [
@@ -16,7 +16,8 @@ const NAV_ITEMS = [
 
 const SERVICE_ITEMS = [
   { label: 'Foreign Numbers', href: '/dashboard/numbers', icon: PhoneIcon },
-  { label: 'Digital Subscriptions', href: '/dashboard/subscriptions', icon: SubsIcon },
+  { label: 'Email OTP', href: '/dashboard/email', icon: MailIcon },
+  { label: 'Proxies', href: '/dashboard/proxy', icon: GlobeIcon },
   { label: 'Account Boosting', href: '/dashboard/boosting', icon: BoostIcon },
   { label: 'VPN Subscriptions', href: '/dashboard/vpn', icon: VpnIcon },
   { label: 'Top-Up & Bills', href: '/dashboard/bills', icon: BillsIcon },

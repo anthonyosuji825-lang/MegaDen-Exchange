@@ -170,8 +170,8 @@ export default function AdminPanel() {
   const [subKeys, setSubKeys] = useState([])
 
   // Settings
-  const [settings, setSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', fleexa_markup_percent: '15', fleexa_sms6_markup_percent: '', fleexa_rent_margin_percent: '50', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
-  const [editedSettings, setEditedSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', fleexa_markup_percent: '15', fleexa_sms6_markup_percent: '', fleexa_rent_margin_percent: '50', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
+  const [settings, setSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', fleexa_markup_percent: '15', fleexa_sms6_markup_percent: '', fleexa_email_markup_percent: '15', fleexa_proxy_markup_percent: '15', fleexa_rent_margin_percent: '50', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
+  const [editedSettings, setEditedSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', fleexa_markup_percent: '15', fleexa_sms6_markup_percent: '', fleexa_email_markup_percent: '15', fleexa_proxy_markup_percent: '15', fleexa_rent_margin_percent: '50', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState('')
@@ -601,6 +601,30 @@ export default function AdminPanel() {
   const sms6SellPreview = Math.ceil(SMS6_EXAMPLE_COST_NGN * (1 + sms6EffectivePct / 100))
   const sms6Benchmark = Math.ceil(SMS6_EXAMPLE_COST_USD * Number(editedSettings.usd_to_ngn_rate) * Number(editedSettings.markup_multiplier))
   const sms6BenchmarkPct = Math.round((sms6Benchmark / SMS6_EXAMPLE_COST_NGN - 1) * 100)
+
+  // Email OTP markup mirrors lib/fleexaShared.js getMarkupPercent('email'):
+  // own value -> shared SMS OTP 4/5 markup -> 15.
+  const emailEffectivePct = (() => {
+    const own = parseFloat(editedSettings.fleexa_email_markup_percent)
+    if (Number.isFinite(own) && own >= 0) return own
+    const shared = parseFloat(editedSettings.fleexa_markup_percent)
+    return Number.isFinite(shared) && shared >= 0 ? shared : 15
+  })()
+  // Example wholesale cost only, for the preview line (not used for real prices).
+  const EMAIL_EXAMPLE_COST_NGN = 313
+  const emailSellPreview = Math.ceil(EMAIL_EXAMPLE_COST_NGN * (1 + emailEffectivePct / 100))
+
+  // Proxy markup: own value -> shared SMS OTP 4/5 markup -> 15 (mirrors
+  // getMarkupPercent('proxy') in lib/fleexaShared.js).
+  const proxyEffectivePct = (() => {
+    const own = parseFloat(editedSettings.fleexa_proxy_markup_percent)
+    if (Number.isFinite(own) && own >= 0) return own
+    const shared = parseFloat(editedSettings.fleexa_markup_percent)
+    return Number.isFinite(shared) && shared >= 0 ? shared : 15
+  })()
+  // Fleexa's docs example: a 1-IP plan costs ₦580 wholesale (preview only).
+  const PROXY_EXAMPLE_COST_NGN = 580
+  const proxySellPreview = Math.ceil(PROXY_EXAMPLE_COST_NGN * (1 + proxyEffectivePct / 100))
 
   const inputStyle = { width: '100%', padding: '0.65rem 0.9rem', background: 'var(--navy)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text)', fontSize: '0.85rem', outline: 'none', fontFamily: 'Inter, sans-serif' }
   const selectStyle = { ...inputStyle }
@@ -1634,7 +1658,7 @@ export default function AdminPanel() {
 
             {/* Fleexa markup */}
             <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginTop:'1rem', marginBottom:'1rem' }}>
-              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.85rem', color:'var(--text)', marginBottom:'0.3rem' }}>Fleexa Pricing (OTP & Rent Numbers)</div>
+              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.85rem', color:'var(--text)', marginBottom:'0.3rem' }}>Fleexa Pricing (OTP, Rent Numbers, Email OTP & Proxies)</div>
               <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'1rem' }}>
                 Fleexa's own price_ngn is your wholesale cost, not a retail price — these settings control your margin on top of it.
               </div>
@@ -1672,6 +1696,30 @@ export default function AdminPanel() {
                   </div>
                   <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.3rem' }}>
                     Current: you keep {settings.fleexa_rent_margin_percent}% of the gap between your cost and Fleexa's retail price. 100% would match Fleexa's own retail price exactly (no price advantage for your customers); 0% means no margin at all.
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Flat Markup — Email OTP. Leave blank to follow the SMS OTP 4/5 markup</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                    <input type="number" step="1" min="0" placeholder={`Following SMS OTP 4/5: +${editedSettings.fleexa_markup_percent}%`} value={editedSettings.fleexa_email_markup_percent ?? ''}
+                      onChange={e => setEditedSettings(s => ({ ...s, fleexa_email_markup_percent: e.target.value }))}
+                      style={{ flex:1, padding:'0.7rem 0.9rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--gold)', fontSize:'1rem', fontWeight:700, fontFamily:'Outfit, sans-serif', outline:'none' }} />
+                    <span style={{ fontSize:'0.75rem', color:'var(--muted)', whiteSpace:'nowrap' }}>% over cost</span>
+                  </div>
+                  <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.3rem' }}>
+                    Effective: +{emailEffectivePct}% — an email costing you ₦{EMAIL_EXAMPLE_COST_NGN} would sell for ₦{emailSellPreview.toLocaleString()} (₦{(emailSellPreview - EMAIL_EXAMPLE_COST_NGN).toLocaleString()} profit). Applies to every Email OTP domain.
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Flat Markup — Residential Proxies. Leave blank to follow the SMS OTP 4/5 markup</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                    <input type="number" step="1" min="0" placeholder={`Following SMS OTP 4/5: +${editedSettings.fleexa_markup_percent}%`} value={editedSettings.fleexa_proxy_markup_percent ?? ''}
+                      onChange={e => setEditedSettings(s => ({ ...s, fleexa_proxy_markup_percent: e.target.value }))}
+                      style={{ flex:1, padding:'0.7rem 0.9rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--gold)', fontSize:'1rem', fontWeight:700, fontFamily:'Outfit, sans-serif', outline:'none' }} />
+                    <span style={{ fontSize:'0.75rem', color:'var(--muted)', whiteSpace:'nowrap' }}>% over cost</span>
+                  </div>
+                  <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.3rem' }}>
+                    Effective: +{proxyEffectivePct}% — a proxy plan costing you ₦{PROXY_EXAMPLE_COST_NGN} would sell for ₦{proxySellPreview.toLocaleString()} (₦{(proxySellPreview - PROXY_EXAMPLE_COST_NGN).toLocaleString()} profit). Proxies cannot be refunded, so keep a healthy margin.
                   </div>
                 </div>
               </div>

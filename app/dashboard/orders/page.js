@@ -54,6 +54,8 @@ export default function Orders() {
     if (type === 'log') return <LogIcon />
     if (type === 'boosting') return <BoostIcon />
     if (type === 'number_rental') return <CalendarIcon />
+    if (type === 'email_otp') return <MailIcon />
+    if (type === 'proxy') return <GlobeIcon />
     return <PackageIcon />
   }
 
@@ -62,6 +64,8 @@ export default function Orders() {
     if (type === 'log') return '#f0b429'
     if (type === 'boosting') return '#1d9e75'
     if (type === 'number_rental') return '#2dd4bf'
+    if (type === 'email_otp') return '#4687ff'
+    if (type === 'proxy') return '#2dd4bf'
     return 'var(--muted)'
   }
 
@@ -76,7 +80,7 @@ export default function Orders() {
 
   // Raw status/type codes shouldn't leak into the UI ("Unresolved_billing", "Number_rental").
   const statusLabel = (status) => status === 'unresolved_billing' ? 'under review' : status
-  const typeLabel = (type) => type === 'number_rental' ? 'Number rental' : (type || 'Service')
+  const typeLabel = (type) => type === 'number_rental' ? 'Number rental' : type === 'email_otp' ? 'Email OTP' : type === 'proxy' ? 'Residential proxy' : (type || 'Service')
 
   return (
     <main style={{ background: 'var(--navy)', minHeight: '100vh', display: isDesktop ? 'flex' : 'block' }}>
@@ -181,6 +185,16 @@ export default function Orders() {
                       View number and messages →
                     </Link>
                   )}
+                  {order.product_type === 'proxy' && (
+                    <Link href="/dashboard/proxy" style={{ display: 'inline-block', marginTop: '0.6rem', fontSize: '0.74rem', fontWeight: 600, color: 'var(--purple2)', textDecoration: 'none' }}>
+                      Manage proxy →
+                    </Link>
+                  )}
+                  {order.product_type === 'email_otp' && (
+                    <Link href="/dashboard/email" style={{ display: 'inline-block', marginTop: '0.6rem', fontSize: '0.74rem', fontWeight: 600, color: 'var(--purple2)', textDecoration: 'none' }}>
+                      View email and code →
+                    </Link>
+                  )}
                 </div>
               )
             })}
@@ -208,6 +222,12 @@ function LogIcon({ size = 18 }) {
 }
 function CalendarIcon({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+}
+function GlobeIcon({ size = 18 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+}
+function MailIcon({ size = 18 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
 }
 function BoostIcon({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>

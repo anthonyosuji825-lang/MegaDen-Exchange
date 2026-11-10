@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
 import { evaluateAndResolveOrder } from '@/lib/numberOrders'
+import { sweepEmailOrders } from '@/lib/emailOrders'
 import { log } from '@/lib/logger'
 
 const supabaseAdmin = createClient(
@@ -103,5 +104,14 @@ export async function POST(request) {
     }).catch(() => {})
   }
 
-  return NextResponse.json({ checked: orders?.length || 0, processed, failed, stuck_resolving: stuck.length, results })
+  // Email OTP: refund emails that never received a code (same cron, same secret).
+  let email = null
+  try {
+    email = await sweepEmailOrders(supabaseAdmin)
+  } catch (err) {
+    email = { error: err.message }
+    await log('error', 'number', `Email OTP sweep failed: ${err.message}`, null, null, { stack: err.stack }).catch(() => {})
+  }
+
+  return NextResponse.json({ checked: orders?.length || 0, processed, failed, stuck_resolving: stuck.length, email, results })
 }

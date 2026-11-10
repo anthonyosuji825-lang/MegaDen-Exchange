@@ -10,12 +10,15 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import BottomNav from '@/components/BottomNav'
 import DesktopSidebar from '@/components/DesktopSidebar'
+import SpendTierCard from '@/components/SpendTierCard'
+import { NON_SPEND_STATUSES } from '@/lib/spend-tiers'
 
 export default function Dashboard() {
   const router = useRouter()
   const [sliderIndex, setSliderIndex] = useState(0)
   const [profile, setProfile] = useState(null)
   const [orders, setOrders] = useState([])
+  const [totalSpent, setTotalSpent] = useState(0)
   const [loading, setLoading] = useState(true)
   const [balanceHidden, setBalanceHidden] = useState(false)
   const [showAllActions, setShowAllActions] = useState(false)
@@ -49,6 +52,24 @@ export default function Dashboard() {
         .from('orders').select('*').eq('user_id', user.id)
         .order('created_at', { ascending: false }).limit(5)
       setOrders(ordersData || [])
+      // Real total spent: sum every order that wasn't cancelled/refunded.
+      // (profiles.total_spent is not being maintained, so it always showed 0.)
+      let spent = 0
+      try {
+        let from = 0
+        while (true) {
+          const { data: rows, error } = await supabase
+            .from('orders').select('amount,status').eq('user_id', user.id)
+            .order('created_at', { ascending: true }).range(from, from + 999)
+          if (error) throw error
+          for (const r of rows || []) {
+            if (!NON_SPEND_STATUSES.includes(String(r.status || '').toLowerCase())) spent += Number(r.amount) || 0
+          }
+          if (!rows || rows.length < 1000) break
+          from += 1000
+        }
+      } catch (e) { spent = Number(profileData?.total_spent) || 0 }
+      setTotalSpent(spent)
       const { data: notifData } = await supabase
         .from('notifications').select('*').eq('user_id', user.id)
         .order('created_at', { ascending: false }).limit(20)
@@ -155,7 +176,7 @@ export default function Dashboard() {
   const row1Actions = [
     { label: 'Fund Wallet', href: '/dashboard/wallet', icon: <WalletIcon size={18} color="#8b6ff7" />, bg: 'rgba(108,78,242,0.12)' },
     { label: 'Buy Number', href: '/dashboard/numbers', icon: <PhoneIcon size={18} color="#10b981" />, bg: 'rgba(16,185,129,0.12)', tourId: 'tour-buy-number' },
-    { label: 'Subscriptions', href: '/dashboard/subscriptions', icon: <SubsIcon size={18} color="#4687ff" />, bg: 'rgba(70,135,255,0.12)' },
+    { label: 'Email OTP', href: '/dashboard/email', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4687ff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>, bg: 'rgba(70,135,255,0.12)' },
     { label: 'Boosting', href: '/dashboard/boosting', icon: <BoostIcon size={18} color="#f43f5e" />, bg: 'rgba(244,63,94,0.12)', tourId: 'tour-boosting' },
   ]
 
@@ -169,7 +190,8 @@ export default function Dashboard() {
   const services = [
     { title: 'Foreign Numbers', desc: 'USA, UK, Canada & 40+ countries', icon: <PhoneIcon size={22} color="#8b6ff7" />, bg: 'rgba(108,78,242,0.12)', href: '/dashboard/numbers', badge: 'HOT', badgeBg: 'rgba(108,78,242,0.12)', badgeColor: '#8b6ff7' },
     { title: 'Rent Number', desc: 'Keep a US number for months, not minutes', icon: <CalendarIcon size={22} color="#2dd4bf" />, bg: 'rgba(45,212,191,0.12)', href: '/dashboard/numbers/rent', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
-    { title: 'Digital Subscriptions', desc: 'Spotify, Netflix, Canva, ChatGPT & more', icon: <SubsIcon size={22} color="#f0b429" />, bg: 'rgba(240,180,41,0.12)', href: '/dashboard/subscriptions', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
+    { title: 'Email OTP', desc: 'Temporary emails for verification codes', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4687ff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>, bg: 'rgba(70,135,255,0.12)', href: '/dashboard/email', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
+    { title: 'Residential Proxies', desc: 'Real residential IPs worldwide', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>, bg: 'rgba(45,212,191,0.12)', href: '/dashboard/proxy', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
     { title: 'Account Boosting', desc: 'Grow your online presence fast', icon: <BoostIcon size={22} color="#10b981" />, bg: 'rgba(16,185,129,0.12)', href: '/dashboard/boosting' },
     { title: 'VPN Subscriptions', desc: 'NordVPN, ExpressVPN & more', icon: <VpnIcon size={22} color="#4687ff" />, bg: 'rgba(70,135,255,0.12)', href: '/dashboard/vpn', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
     { title: 'Top-Up & Bills', desc: 'Airtime, data, TV, electricity & exam pins', icon: <BillsIcon size={22} color="#10b981" />, bg: 'rgba(16,185,129,0.12)', href: '/dashboard/bills', badge: 'NEW', badgeBg: 'rgba(16,185,129,0.12)', badgeColor: '#10b981' },
@@ -208,6 +230,7 @@ export default function Dashboard() {
       <DesktopDashboard
         profile={profile}
         orders={orders}
+        totalSpent={totalSpent}
         notifications={notifications}
         unreadCount={unreadCount}
         theme={theme}
@@ -381,14 +404,8 @@ export default function Dashboard() {
 
         {/* STATS ROW */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '1rem 1.1rem' }}>
-            <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase', marginBottom: '0.35rem' }}>Total Spent</div>
-            <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.35rem', color: 'var(--text)', letterSpacing: -0.5, marginBottom: '0.2rem' }}>
-              ₦{((profile?.total_spent || 0) / 1000).toFixed(1)}K
-            </div>
-            <div style={{ fontSize: '0.67rem', fontWeight: 600, color: '#10b981' }}>↑ this month</div>
-          </div>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '1rem 1.1rem' }}>
+          <SpendTierCard totalSpent={totalSpent} variant="stacked" />
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase', marginBottom: '0.35rem' }}>Orders</div>
             <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.35rem', color: 'var(--text)', letterSpacing: -0.5, marginBottom: '0.2rem' }}>
               {orders.length}
@@ -534,7 +551,7 @@ export default function Dashboard() {
 // content grid instead of a single stacked column, so the extra width is
 // actually used rather than just stretching the mobile layout.
 function DesktopDashboard({
-  profile, orders, notifications, unreadCount, theme, toggleTheme,
+  profile, orders, totalSpent, notifications, unreadCount, theme, toggleTheme,
   showNotifications, setShowNotifications, notifRef, markAllRead, markOneRead,
   notifIcon, notifIconBg, firstName, greeting, balanceHidden, setBalanceHidden,
   sliderIndex, goToSlide, slides, row1Actions, row2Actions, services,
@@ -630,11 +647,8 @@ function DesktopDashboard({
               ))}
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: '1rem' }}>
-            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '0.9rem 1.1rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.3rem' }}>Total Spent</div>
-              <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.3rem', color: 'var(--text)' }}>₦{((profile?.total_spent || 0) / 1000).toFixed(1)}K</div>
-            </div>
+          <div style={{ display: 'grid', gridTemplateRows: 'minmax(0,1.25fr) minmax(0,1fr)', gap: '1rem' }}>
+            <SpendTierCard totalSpent={totalSpent} variant="compact" />
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '0.9rem 1.1rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.3rem' }}>Orders</div>
               <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.3rem', color: 'var(--text)' }}>{orders.length}</div>

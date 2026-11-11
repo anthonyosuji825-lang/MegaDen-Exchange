@@ -170,8 +170,8 @@ export default function AdminPanel() {
   const [subKeys, setSubKeys] = useState([])
 
   // Settings
-  const [settings, setSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', fleexa_markup_percent: '15', fleexa_sms6_markup_percent: '', fleexa_email_markup_percent: '15', fleexa_proxy_markup_percent: '15', fleexa_rent_margin_percent: '50', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
-  const [editedSettings, setEditedSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', fleexa_markup_percent: '15', fleexa_sms6_markup_percent: '', fleexa_email_markup_percent: '15', fleexa_proxy_markup_percent: '15', fleexa_rent_margin_percent: '50', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
+  const [settings, setSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', fleexa_markup_percent: '15', fleexa_sms6_markup_percent: '', fleexa_email_markup_percent: '15', fleexa_proxy_markup_percent: '15', fleexa_esim_markup_percent: '15', fleexa_rent_margin_percent: '50', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
+  const [editedSettings, setEditedSettings] = useState({ usd_to_ngn_rate: '1600', markup_multiplier: '3.5', fleexa_markup_percent: '15', fleexa_sms6_markup_percent: '', fleexa_email_markup_percent: '15', fleexa_proxy_markup_percent: '15', fleexa_esim_markup_percent: '15', fleexa_rent_margin_percent: '50', bills_broadcast_enabled: 'false', bills_broadcast_message: '', boost_broadcast_enabled: 'false', boost_broadcast_message: '' })
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState('')
@@ -625,6 +625,18 @@ export default function AdminPanel() {
   // Fleexa's docs example: a 1-IP plan costs ₦580 wholesale (preview only).
   const PROXY_EXAMPLE_COST_NGN = 580
   const proxySellPreview = Math.ceil(PROXY_EXAMPLE_COST_NGN * (1 + proxyEffectivePct / 100))
+
+  // eSIM markup: own value -> shared SMS OTP 4/5 markup -> 15 (mirrors
+  // getMarkupPercent('esim') in lib/fleexaShared.js).
+  const esimEffectivePct = (() => {
+    const own = parseFloat(editedSettings.fleexa_esim_markup_percent)
+    if (Number.isFinite(own) && own >= 0) return own
+    const shared = parseFloat(editedSettings.fleexa_markup_percent)
+    return Number.isFinite(shared) && shared >= 0 ? shared : 15
+  })()
+  // Example wholesale cost only, for the preview line (not used for real prices).
+  const ESIM_EXAMPLE_COST_NGN = 3000
+  const esimSellPreview = Math.ceil(ESIM_EXAMPLE_COST_NGN * (1 + esimEffectivePct / 100))
 
   const inputStyle = { width: '100%', padding: '0.65rem 0.9rem', background: 'var(--navy)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text)', fontSize: '0.85rem', outline: 'none', fontFamily: 'Inter, sans-serif' }
   const selectStyle = { ...inputStyle }
@@ -1658,7 +1670,7 @@ export default function AdminPanel() {
 
             {/* Fleexa markup */}
             <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginTop:'1rem', marginBottom:'1rem' }}>
-              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.85rem', color:'var(--text)', marginBottom:'0.3rem' }}>Fleexa Pricing (OTP, Rent Numbers, Email OTP & Proxies)</div>
+              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.85rem', color:'var(--text)', marginBottom:'0.3rem' }}>Fleexa Pricing (OTP, Rent Numbers, Email OTP, Proxies & eSIM)</div>
               <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'1rem' }}>
                 Fleexa's own price_ngn is your wholesale cost, not a retail price — these settings control your margin on top of it.
               </div>
@@ -1720,6 +1732,18 @@ export default function AdminPanel() {
                   </div>
                   <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.3rem' }}>
                     Effective: +{proxyEffectivePct}% — a proxy plan costing you ₦{PROXY_EXAMPLE_COST_NGN} would sell for ₦{proxySellPreview.toLocaleString()} (₦{(proxySellPreview - PROXY_EXAMPLE_COST_NGN).toLocaleString()} profit). Proxies cannot be refunded, so keep a healthy margin.
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.3rem' }}>Flat Markup — Travel eSIM. Leave blank to follow the SMS OTP 4/5 markup</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                    <input type="number" step="1" min="0" placeholder={`Following SMS OTP 4/5: +${editedSettings.fleexa_markup_percent}%`} value={editedSettings.fleexa_esim_markup_percent ?? ''}
+                      onChange={e => setEditedSettings(s => ({ ...s, fleexa_esim_markup_percent: e.target.value }))}
+                      style={{ flex:1, padding:'0.7rem 0.9rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--gold)', fontSize:'1rem', fontWeight:700, fontFamily:'Outfit, sans-serif', outline:'none' }} />
+                    <span style={{ fontSize:'0.75rem', color:'var(--muted)', whiteSpace:'nowrap' }}>% over cost</span>
+                  </div>
+                  <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.3rem' }}>
+                    Effective: +{esimEffectivePct}% — an eSIM plan costing you ₦{ESIM_EXAMPLE_COST_NGN.toLocaleString()} would sell for ₦{esimSellPreview.toLocaleString()} (₦{(esimSellPreview - ESIM_EXAMPLE_COST_NGN).toLocaleString()} profit). Also applies to top-ups. eSIMs cannot be refunded once delivered, so keep a healthy margin.
                   </div>
                 </div>
               </div>

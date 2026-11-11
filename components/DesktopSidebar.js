@@ -7,6 +7,10 @@ import {
   PhoneIcon, SubsIcon, BoostIcon, VpnIcon, BillsIcon, LogoutIcon, MailIcon, GlobeIcon,
 } from './NavIcons'
 
+const SimIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M7 2h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><rect x="9" y="12" width="6" height="6" rx="1"/></svg>
+)
+
 const NAV_ITEMS = [
   { label: 'Home', href: '/dashboard', icon: HomeIcon },
   { label: 'Orders', href: '/dashboard/orders', icon: PackageIcon },
@@ -18,6 +22,7 @@ const SERVICE_ITEMS = [
   { label: 'Foreign Numbers', href: '/dashboard/numbers', icon: PhoneIcon },
   { label: 'Email OTP', href: '/dashboard/email', icon: MailIcon },
   { label: 'Proxies', href: '/dashboard/proxy', icon: GlobeIcon },
+  { label: 'Travel eSIM', href: '/dashboard/esim', icon: SimIcon },
   { label: 'Account Boosting', href: '/dashboard/boosting', icon: BoostIcon },
   { label: 'VPN Subscriptions', href: '/dashboard/vpn', icon: VpnIcon },
   { label: 'Top-Up & Bills', href: '/dashboard/bills', icon: BillsIcon },

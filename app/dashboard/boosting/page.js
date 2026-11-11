@@ -70,7 +70,7 @@ function ServiceOption({ service, accentColor, onSelect }) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-        <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--border)', flexShrink: 0 }} />
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: accentColor, opacity: 0.7, flexShrink: 0 }} />
         <div style={{ textAlign: 'left' }}>
           <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text)' }}>{service.label}</div>
           <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.1rem' }}>
@@ -95,6 +95,8 @@ function QuantityPanel({ service, accentColor, onBack, onConfirm }) {
 
   const qty = Math.round(Number(raw) || 0)
   const inRange = raw !== '' && qty >= service.min && qty <= service.max
+  const pickCount = service.quickPicks?.length || 0
+  const pickCols = pickCount <= 4 ? Math.max(1, pickCount) : (pickCount % 3 === 0 ? 3 : pickCount % 4 === 0 ? 4 : 3)
 
   useEffect(() => {
     if (!inRange) { setQuote(null); setQuoteError(''); return }
@@ -147,7 +149,7 @@ function QuantityPanel({ service, accentColor, onBack, onConfirm }) {
       />
 
       {service.quickPicks?.length > 0 && (
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${pickCols}, 1fr)`, gap: '0.45rem', marginBottom: '0.7rem' }}>
           {service.quickPicks.map(n => (
             <button
               key={n}
@@ -155,7 +157,7 @@ function QuantityPanel({ service, accentColor, onBack, onConfirm }) {
               onClick={() => setRaw(String(n))}
               className="quick-pick"
               style={{
-                padding: '0.35rem 0.7rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 600,
+                width: '100%', padding: '0.55rem 0.3rem', borderRadius: '10px', fontSize: '0.78rem', fontWeight: 700, fontFamily: 'Outfit, sans-serif',
                 background: qty === n ? accentColor : 'var(--card)',
                 color: qty === n ? '#fff' : 'var(--muted)',
                 border: `1px solid ${qty === n ? accentColor : 'var(--border)'}`,
@@ -235,6 +237,10 @@ export default function Boosting() {
   const [broadcast, setBroadcast] = useState(null)
   const [isDesktop, setIsDesktop] = useState(false)
   const platformRef = useRef(null)
+  const [platformPct, setPlatformPct] = useState(0)
+  const step2Ref = useRef(null)
+  const step3Ref = useRef(null)
+  const summaryRef = useRef(null)
 
   const isTurbo = provider === 'turbo'
   const activeServices = provider ? platformsByTier[provider] : []
@@ -258,6 +264,24 @@ export default function Boosting() {
   // order; cleared whenever the package or link actually changes.
   const idempotencyKeyRef = useRef(null)
   useEffect(() => { idempotencyKeyRef.current = null }, [selectedPackage?.code, selectedPackage?.quantity, link])
+
+  // Gently bring the next step into view as the user progresses.
+  const hasLink = !!link.trim()
+  useEffect(() => {
+    if (!selectedPlatform) return
+    const t = setTimeout(() => step2Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 160)
+    return () => clearTimeout(t)
+  }, [selectedPlatform?.id])
+  useEffect(() => {
+    if (!selectedPackage) return
+    const t = setTimeout(() => step3Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 160)
+    return () => clearTimeout(t)
+  }, [selectedPackage?.code, selectedPackage?.quantity])
+  useEffect(() => {
+    if (!hasLink) return
+    const t = setTimeout(() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 160)
+    return () => clearTimeout(t)
+  }, [hasLink])
 
   useEffect(() => {
     setMounted(true)
@@ -364,6 +388,15 @@ export default function Boosting() {
     }
   }
 
+  const pasteLink = async () => {
+    try {
+      const t = await navigator.clipboard.readText()
+      if (t) setLink(t.trim())
+    } catch { /* clipboard permission denied - the user can paste manually */ }
+  }
+
+  const hasBalance = (profile?.wallet_balance || 0) >= (selectedPackage?.price || 0)
+
   // Turbo lays platforms out in 1 row, Standard in 2 rows; 4 columns fit per screen.
   const gridColumns = Math.ceil(activeServices.length / (isTurbo ? 1 : 2))
   const totalPages = Math.ceil(gridColumns / 4)
@@ -399,6 +432,16 @@ export default function Boosting() {
         .provider-card { transition:transform 0.18s ease,box-shadow 0.2s ease; cursor:pointer; }
         .provider-card:hover { transform:translateY(-3px); }
         .provider-card:active { transform:scale(0.98); }
+        @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(52,211,153,0.45); } 100% { box-shadow: 0 0 0 22px rgba(52,211,153,0); } }
+        .bal-pill { transition: background 0.15s, border-color 0.15s; }
+        .bal-pill:hover { background: var(--card2) !important; border-color: rgba(108,78,242,0.4) !important; }
+        .paste-btn { transition: background 0.15s, transform 0.15s; }
+        .paste-btn:hover { background: var(--card2) !important; }
+        .paste-btn:active { transform: scale(0.95); }
+        input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+        .service-chip:focus-visible, .pkg-card:focus-visible, .quick-pick:focus-visible, .buy-btn:focus-visible, .provider-card:focus-visible, .back-btn:focus-visible, .paste-btn:focus-visible, .bal-pill:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }
       `}</style>
 
       {isDesktop && <DesktopSidebar profile={profile} onLogout={handleLogout} />}
@@ -407,11 +450,11 @@ export default function Boosting() {
       {/* HEADER */}
       <div style={{ padding:'1rem 1.2rem', display:'flex', alignItems:'center', gap:'0.85rem', position:'sticky', top:0, zIndex:100, background:'rgba(var(--navy-rgb,10,10,30),0.92)', backdropFilter:'blur(20px)', borderBottom:'1px solid var(--border)' }}>
         {provider ? (
-          <button className="back-btn" onClick={goBack} style={{ display:'flex', alignItems:'center', justifyContent:'center', width:36, height:36, borderRadius:'10px', background:'var(--card)', border:'1px solid var(--border)', color:'var(--text)', flexShrink:0 }}>
+          <button className="back-btn" onClick={goBack} aria-label="Back" style={{ display:'flex', alignItems:'center', justifyContent:'center', width:36, height:36, borderRadius:'10px', background:'var(--card)', border:'1px solid var(--border)', color:'var(--text)', flexShrink:0 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
         ) : (
-          <Link href="/dashboard" className="back-btn" style={{ display:'flex', alignItems:'center', justifyContent:'center', width:36, height:36, borderRadius:'10px', background:'var(--card)', border:'1px solid var(--border)', color:'var(--text)', textDecoration:'none', flexShrink:0 }}>
+          <Link href="/dashboard" className="back-btn" aria-label="Back to dashboard" style={{ display:'flex', alignItems:'center', justifyContent:'center', width:36, height:36, borderRadius:'10px', background:'var(--card)', border:'1px solid var(--border)', color:'var(--text)', textDecoration:'none', flexShrink:0 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </Link>
         )}
@@ -425,10 +468,13 @@ export default function Boosting() {
             {!provider ? 'Real growth · Choose your service' : isTurbo ? 'Fast delivery · Premium quality' : 'All platforms · Steady growth'}
           </div>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', padding:'0.35rem 0.75rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'20px', flexShrink:0 }}>
+        <Link href="/dashboard/wallet" className="bal-pill" aria-label="Fund wallet" style={{ display:'flex', alignItems:'center', gap:'0.4rem', padding:'0.35rem 0.4rem 0.35rem 0.75rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'20px', flexShrink:0, textDecoration:'none' }}>
           <span style={{ fontSize:'0.65rem', color:'var(--muted)' }}>BAL</span>
           <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.82rem', color:'var(--gold)' }}>₦{(profile?.wallet_balance || 0).toLocaleString()}</span>
-        </div>
+          <span style={{ width:20, height:20, borderRadius:'50%', background:'var(--purple)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          </span>
+        </Link>
       </div>
 
       <div style={{ padding:'1.2rem', maxWidth:480, margin:'0 auto' }}>
@@ -530,30 +576,42 @@ export default function Boosting() {
         {provider && (
           <>
             {success ? (
-              <div style={{ textAlign:'center', padding:'3rem 1rem', animation:'fadeSlideIn 0.4s ease' }}>
-                <div style={{ width:80, height:80, borderRadius:'50%', background:'rgba(29,158,117,0.15)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1.2rem', color:'#34d399', animation:'successPop 0.5s cubic-bezier(0.175,0.885,0.32,1.275)' }}>
-                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <div style={{ background:'linear-gradient(135deg, rgba(52,211,153,0.08) 0%, rgba(108,78,242,0.06) 100%)', border:'1px solid rgba(52,211,153,0.25)', borderRadius:22, padding:'1.6rem 1.3rem 1.3rem', animation:'scaleIn 0.35s ease both' }}>
+                <div style={{ textAlign:'center', marginBottom:'1.3rem' }}>
+                  <div style={{ width:64, height:64, borderRadius:'50%', margin:'0 auto 0.9rem', background:'rgba(52,211,153,0.16)', border:'1px solid rgba(52,211,153,0.4)', display:'flex', alignItems:'center', justifyContent:'center', color:'#34d399', animation:'successPop 0.5s cubic-bezier(0.175,0.885,0.32,1.275), ring 1.2s ease-out 0.3s 1' }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div style={{ fontFamily:'Outfit, sans-serif', fontSize:'1.1rem', fontWeight:800, color:'var(--text)' }}>
+                    {orderMeta?.status === 'needs_review' ? 'Order Received' : 'Order Placed!'}
+                  </div>
+                  <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:900, fontSize:'1.9rem', color:'var(--gold)', marginTop:'0.25rem', letterSpacing:'-0.02em' }}>₦{selectedPackage?.price.toLocaleString()}</div>
+                  <div style={{ color:'var(--muted)', fontSize:'0.78rem', lineHeight:1.55, marginTop:'0.5rem' }}>
+                    {orderMeta?.status === 'needs_review'
+                      ? `We're confirming your ${selectedPlatform?.name} boost with the provider — this can take a few minutes. Check your order history shortly.`
+                      : `Your ${selectedPlatform?.name} boost is processing.`}
+                  </div>
                 </div>
-                <div style={{ fontFamily:'Outfit, sans-serif', fontSize:'1.3rem', fontWeight:800, color:'var(--text)', marginBottom:'0.4rem' }}>
-                  {orderMeta?.status === 'needs_review' ? 'Order Received' : 'Order Placed!'}
+
+                <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:14, padding:'0.35rem 0.95rem' }}>
+                  {[
+                    { label:'Platform', value: <span style={{ display:'inline-flex', alignItems:'center', gap:'0.4rem' }}><PlatformIcon id={selectedPlatform?.id} size={14} />{selectedPlatform?.name}</span> },
+                    { label:'Package', value: selectedPackage?.name },
+                    { label:'Service', value: isTurbo ? 'Turbo Boost' : 'Standard Boost' },
+                    ...(orderMeta?.orderId ? [{ label:'Order ID', value: `#${orderMeta.orderId}` }] : []),
+                  ].map((l, i, arr) => (
+                    <div key={l.label} style={{ display:'flex', justifyContent:'space-between', gap:'0.8rem', fontSize:'0.8rem', padding:'0.6rem 0', borderBottom: i < arr.length - 1 ? '1px dashed var(--border)' : 'none' }}>
+                      <span style={{ color:'var(--muted)', flexShrink:0 }}>{l.label}</span>
+                      <span style={{ color:'var(--text)', fontWeight:600, textAlign:'right', wordBreak:'break-word' }}>{l.value}</span>
+                    </div>
+                  ))}
                 </div>
-                <div style={{ color:'var(--muted)', fontSize:'0.85rem', marginBottom:'1.2rem' }}>
-                  {orderMeta?.status === 'needs_review'
-                    ? `We're confirming your ${selectedPlatform?.name} boost with the provider — this can take a few minutes. Check your order history shortly.`
-                    : `Your ${selectedPlatform?.name} boost is processing.`}
-                </div>
-                <div style={{ display:'inline-flex', alignItems:'center', gap:'0.6rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'12px', padding:'0.8rem 1.4rem', marginBottom:'0.5rem' }}>
-                  <PlatformIcon id={selectedPlatform?.id} size={16} />
-                  <span style={{ fontSize:'0.82rem', color:'var(--text)' }}>{selectedPackage?.name}</span>
-                  <span style={{ color:'var(--gold)', fontWeight:700, fontFamily:'Outfit, sans-serif' }}>₦{selectedPackage?.price.toLocaleString()}</span>
-                </div>
-                {orderMeta?.orderId && <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginBottom:'1.5rem' }}>Order ID: #{orderMeta.orderId}</div>}
-                <br/>
-                <div style={{ display:'flex', gap:'0.6rem', justifyContent:'center', flexWrap:'wrap' }}>
-                  <button onClick={resetOrder} className="buy-btn" style={{ padding:'0.75rem 1.4rem', background:'var(--purple)', color:'#fff', border:'none', borderRadius:'12px', fontFamily:'Outfit, sans-serif', fontSize:'0.9rem', fontWeight:700 }}>
-                    New Order
-                  </button>
-                </div>
+
+                <button onClick={resetOrder} className="buy-btn" style={{ width:'100%', marginTop:'1rem', padding:'0.95rem', background:'var(--purple)', color:'#fff', border:'none', borderRadius:14, fontFamily:'Outfit, sans-serif', fontSize:'0.92rem', fontWeight:700 }}>
+                  New Order
+                </button>
+                <Link href="/dashboard" style={{ display:'block', textAlign:'center', marginTop:'0.6rem', padding:'0.75rem', borderRadius:12, border:'1px solid var(--border)', color:'var(--muted)', fontSize:'0.82rem', fontWeight:600, textDecoration:'none', fontFamily:'Outfit, sans-serif' }}>
+                  Back to dashboard
+                </Link>
               </div>
             ) : (
               <div style={{ animation:'fadeSlideUp 0.35s ease both' }}>
@@ -567,11 +625,7 @@ export default function Boosting() {
                 {/* STEP 1 — PLATFORM */}
                 <div style={{ marginBottom:'1.5rem', animation: mounted ? 'fadeSlideIn 0.35s ease 0.05s both' : 'none' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
-                    <div style={{ width:22, height:22, borderRadius:'50%', background: selectedPlatform ? 'var(--purple)' : 'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      {selectedPlatform
-                        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        : <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>1</span>}
-                    </div>
+                    <StepBadge n={1} done={!!selectedPlatform} />
                     <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Select Platform</span>
                     {selectedPlatform && (
                       <span style={{ fontSize:'0.7rem', color:'#34d399', marginLeft:'auto', display:'flex', alignItems:'center', gap:'0.3rem' }}>
@@ -585,8 +639,10 @@ export default function Boosting() {
                     className="service-grid"
                     ref={platformRef}
                     onScroll={e => {
-                      const page = Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth)
-                      setPlatformPage(page)
+                      const el = e.currentTarget
+                      const max = el.scrollWidth - el.clientWidth
+                      setPlatformPct(max > 0 ? el.scrollLeft / max : 0)
+                      setPlatformPage(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
                     }}
                     style={isTurbo
                       ? { display:'grid', gridTemplateRows:'1fr', gridAutoFlow:'column', gridAutoColumns:'calc(25% - 0.38rem)', gap:'0.5rem', overflowX:'auto', paddingBottom:'0.3rem', scrollbarWidth:'none', msOverflowStyle:'none' }
@@ -616,20 +672,16 @@ export default function Boosting() {
                           <div key={i} style={{ width: platformPage === i ? 16 : 6, height:6, borderRadius:99, background: platformPage === i ? 'var(--purple)' : 'var(--border)', transition:'all 0.3s ease' }}/>
                         ))}
                       </div>
-                      <span style={{ fontSize:'0.6rem', color:'var(--muted)', letterSpacing:'0.04em' }}>Swipe to see more platforms →</span>
+                      <span style={{ fontSize:'0.6rem', color:'var(--muted)', letterSpacing:'0.04em' }}>{platformPct > 0.98 ? 'That’s everything ←' : 'Swipe to see more platforms →'}</span>
                     </div>
                   )}
                 </div>
 
                 {/* STEP 2 — SERVICE TYPE + QUANTITY */}
                 {selectedPlatform && (
-                  <div style={{ marginBottom:'1.4rem', animation:'fadeSlideIn 0.35s ease both' }}>
+                  <div ref={step2Ref} style={{ marginBottom:'1.4rem', scrollMarginTop:84, animation:'fadeSlideIn 0.35s ease both' }}>
                     <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
-                      <div style={{ width:22, height:22, borderRadius:'50%', background: selectedPackage ? 'var(--purple)' : 'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        {selectedPackage
-                          ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                          : <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>2</span>}
-                      </div>
+                      <StepBadge n={2} done={!!selectedPackage} />
                       <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Select Package</span>
                       <span style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:'0.35rem' }}>
                         <PlatformIcon id={selectedPlatform.id} size={13} />
@@ -660,32 +712,42 @@ export default function Boosting() {
 
                 {/* STEP 3 — LINK */}
                 {selectedPackage && (
-                  <div style={{ marginBottom:'1.4rem', animation:'fadeSlideIn 0.3s ease both' }}>
+                  <div ref={step3Ref} style={{ marginBottom:'1.4rem', scrollMarginTop:84, animation:'fadeSlideIn 0.3s ease both' }}>
                     <div style={{ display:'flex', alignItems:'center', gap:'0.55rem', marginBottom:'0.85rem' }}>
-                      <div style={{ width:22, height:22, borderRadius:'50%', background:'var(--card)', border:'1.5px solid var(--purple)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <span style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--purple)' }}>3</span>
-                      </div>
+                      <StepBadge n={3} done={hasLink} />
                       <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)' }}>Your Link</span>
                     </div>
-                    <input className="link-input"
-                      placeholder={LINK_HINTS[selectedPlatform.id]?.placeholder || `Paste your ${selectedPlatform.name} profile or post URL...`}
-                      value={link} onChange={e => setLink(e.target.value)}
-                      style={{ width:'100%', padding:'0.85rem 1rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'12px', color:'var(--text)', fontSize:'0.88rem', fontFamily:'Inter, sans-serif', transition:'border-color 0.2s, box-shadow 0.2s' }}
-                    />
-                    <div style={{ fontSize:'0.7rem', color:'var(--muted)', marginTop:'0.4rem' }}>{LINK_HINTS[selectedPlatform.id]?.note || 'Make sure your account or post is public before ordering.'}</div>
+                    <div style={{ position:'relative' }}>
+                      <input className="link-input" aria-label="Your link" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                        placeholder={LINK_HINTS[selectedPlatform.id]?.placeholder || `Paste your ${selectedPlatform.name} profile or post URL...`}
+                        value={link} onChange={e => setLink(e.target.value)}
+                        style={{ width:'100%', padding:'0.85rem 5.2rem 0.85rem 1rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'12px', color:'var(--text)', fontSize:'0.88rem', fontFamily:'Inter, sans-serif', transition:'border-color 0.2s, box-shadow 0.2s' }}
+                      />
+                      <div style={{ position:'absolute', right:'0.45rem', top:'50%', transform:'translateY(-50%)', display:'flex', gap:'0.3rem' }}>
+                        {link ? (
+                          <button type="button" onClick={() => setLink('')} aria-label="Clear link" className="paste-btn" style={{ width:30, height:30, borderRadius:'50%', border:'none', background:'var(--card2)', color:'var(--muted)', cursor:'pointer', fontSize:'1rem', lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+                        ) : (
+                          <button type="button" onClick={pasteLink} className="paste-btn" style={{ padding:'0.4rem 0.75rem', borderRadius:'9px', border:'1px solid var(--border)', background:'var(--card)', color:'var(--text)', cursor:'pointer', fontSize:'0.72rem', fontWeight:600, fontFamily:'Outfit, sans-serif' }}>Paste</button>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ fontSize:'0.7rem', color:'var(--muted)', marginTop:'0.4rem', lineHeight:1.5 }}>{LINK_HINTS[selectedPlatform.id]?.note || 'Make sure your account or post is public before ordering.'}</div>
+                    {link.trim() && !/^https?:\/\//i.test(link.trim()) && (
+                      <div style={{ fontSize:'0.7rem', color:'#f0b429', marginTop:'0.35rem' }}>This doesn’t look like a link — it should start with https://</div>
+                    )}
                   </div>
                 )}
 
                 {/* SUMMARY + BUY */}
                 {selectedPlatform && selectedPackage && link.trim() && (
-                  <div style={{ animation:'scaleIn 0.3s ease both' }}>
+                  <div ref={summaryRef} style={{ scrollMarginTop:84, animation:'scaleIn 0.3s ease both' }}>
                     <div style={{ background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.1rem', marginBottom:'1rem' }}>
                       <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.82rem', color:'var(--text)', marginBottom:'0.8rem' }}>Order Summary</div>
                       {[
                         { label:'Service',  value: <span style={{ fontWeight:600, color: isTurbo ? 'var(--purple2)' : '#f5a623' }}>{isTurbo ? 'Turbo Boost' : 'Standard Boost'}</span> },
                         { label:'Platform', value: <span style={{ display:'flex', alignItems:'center', gap:'0.4rem', justifyContent:'flex-end' }}><PlatformIcon id={selectedPlatform.id} size={13}/>{selectedPlatform.name}</span> },
                         { label:'Package',  value: selectedPackage.name },
-                        { label:'Balance',  value: <span style={{ color:'var(--gold)' }}>₦{(profile?.wallet_balance || 0).toLocaleString()}</span> },
+                        { label:'Balance',  value: <span style={{ color: hasBalance ? '#10b981' : '#f43f5e', fontWeight:700 }}>₦{(profile?.wallet_balance || 0).toLocaleString()}</span> },
                       ].map(row => (
                         <div key={row.label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.8rem', marginBottom:'0.45rem' }}>
                           <span style={{ color:'var(--muted)' }}>{row.label}</span>
@@ -698,8 +760,14 @@ export default function Boosting() {
                         <span style={{ color:'var(--gold)', fontWeight:800, fontFamily:'Outfit, sans-serif' }}>₦{selectedPackage.price.toLocaleString()}</span>
                       </div>
                     </div>
-                    <button onClick={handleOrder} disabled={ordering} className="buy-btn"
-                      style={{ width:'100%', padding:'0.95rem', background: ordering ? 'var(--purple2)' : 'var(--purple)', color:'#fff', border:'none', borderRadius:'12px', fontFamily:'Outfit, sans-serif', fontSize:'0.95rem', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:'0.6rem' }}>
+                    {!hasBalance && (
+                      <div style={{ background:'rgba(244,63,94,0.07)', border:'1px solid rgba(244,63,94,0.2)', borderRadius:'12px', padding:'0.75rem 1rem', fontSize:'0.8rem', color:'#f43f5e', marginBottom:'0.75rem', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <span>Insufficient balance</span>
+                        <Link href="/dashboard/wallet" style={{ color:'#f43f5e', fontWeight:700, textDecoration:'none', fontSize:'0.75rem' }}>Fund Wallet →</Link>
+                      </div>
+                    )}
+                    <button onClick={handleOrder} disabled={ordering || !hasBalance} className="buy-btn"
+                      style={{ width:'100%', padding:'0.95rem', background: !hasBalance ? 'var(--card2)' : ordering ? 'var(--purple2)' : 'var(--purple)', color: !hasBalance ? 'var(--muted)' : '#fff', border:'none', borderRadius:'12px', fontFamily:'Outfit, sans-serif', fontSize:'0.95rem', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:'0.6rem', opacity: !hasBalance ? 0.6 : 1, cursor: ordering || !hasBalance ? 'not-allowed' : 'pointer' }}>
                       {ordering
                         ? <><SpinnerIcon size={18} />Processing...</>
                         : `${isTurbo ? 'Turbo' : 'Boost'} Now — ₦${selectedPackage.price.toLocaleString()}`}
@@ -715,5 +783,14 @@ export default function Boosting() {
 
       {!isDesktop && <BottomNav />}
     </main>
+  )
+}
+function StepBadge({ n, done }) {
+  return (
+    <div style={{ width: 22, height: 22, borderRadius: '50%', background: done ? '#34d399' : 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.3s' }}>
+      {done
+        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        : <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#fff' }}>{n}</span>}
+    </div>
   )
 }

@@ -273,10 +273,13 @@ export default function ProxyPage() {
             <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem', color: 'var(--text)', letterSpacing: '-0.02em' }}>Residential Proxies</div>
             <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.05rem' }}>Real residential IPs · up to {catalog.expiry_hours}h each</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, flexShrink: 0 }}>
+          <Link href="/dashboard/wallet" className="px-link" aria-label="Fund wallet" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.4rem 0.35rem 0.75rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, flexShrink: 0, textDecoration: 'none' }}>
             <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>BAL</span>
             <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.82rem', color: 'var(--gold)' }}>₦{(profile?.wallet_balance || 0).toLocaleString()}</span>
-          </div>
+            <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--purple)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </span>
+          </Link>
         </div>
 
         <div style={{ padding: '1.2rem', maxWidth: 480, margin: '0 auto' }}>
@@ -627,7 +630,7 @@ function ProxyCard({ order, flags, expiryHours, onChanged }) {
   }
 
   const stop = () => {
-    if (window.confirm('Stop this proxy? It will be released and cannot be started again.')) run('stop')
+    if (window.confirm('Stop this proxy? It will be released and cannot be started again. No refund is given for unused time.')) run('stop')
   }
 
   const where = order.state ? `${order.country} · ${order.state}` : order.country

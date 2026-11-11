@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
 import { evaluateAndResolveOrder } from '@/lib/numberOrders'
 import { sweepEmailOrders } from '@/lib/emailOrders'
+import { sweepEsimOrders } from '@/lib/esimOrders'
 import { log } from '@/lib/logger'
 
 const supabaseAdmin = createClient(
@@ -113,5 +114,14 @@ export async function POST(request) {
     await log('error', 'number', `Email OTP sweep failed: ${err.message}`, null, null, { stack: err.stack }).catch(() => {})
   }
 
-  return NextResponse.json({ checked: orders?.length || 0, processed, failed, stuck_resolving: stuck.length, email, results })
+  // eSIM: resolve any order Fleexa had not finished confirming (refund if it failed).
+  let esim = null
+  try {
+    esim = await sweepEsimOrders(supabaseAdmin)
+  } catch (err) {
+    esim = { error: err.message }
+    await log('error', 'number', `eSIM sweep failed: ${err.message}`, null, null, { stack: err.stack }).catch(() => {})
+  }
+
+  return NextResponse.json({ checked: orders?.length || 0, processed, failed, stuck_resolving: stuck.length, email, esim, results })
 }

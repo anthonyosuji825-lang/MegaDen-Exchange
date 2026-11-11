@@ -595,12 +595,12 @@ function AirtimeForm({ profile, bumpBalance }) {
       <Section last>
         <StepHeader n={3} done={price > 0} title="Amount" right={price > 0 ? `₦${price.toLocaleString()}` : null} />
         <Field prefix="₦" value={amount} onChange={e => setAmount(e.target.value)} type="number" inputMode="numeric" placeholder="500" aria-label="Amount in naira" />
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginTop: '0.6rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.7rem' }}>
           {QUICK_AMOUNTS.map(v => {
             const sel = String(amount) === String(v)
             return (
               <button key={v} type="button" className="bl-chip" aria-pressed={sel} onClick={() => setAmount(String(v))}
-                style={{ padding: '0.42rem 0.85rem', borderRadius: 50, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, fontFamily: 'Outfit, sans-serif', background: sel ? 'rgba(108,78,242,0.14)' : 'var(--card)', border: `1.5px solid ${sel ? 'var(--purple)' : 'var(--border)'}`, color: sel ? 'var(--purple2)' : 'var(--text)' }}>
+                style={{ width: '100%', padding: '0.7rem 0.4rem', borderRadius: 12, cursor: 'pointer', fontSize: '0.86rem', fontWeight: 800, fontFamily: 'Outfit, sans-serif', textAlign: 'center', background: sel ? 'rgba(108,78,242,0.14)' : 'var(--card)', border: `1.5px solid ${sel ? 'var(--purple)' : 'var(--border)'}`, boxShadow: sel ? '0 4px 16px rgba(108,78,242,0.18)' : 'none', color: sel ? 'var(--purple2)' : 'var(--text)' }}>
                 ₦{v.toLocaleString()}
               </button>
             )

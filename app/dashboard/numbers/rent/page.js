@@ -50,6 +50,7 @@ export default function RentNumbers() {
   const [ordering, setOrdering] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copiedMsg, setCopiedMsg] = useState(null)
 
   const [rentals, setRentals] = useState([])
   const [loadingRentals, setLoadingRentals] = useState(false)
@@ -220,7 +221,6 @@ export default function RentNumbers() {
         messages: [],
       })
       setSelectedService(null)
-      setSearch('')
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -252,6 +252,13 @@ export default function RentNumbers() {
     try { localStorage.setItem('megaden_rent_tips_dismissed', 'true') } catch {}
   }
 
+  const copyMsg = (i, code) => {
+    if (!code) return
+    navigator.clipboard.writeText(String(code))
+    setCopiedMsg(i)
+    setTimeout(() => setCopiedMsg(null), 1800)
+  }
+
   const copyPhone = () => {
     if (!activeRental?.phone) return
     navigator.clipboard.writeText(activeRental.phone)
@@ -274,6 +281,9 @@ export default function RentNumbers() {
   const selectedPrice = tiers && selectedMonths ? tiers[selectedMonths]?.priceNgn : null
   const hasBalance = selectedPrice !== null && (profile?.wallet_balance || 0) >= (selectedPrice || Infinity)
 
+  const activeRentals = rentals.filter((r) => r.status === 'active')
+  const pastRentals = rentals.filter((r) => r.status !== 'active')
+
   if (pageLoading) return <LoadingScreen />
 
   return (
@@ -293,7 +303,17 @@ export default function RentNumbers() {
         .back-btn { transition: background 0.15s, transform 0.15s; }
         .back-btn:hover { background: var(--card2) !important; transform: translateX(-2px); }
         .copy-btn:hover { transform: scale(1.05); }
-        .number-display { background: linear-gradient(135deg, rgba(108,78,242,0.08) 0%, rgba(192,120,26,0.06) 100%); border: 1px solid rgba(108,78,242,0.25); }
+        .copy-btn:active { transform: scale(0.95); }
+        @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+        @keyframes glow { 0%, 100% { box-shadow: 0 0 12px rgba(108,78,242,0.25); } 50% { box-shadow: 0 0 26px rgba(108,78,242,0.5); } }
+        .skel { background: linear-gradient(90deg, var(--card) 25%, var(--card2) 50%, var(--card) 75%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border: 1px solid var(--border); }
+        .bal-pill { transition: background 0.15s, border-color 0.15s; }
+        .bal-pill:hover { background: var(--card2) !important; border-color: rgba(108,78,242,0.4) !important; }
+        .service-row:hover, .duration-chip:hover, .rental-card:hover { transform: translateY(-2px); }
+        .service-row:active, .duration-chip:active, .rental-card:active { transform: scale(0.98); }
+        .service-row:focus-visible, .duration-chip:focus-visible, .rental-card:focus-visible, .buy-btn:focus-visible, .tab-pill:focus-visible, .copy-btn:focus-visible, .back-btn:focus-visible, .bal-pill:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }
+        .number-display { background: linear-gradient(135deg, rgba(108,78,242,0.08) 0%, rgba(192,120,26,0.06) 100%); border: 1px solid rgba(108,78,242,0.25); animation: glow 3s ease infinite; }
         .service-list::-webkit-scrollbar { width: 6px; }
         .service-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
       `}</style>
@@ -307,17 +327,25 @@ export default function RentNumbers() {
           background: 'rgba(var(--navy-rgb, 10,10,30), 0.92)', backdropFilter: 'blur(20px)',
           borderBottom: '1px solid var(--border)',
         }}>
-          <button onClick={activeRental ? closeRental : selectedService ? () => setSelectedService(null) : undefined} className="back-btn" style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 36, height: 36, borderRadius: '10px',
-            background: 'var(--card)', border: '1px solid var(--border)',
-            color: 'var(--text)', flexShrink: 0, cursor: 'pointer',
-          }}>
-            {activeRental || selectedService
-              ? <BackIcon />
-              : <Link href="/dashboard/numbers" style={{ display: 'flex', color: 'var(--text)' }}><BackIcon /></Link>
-            }
-          </button>
+          {activeRental || selectedService ? (
+            <button onClick={activeRental ? closeRental : () => setSelectedService(null)} className="back-btn" aria-label="Back" style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, borderRadius: '10px',
+              background: 'var(--card)', border: '1px solid var(--border)',
+              color: 'var(--text)', flexShrink: 0, cursor: 'pointer',
+            }}>
+              <BackIcon />
+            </button>
+          ) : (
+            <Link href="/dashboard/numbers" className="back-btn" aria-label="Back to numbers" style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, borderRadius: '10px',
+              background: 'var(--card)', border: '1px solid var(--border)',
+              color: 'var(--text)', textDecoration: 'none', flexShrink: 0,
+            }}>
+              <BackIcon />
+            </Link>
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1rem', color: 'var(--text)', letterSpacing: '-0.02em' }}>
               Rent Numbers
@@ -326,15 +354,18 @@ export default function RentNumbers() {
               Monthly rental · Multiple SMS
             </div>
           </div>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem',
-            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '20px', flexShrink: 0,
+          <Link href="/dashboard/wallet" className="bal-pill" aria-label="Fund wallet" style={{
+            display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.4rem 0.35rem 0.75rem',
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '20px', flexShrink: 0, textDecoration: 'none',
           }}>
             <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>BAL</span>
             <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.82rem', color: 'var(--gold)' }}>
               ₦{(profile?.wallet_balance || 0).toLocaleString()}
             </span>
-          </div>
+            <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--purple)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </span>
+          </Link>
         </div>
 
         <div style={{ padding: '1.2rem', maxWidth: 480, margin: '0 auto' }}>
@@ -420,7 +451,7 @@ export default function RentNumbers() {
                       </span>
                     </div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>
-                      You can receive SMS on this number anytime during the rental period.
+                      You can receive SMS on this number anytime during the rental period. We check for new messages every 25 seconds.
                     </div>
                   </div>
                 ) : (
@@ -434,11 +465,22 @@ export default function RentNumbers() {
                           <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.35rem' }}>{m.from}</div>
                         )}
                         {m.code && (
-                          <div style={{
-                            fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: '1.5rem',
-                            color: 'var(--text)', letterSpacing: '0.12em', marginBottom: '0.35rem',
-                          }}>
-                            {m.code}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', marginBottom: '0.35rem' }}>
+                            <div style={{
+                              fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: '1.5rem',
+                              color: 'var(--text)', letterSpacing: '0.12em', flex: 1, minWidth: 0, wordBreak: 'break-all',
+                            }}>
+                              {m.code}
+                            </div>
+                            <button onClick={() => copyMsg(i, m.code)} className="copy-btn" style={{
+                              display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', flexShrink: 0,
+                              background: copiedMsg === i ? 'rgba(52,211,153,0.12)' : 'var(--card)',
+                              border: `1px solid ${copiedMsg === i ? 'rgba(52,211,153,0.4)' : 'var(--border)'}`,
+                              borderRadius: '10px', cursor: 'pointer',
+                              color: copiedMsg === i ? '#34d399' : 'var(--text)', fontSize: '0.72rem', fontWeight: 600,
+                            }}>
+                              {copiedMsg === i ? <><CheckIcon size={12} color="#34d399" /> Copied</> : <><CopyIcon /> Copy</>}
+                            </button>
                           </div>
                         )}
                         <div style={{ fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.5 }}>{m.text}</div>
@@ -460,18 +502,22 @@ export default function RentNumbers() {
           ) : (
             <>
               {!selectedService && (
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.2rem' }}>
-                  {[{ id: 'buy', label: 'New Rental' }, { id: 'mine', label: 'My Rentals' }].map((t) => (
-                    <button key={t.id} onClick={() => setTab(t.id)} className="tab-pill" style={{
-                      flex: 1, padding: '0.65rem', borderRadius: '12px', cursor: 'pointer',
-                      fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', fontWeight: 700,
-                      background: tab === t.id ? 'var(--purple)' : 'var(--card)',
-                      color: tab === t.id ? '#fff' : 'var(--muted)',
-                      border: `1px solid ${tab === t.id ? 'var(--purple)' : 'var(--border)'}`,
-                    }}>
-                      {t.label}
-                    </button>
-                  ))}
+                <div role="tablist" style={{ display: 'flex', gap: '0.3rem', padding: '0.3rem', marginBottom: '1.3rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14 }}>
+                  {[{ id: 'buy', label: 'New Rental', icon: <PlusIcon /> }, { id: 'mine', label: 'My Rentals', icon: <ClockIcon /> }].map((t) => {
+                    const on = tab === t.id
+                    return (
+                      <button key={t.id} role="tab" aria-selected={on} onClick={() => setTab(t.id)} className="tab-pill" style={{
+                        flex: 1, padding: '0.6rem 0.5rem', borderRadius: 10, cursor: 'pointer',
+                        fontFamily: 'Outfit, sans-serif', fontSize: '0.82rem', fontWeight: 700,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem',
+                        background: on ? 'rgba(108,78,242,0.14)' : 'transparent',
+                        color: on ? 'var(--purple2)' : 'var(--muted)',
+                        border: `1px solid ${on ? 'rgba(108,78,242,0.4)' : 'transparent'}`,
+                      }}>
+                        {t.icon}{t.label}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
 
@@ -516,8 +562,8 @@ export default function RentNumbers() {
                       </div>
 
                       {loadingServices ? (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '2rem', color: 'var(--muted)', fontSize: '0.82rem' }}>
-                          <Spinner /> Loading services…
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                          {[0, 1, 2, 3].map((i) => <div key={i} className="skel" style={{ height: 112, borderRadius: 16 }} />)}
                         </div>
                       ) : servicesError ? (
                         <ErrorBanner>{servicesError}</ErrorBanner>
@@ -530,18 +576,22 @@ export default function RentNumbers() {
                         // of cards fits better than a search-through-hundreds list.
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
                           {services.map((s) => (
-                            <button key={s.appName} className="service-row duration-chip" onClick={() => setSelectedService(s)} style={{
-                              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.3rem',
+                            <button key={s.appName} className="service-row" onClick={() => setSelectedService(s)} style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.7rem',
                               padding: '1rem', background: 'var(--card)', border: '1px solid var(--border)',
-                              borderRadius: '14px', cursor: 'pointer', textAlign: 'left',
+                              borderRadius: '16px', cursor: 'pointer', textAlign: 'left', minWidth: 0,
+                              animation: mounted ? 'fadeSlideIn 0.3s ease both' : 'none',
                             }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                                <ServiceIcon appName={s.appName} />
-                                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text)' }}>
+                              <ServiceIcon appName={s.appName} size={42} />
+                              <div style={{ minWidth: 0, width: '100%' }}>
+                                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text)', textTransform: 'capitalize', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                   {s.description || s.appName}
-                                </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.66rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399' }} />
+                                  Available to rent
+                                </div>
                               </div>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>Confirmed rentable</span>
                             </button>
                           ))}
                         </div>
@@ -550,17 +600,23 @@ export default function RentNumbers() {
                   ) : (
                     /* ── STEP: duration + confirm, for the selected service ── */
                     <div style={{ animation: 'scaleIn 0.3s ease both' }}>
-                      <div style={{
-                        display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.9rem 1rem',
-                        background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px', marginBottom: '1.2rem',
-                      }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', marginBottom: '0.85rem' }}>
                         <StepBadge n={2} done />
-                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text)', textTransform: 'capitalize', flex: 1 }}>
-                          {selectedService.appName}
-                        </span>
-                        <button onClick={() => setSelectedService(null)} style={{
-                          background: 'none', border: 'none', color: 'var(--purple)', fontSize: '0.75rem',
-                          fontWeight: 700, cursor: 'pointer',
+                        <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)' }}>Service</span>
+                      </div>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 0.85rem', marginBottom: '1.4rem',
+                        background: 'rgba(108,78,242,0.08)', border: '1.5px solid var(--purple)', borderRadius: '14px',
+                        boxShadow: '0 4px 16px rgba(108,78,242,0.18)', animation: 'scaleIn 0.25s ease both',
+                      }}>
+                        <ServiceIcon appName={selectedService.appName} size={36} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text)', textTransform: 'capitalize', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedService.appName}</div>
+                          <div style={{ fontSize: '0.66rem', color: 'var(--muted)', marginTop: '0.05rem' }}>{country.flag} {country.name} number</div>
+                        </div>
+                        <button onClick={() => setSelectedService(null)} className="bal-pill" style={{
+                          padding: '0.4rem 0.8rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '10px',
+                          color: 'var(--text)', fontSize: '0.74rem', fontWeight: 600, fontFamily: 'Outfit, sans-serif', cursor: 'pointer',
                         }}>
                           Change
                         </button>
@@ -574,8 +630,14 @@ export default function RentNumbers() {
                       </div>
 
                       {loadingTiers ? (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '2rem', color: 'var(--muted)', fontSize: '0.82rem' }}>
-                          <Spinner /> Checking availability…
+                        <div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                            {[0, 1].map((i) => <div key={i} className="skel" style={{ height: 84, borderRadius: 14 }} />)}
+                            <div className="skel" style={{ height: 84, borderRadius: 14, gridColumn: '1 / -1' }} />
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.9rem', color: 'var(--muted)', fontSize: '0.76rem' }}>
+                            <Spinner /> Checking availability…
+                          </div>
                         </div>
                       ) : tiersError ? (
                         <div style={{ animation: 'fadeSlideIn 0.3s ease both' }}>
@@ -604,21 +666,34 @@ export default function RentNumbers() {
                             {Object.entries(tiers).map(([months, tier]) => {
                               const m = Number(months)
                               const isSelected = selectedMonths === m
+                              const base = tiers[1]?.priceNgn
+                              const save = base && m > 1 ? Math.round((1 - tier.priceNgn / (base * m)) * 100) : 0
+                              const perMo = Math.round(tier.priceNgn / m)
                               return (
-                                <button key={m} className="duration-chip" onClick={() => setSelectedMonths(m)} style={{
-                                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem',
-                                  padding: '0.8rem 1rem',
+                                <button key={m} className="duration-chip" aria-pressed={isSelected} onClick={() => setSelectedMonths(m)} style={{
+                                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem',
+                                  padding: '0.9rem 1rem', minWidth: 0,
                                   background: isSelected ? 'rgba(108,78,242,0.1)' : 'var(--card)',
                                   border: `1.5px solid ${isSelected ? 'var(--purple)' : 'var(--border)'}`,
-                                  borderRadius: '12px', cursor: 'pointer', textAlign: 'left',
+                                  boxShadow: isSelected ? '0 4px 16px rgba(108,78,242,0.18)' : 'none',
+                                  borderRadius: '14px', cursor: 'pointer', textAlign: 'left',
                                   gridColumn: m === 12 ? '1 / -1' : 'auto',
                                 }}>
-                                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)' }}>
-                                    {MONTH_LABELS[m] || `${m} months`}
-                                  </span>
-                                  <span style={{ fontSize: '0.72rem', color: 'var(--gold)', fontWeight: 600 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '100%' }}>
+                                    <span style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0, border: `2px solid ${isSelected ? 'var(--purple)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      {isSelected && <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--purple)' }} />}
+                                    </span>
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)' }}>
+                                      {MONTH_LABELS[m] || `${m} months`}
+                                    </span>
+                                    {save > 0 && (
+                                      <span style={{ marginLeft: 'auto', padding: '0.1rem 0.45rem', borderRadius: 99, background: 'rgba(52,211,153,0.12)', color: '#34d399', fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Save {save}%</span>
+                                    )}
+                                  </div>
+                                  <span style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1rem', color: 'var(--gold)', fontWeight: 800, marginTop: '0.15rem' }}>
                                     ₦{tier.priceNgn.toLocaleString()}
                                   </span>
+                                  {m > 1 && <span style={{ fontSize: '0.66rem', color: 'var(--muted)' }}>≈ ₦{perMo.toLocaleString()} / month</span>}
                                 </button>
                               )
                             })}
@@ -631,7 +706,13 @@ export default function RentNumbers() {
                                   Order Summary
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                                  <SummaryRow label="Service"><span style={{ textTransform: 'capitalize' }}>{selectedService.appName}</span></SummaryRow>
+                                  <SummaryRow label="Service">
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', textTransform: 'capitalize' }}>
+                                      <ServiceIcon appName={selectedService.appName} size={18} />
+                                      {selectedService.appName}
+                                    </span>
+                                  </SummaryRow>
+                                  <SummaryRow label="Country">{country.flag} {country.name}</SummaryRow>
                                   <SummaryRow label="Duration">{MONTH_LABELS[selectedMonths] || `${selectedMonths} months`}</SummaryRow>
                                   <SummaryRow label="Balance">
                                     <span style={{ color: hasBalance ? '#10b981' : '#f43f5e', fontWeight: 700 }}>
@@ -644,6 +725,10 @@ export default function RentNumbers() {
                                       ₦{selectedPrice?.toLocaleString()}
                                     </span>
                                   </SummaryRow>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--border)', fontSize: '0.7rem', color: 'var(--muted)' }}>
+                                  <span style={{ color: '#f0b429', display: 'flex' }}><WarnIcon /></span>
+                                  Rentals can’t be cancelled or refunded once purchased.
                                 </div>
                               </div>
 
@@ -688,48 +773,32 @@ export default function RentNumbers() {
                 /* ── MY RENTALS LIST ── */
                 <div style={{ animation: 'fadeSlideIn 0.3s ease both' }}>
                   {loadingRentals ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '2.5rem', color: 'var(--muted)', fontSize: '0.82rem' }}>
-                      <Spinner /> Loading your rentals…
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                      {[0, 1, 2].map((i) => <div key={i} className="skel" style={{ height: 72, borderRadius: 16 }} />)}
                     </div>
                   ) : rentals.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
-                      You haven't rented any numbers yet.
+                    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: '2.5rem 1.2rem', textAlign: 'center' }}>
+                      <div style={{ width: 64, height: 64, borderRadius: 20, margin: '0 auto 1rem', background: 'rgba(108,78,242,0.1)', border: '1px solid rgba(108,78,242,0.25)', color: 'var(--purple2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <PhoneIcon />
+                      </div>
+                      <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text)', marginBottom: '0.3rem' }}>No rentals yet</div>
+                      <div style={{ color: 'var(--muted)', fontSize: '0.8rem', marginBottom: '1.1rem', lineHeight: 1.5 }}>Rent a number to receive SMS anytime, for a month or more.</div>
+                      <button onClick={() => setTab('buy')} className="buy-btn" style={{ padding: '0.7rem 1.5rem', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 12, fontSize: '0.85rem', fontWeight: 700, fontFamily: 'Outfit, sans-serif', cursor: 'pointer' }}>Rent a number</button>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                      {rentals.map((r) => {
-                        const days = daysRemaining(r.expires_at)
-                        return (
-                          <button key={r.order_id} onClick={() => openRental(r)} className="rental-card" style={{
-                            display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '0.9rem 1rem',
-                            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '14px',
-                            cursor: 'pointer', textAlign: 'left',
-                          }}>
-                            <div style={{
-                              width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                              background: r.status === 'active' ? '#34d399' : r.status === 'expired' ? '#f43f5e' : 'var(--muted)',
-                            }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)' }}>
-                                {r.phone || '—'}
-                              </div>
-                              <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.1rem', textTransform: 'capitalize' }}>
-                                {r.plan_name} · {r.months}mo · {r.message_count} message{r.message_count === 1 ? '' : 's'}
-                              </div>
-                            </div>
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: r.status === 'active' ? '#34d399' : 'var(--muted)', textTransform: 'capitalize' }}>
-                                {r.status}
-                              </div>
-                              {days !== null && r.status === 'active' && (
-                                <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginTop: '0.1rem' }}>
-                                  {days}d left
-                                </div>
-                              )}
-                            </div>
-                          </button>
-                        )
-                      })}
+                      {activeRentals.length > 0 && (
+                        <>
+                          <MiniLabel>Active · {activeRentals.length}</MiniLabel>
+                          {activeRentals.map((r) => <RentalCard key={r.order_id} r={r} days={daysRemaining(r.expires_at)} onOpen={() => openRental(r)} />)}
+                        </>
+                      )}
+                      {pastRentals.length > 0 && (
+                        <>
+                          <div style={{ marginTop: activeRentals.length ? '0.4rem' : 0 }}><MiniLabel>History</MiniLabel></div>
+                          {pastRentals.map((r) => <RentalCard key={r.order_id} r={r} days={daysRemaining(r.expires_at)} onOpen={() => openRental(r)} />)}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -766,11 +835,13 @@ function SummaryRow({ label, children, bold }) {
 }
 function ErrorBanner({ children }) {
   return (
-    <div style={{
+    <div role="alert" style={{
       background: 'rgba(244,63,94,0.07)', border: '1px solid rgba(244,63,94,0.2)',
-      borderRadius: '12px', padding: '0.9rem 1rem', fontSize: '0.8rem', color: '#f43f5e', textAlign: 'center',
+      borderRadius: '12px', padding: '0.8rem 1rem', fontSize: '0.8rem', color: '#f43f5e',
+      display: 'flex', alignItems: 'flex-start', gap: '0.55rem', lineHeight: 1.45,
     }}>
-      {children}
+      <span style={{ flexShrink: 0, marginTop: '0.1rem', display: 'flex' }}><InfoIcon size={15} color="#f43f5e" /></span>
+      <span>{children}</span>
     </div>
   )
 }
@@ -821,15 +892,14 @@ function fallbackColorFor(name) {
   return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length]
 }
 
-function ServiceIcon({ appName }) {
+function ServiceIcon({ appName, size = 34 }) {
   const key = (appName || '').toLowerCase()
   const brand = BRAND_ICONS[key]
-  const size = 34
 
   if (brand) {
     return (
       <div style={{
-        width: size, height: size, borderRadius: '10px', background: brand.color, flexShrink: 0,
+        width: size, height: size, borderRadius: Math.round(size * 0.3), background: brand.color, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="#fff"><path d={brand.path} /></svg>
@@ -843,10 +913,61 @@ function ServiceIcon({ appName }) {
   const initial = (appName || '?').trim().charAt(0).toUpperCase()
   return (
     <div style={{
-      width: size, height: size, borderRadius: '10px', background: fallbackColorFor(key || '?'), flexShrink: 0,
+      width: size, height: size, borderRadius: Math.round(size * 0.3), background: fallbackColorFor(key || '?'), flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <span style={{ color: '#fff', fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '0.95rem' }}>{initial}</span>
+      <span style={{ color: '#fff', fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: Math.round(size * 0.46) }}>{initial}</span>
     </div>
   )
 }
+function MiniLabel({ children }) {
+  return <div style={{ fontSize: '0.62rem', color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, margin: '0 0 0.1rem 0.15rem' }}>{children}</div>
+}
+function RentalCard({ r, days, onOpen }) {
+  const isActive = r.status === 'active'
+  const total = (r.months || 1) * 30
+  const pct = isActive && days !== null ? Math.max(0, Math.min(100, (days / total) * 100)) : 0
+  const low = isActive && days !== null && days < 3
+  const badge = isActive
+    ? { t: 'Active', c: '#34d399', bg: 'rgba(52,211,153,0.12)' }
+    : r.status === 'expired'
+      ? { t: 'Expired', c: '#f43f5e', bg: 'rgba(244,63,94,0.1)' }
+      : { t: r.status, c: 'var(--muted)', bg: 'var(--card2)' }
+  return (
+    <button onClick={onOpen} className="rental-card" style={{
+      display: 'flex', flexDirection: 'column', gap: '0.7rem', padding: '0.9rem 1rem', width: '100%',
+      background: isActive ? 'linear-gradient(135deg, rgba(108,78,242,0.08) 0%, rgba(70,135,255,0.04) 100%)' : 'var(--card)',
+      border: `1px solid ${isActive ? 'rgba(108,78,242,0.25)' : 'var(--border)'}`, borderRadius: '16px',
+      cursor: 'pointer', textAlign: 'left', opacity: isActive ? 1 : 0.8, animation: 'fadeSlideIn 0.3s ease both',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <ServiceIcon appName={r.plan_name} size={38} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.92rem', fontWeight: 800, color: 'var(--text)' }}>{r.phone || '—'}</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.1rem', textTransform: 'capitalize' }}>
+            {r.plan_name} · {r.months}mo · {r.message_count} message{r.message_count === 1 ? '' : 's'}
+          </div>
+        </div>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.2rem 0.65rem', borderRadius: 50, background: badge.bg, color: badge.c, fontSize: '0.68rem', fontWeight: 700, flexShrink: 0, textTransform: 'capitalize' }}>
+          {isActive && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', animation: 'pulse 1.6s ease infinite' }} />}
+          {badge.t}
+        </span>
+      </div>
+      {isActive && days !== null && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.66rem', color: low ? '#f43f5e' : 'var(--muted)', marginBottom: '0.3rem' }}>
+            <span>{days} day{days === 1 ? '' : 's'} left</span>
+            <span>Tap to view messages →</span>
+          </div>
+          <div style={{ height: 3, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 99, background: low ? '#f43f5e' : 'var(--purple)', width: `${pct}%` }} />
+          </div>
+        </div>
+      )}
+    </button>
+  )
+}
+function PlusIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> }
+function ClockIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> }
+function WarnIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> }
+function PhoneIcon() { return <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg> }

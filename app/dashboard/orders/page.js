@@ -56,6 +56,7 @@ export default function Orders() {
     if (type === 'number_rental') return <CalendarIcon />
     if (type === 'email_otp') return <MailIcon />
     if (type === 'proxy') return <GlobeIcon />
+    if (type === 'esim') return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M7 2h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><rect x="9" y="12" width="6" height="6" rx="1"/></svg>
     return <PackageIcon />
   }
 
@@ -66,6 +67,7 @@ export default function Orders() {
     if (type === 'number_rental') return '#2dd4bf'
     if (type === 'email_otp') return '#4687ff'
     if (type === 'proxy') return '#2dd4bf'
+    if (type === 'esim') return '#a78bfa'
     return 'var(--muted)'
   }
 
@@ -80,7 +82,7 @@ export default function Orders() {
 
   // Raw status/type codes shouldn't leak into the UI ("Unresolved_billing", "Number_rental").
   const statusLabel = (status) => status === 'unresolved_billing' ? 'under review' : status
-  const typeLabel = (type) => type === 'number_rental' ? 'Number rental' : type === 'email_otp' ? 'Email OTP' : type === 'proxy' ? 'Residential proxy' : (type || 'Service')
+  const typeLabel = (type) => type === 'number_rental' ? 'Number rental' : type === 'email_otp' ? 'Email OTP' : type === 'proxy' ? 'Residential proxy' : type === 'esim' ? 'Travel eSIM' : (type || 'Service')
 
   return (
     <main style={{ background: 'var(--navy)', minHeight: '100vh', display: isDesktop ? 'flex' : 'block' }}>
@@ -183,6 +185,11 @@ export default function Orders() {
                   {order.product_type === 'number_rental' && (
                     <Link href="/dashboard/numbers/rent?tab=mine" style={{ display: 'inline-block', marginTop: '0.6rem', fontSize: '0.74rem', fontWeight: 600, color: 'var(--purple2)', textDecoration: 'none' }}>
                       View number and messages →
+                    </Link>
+                  )}
+                  {order.product_type === 'esim' && (
+                    <Link href="/dashboard/esim" style={{ display: 'inline-block', marginTop: '0.6rem', fontSize: '0.74rem', fontWeight: 600, color: 'var(--purple2)', textDecoration: 'none' }}>
+                      Manage eSIM →
                     </Link>
                   )}
                   {order.product_type === 'proxy' && (

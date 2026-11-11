@@ -100,8 +100,8 @@ export default function SpendTierCard({ totalSpent = 0, variant = 'full' }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [open])
 
-  const cardClass = `stc-card stc-${tier.key}${levelUp ? ' stc-levelup' : ''}`
-  const pad = compact ? '0.65rem 1rem' : stacked ? '0.7rem 0.85rem' : '1rem 1.1rem'
+  const cardClass = `stc-card stc-${tier.key}${stacked ? ' stc-subtle' : ''}${levelUp ? ' stc-levelup' : ''}`
+  const pad = compact ? '0.65rem 1rem' : stacked ? '0.9rem 1.1rem' : '1rem 1.1rem'
 
   return (
     <>
@@ -133,6 +133,9 @@ export default function SpendTierCard({ totalSpent = 0, variant = 'full' }) {
         .stc-toast{position:absolute;left:50%;top:6px;transform:translateX(-50%);z-index:5;white-space:nowrap;
           background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.3);
           border-radius:99px;padding:.18rem .6rem;font-size:.6rem;font-weight:800;letter-spacing:.4px;animation:stcToast 4.5s ease forwards}
+        .stc-subtle{animation:stcGlowSoft 4s ease-in-out infinite}
+        .stc-subtle .stc-shine{opacity:.5}
+        @keyframes stcGlowSoft{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 12px 0 var(--stc-glow)}}
         @keyframes stcGlow{0%,100%{box-shadow:0 0 0 0 transparent,0 6px 22px -10px var(--stc-glow)}50%{box-shadow:0 0 18px 1px var(--stc-glow),0 6px 22px -8px var(--stc-glow)}}
         @keyframes stcShine{0%,55%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
         @keyframes stcOrb{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.35);opacity:1}}
@@ -159,30 +162,27 @@ export default function SpendTierCard({ totalSpent = 0, variant = 'full' }) {
         className={cardClass}
         onClick={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true) } }}
-        style={{ background: tier.bg, padding: pad, '--stc-glow': tier.glow, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compact ? '0.22rem' : stacked ? '0.2rem' : '0.45rem', gridColumn: variant === 'full' ? '1 / -1' : undefined }}
+        style={{ background: stacked ? 'var(--card)' : tier.bg, color: stacked ? 'var(--text)' : undefined, border: stacked ? `1px solid ${tier.mid}55` : undefined, padding: pad, '--stc-glow': tier.glow, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: compact ? '0.22rem' : stacked ? '0.3rem' : '0.45rem', gridColumn: variant === 'full' ? '1 / -1' : undefined }}
       >
         <div className="stc-orb" />
-        <Particles count={stacked ? Math.min(tier.particles, 4) : compact ? Math.min(tier.particles, 6) : tier.particles} fx={tier.fx} accent={tier.accent} />
+        <Particles count={stacked ? Math.min(tier.particles, 2) : compact ? Math.min(tier.particles, 6) : tier.particles} fx={tier.fx} accent={stacked ? tier.mid : tier.accent} />
         <div className="stc-shine" />
-        {levelUp && <div className="stc-toast" style={{ color: tier.accent }}>🎉 {tier.name} TIER UNLOCKED</div>}
+        {levelUp && <div className="stc-toast" style={{ color: stacked ? '#fff' : tier.accent }}>🎉 {tier.name} TIER UNLOCKED</div>}
 
         {stacked ? (
           <>
-            <div style={{ position: 'relative', zIndex: 2, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.72)', lineHeight: 1.2 }}>Total Spent</div>
-            <div style={{ position: 'relative', zIndex: 2, fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.3rem', letterSpacing: -0.5, lineHeight: 1.1, textShadow: '0 1px 8px rgba(0,0,0,0.35)' }}>
+            <div style={{ position: 'relative', zIndex: 2, fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--muted)' }}>Total Spent</div>
+            <div style={{ position: 'relative', zIndex: 2, fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.35rem', letterSpacing: -0.5, lineHeight: 1.15 }}>
               {formatNaira(shown)}
             </div>
-            <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.3rem', marginTop: '0.1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', minWidth: 0 }}>
-                <span className="stc-icon" style={{ display: 'flex' }}><TierIcon name={tier.icon} size={12} color={tier.accent} /></span>
-                <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '0.66rem', color: tier.accent, letterSpacing: 0.2 }}>{tier.name}</span>
-              </div>
-              <span style={{ fontSize: '0.54rem', fontWeight: 700, color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' }}>
-                {next ? `${formatNairaShort(remaining)} to ${next.name}` : 'Max 👑'}
+            <div style={{ position: 'relative', zIndex: 2, display: 'flex' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.28rem', background: tier.bg, border: `1px solid ${tier.accent}66`, borderRadius: 99, padding: '0.12rem 0.55rem 0.12rem 0.38rem' }}>
+                <span className="stc-icon" style={{ display: 'flex' }}><TierIcon name={tier.icon} size={11} color={tier.accent} /></span>
+                <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '0.62rem', color: tier.accent, letterSpacing: 0.3 }}>{tier.name}</span>
               </span>
             </div>
-            <div className="stc-bar" style={{ position: 'relative', zIndex: 2, height: 5, marginTop: '0.1rem' }}>
-              <div className="stc-fill" style={{ width: `${barPct}%`, background: `linear-gradient(90deg,${tier.accent}aa,${tier.accent})` }} />
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: 'rgba(128,128,128,0.2)', zIndex: 2 }}>
+              <div className="stc-fill" style={{ width: `${barPct}%`, background: tier.mid, borderRadius: 0 }} />
             </div>
           </>
         ) : (

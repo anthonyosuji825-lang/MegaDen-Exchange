@@ -216,6 +216,9 @@ export default function BuyNumbers() {
   const [countdown, setCountdown] = useState(0)
   const [copied, setCopied] = useState(false)
   const [servicePage, setServicePage] = useState(0)
+  const [servicePct, setServicePct] = useState(0)
+  const [copiedCode, setCopiedCode] = useState(false)
+  const [sortMode, setSortMode] = useState('best')
   const [smsStatus, setSmsStatus] = useState(null)
   const [isDesktop, setIsDesktop] = useState(false)
 
@@ -252,6 +255,8 @@ export default function BuyNumbers() {
   // every time either of those changes (e.g. on a mid-flight reissue).
   const purchasedRef = useRef(null)
   useEffect(() => { purchasedRef.current = purchased }, [purchased])
+  const step2Ref = useRef(null)
+  const summaryRef = useRef(null)
 
   useEffect(() => {
     setMounted(true)
@@ -430,8 +435,22 @@ export default function BuyNumbers() {
   const handleServiceSelect = (service) => {
     setSelectedService(service)
     setSelectedCountry(null)
+    setSearch('')
     fetchCountries(service.id)
   }
+
+  // Gently bring the next step into view as the user progresses.
+  useEffect(() => {
+    if (!selectedService) return
+    const t = setTimeout(() => step2Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 160)
+    return () => clearTimeout(t)
+  }, [selectedService?.id])
+
+  useEffect(() => {
+    if (!selectedCountry) return
+    const t = setTimeout(() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 140)
+    return () => clearTimeout(t)
+  }, [selectedCountry?.code])
 
   const handleOrder = async () => {
     if (!selectedCountry || !selectedService || !user || orderingRef.current) return
@@ -526,16 +545,37 @@ export default function BuyNumbers() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const copyCode = (code) => {
+    if (!code) return
+    navigator.clipboard.writeText(String(code))
+    setCopiedCode(true)
+    setTimeout(() => setCopiedCode(false), 2000)
+  }
+
+  const handleServiceScroll = (e) => {
+    const el = e.currentTarget
+    const max = el.scrollWidth - el.clientWidth
+    setServicePct(max > 0 ? el.scrollLeft / max : 0)
+    setServicePage(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
+  }
+
   const formatCountdown = (s) => {
     const m = Math.floor(s / 60)
     const sec = s % 60
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
 
-  const filtered = countries.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.code.toLowerCase().includes(search.toLowerCase())
-  )
+  // USA has the highest success rate, so it leads the list (unless sorting by price).
+  const isUSA = (c) => /^(us|usa)$/i.test(c.code || '') || /united states|^usa$/i.test(c.name || '')
+  const filtered = countries
+    .filter(c =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.code.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => sortMode === 'cheap'
+      ? (a.price_ngn ?? Infinity) - (b.price_ngn ?? Infinity)
+      : (isUSA(b) ? 1 : 0) - (isUSA(a) ? 1 : 0))
+  const servicePages = Math.max(1, Math.ceil(Math.ceil(services.length / 2) / 4))
 
   const hasBalance = (profile?.wallet_balance || 0) >= (selectedCountry?.price_ngn || 0)
 
@@ -594,7 +634,14 @@ export default function BuyNumbers() {
         .search-input:focus { border-color: var(--purple) !important; box-shadow: 0 0 0 3px rgba(108,78,242,0.12); }
         .progress-ring { transform: rotate(-90deg); transform-origin: 50% 50%; }
         .number-display { background: linear-gradient(135deg, rgba(108,78,242,0.08) 0%, rgba(192,120,26,0.06) 100%); border: 1px solid rgba(108,78,242,0.25); animation: glow 3s ease infinite; }
+        @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(52,211,153,0.45); } 100% { box-shadow: 0 0 0 22px rgba(52,211,153,0); } }
+        .bal-pill { transition: background 0.15s, border-color 0.15s; }
+        .bal-pill:hover { background: var(--card2) !important; border-color: rgba(108,78,242,0.4) !important; }
+        .sort-btn { transition: background 0.15s, border-color 0.15s, color 0.15s; }
+        .skel { background: linear-gradient(90deg, var(--card) 25%, var(--card2) 50%, var(--card) 75%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border: 1px solid var(--border); }
+        .service-chip:focus-visible, .country-card:focus-visible, .buy-btn:focus-visible, .copy-btn:focus-visible, .cancel-btn:focus-visible, .sort-btn:focus-visible, .bal-pill:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
         @media (max-width: 380px) { .country-grid { grid-template-columns: 1fr !important; } }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }
       `}</style>
 
       {isDesktop && <DesktopSidebar profile={profile} onLogout={handleLogout} />}
@@ -625,17 +672,20 @@ export default function BuyNumbers() {
             Instant delivery · 20-min window
           </div>
         </div>
-        <div style={{
+        <Link href="/dashboard/wallet" className="bal-pill" aria-label="Fund wallet" style={{
           display: 'flex', alignItems: 'center', gap: '0.4rem',
-          padding: '0.35rem 0.75rem',
+          padding: '0.35rem 0.4rem 0.35rem 0.75rem',
           background: 'var(--card)', border: '1px solid var(--border)',
-          borderRadius: '20px', flexShrink: 0,
+          borderRadius: '20px', flexShrink: 0, textDecoration: 'none',
         }}>
           <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>BAL</span>
           <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.82rem', color: 'var(--gold)' }}>
             ₦{(profile?.wallet_balance || 0).toLocaleString()}
           </span>
-        </div>
+          <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--purple)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          </span>
+        </Link>
       </div>
 
       <div style={{ padding: '1.2rem', maxWidth: 480, margin: '0 auto' }}>
@@ -741,11 +791,22 @@ export default function BuyNumbers() {
                         <div style={{ fontSize: '0.65rem', color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
                           Verification Code
                         </div>
-                        <div style={{
-                          fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: '2rem',
-                          color: 'var(--text)', letterSpacing: '0.15em',
-                        }}>
-                          {s.code}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+                          <div style={{
+                            fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: '2rem',
+                            color: 'var(--text)', letterSpacing: '0.15em', flex: 1, minWidth: 0, wordBreak: 'break-all',
+                          }}>
+                            {s.code}
+                          </div>
+                          <button onClick={() => copyCode(s.code)} className="copy-btn" style={{
+                            display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', flexShrink: 0,
+                            background: copiedCode ? 'rgba(52,211,153,0.12)' : 'var(--card)',
+                            border: `1px solid ${copiedCode ? 'rgba(52,211,153,0.4)' : 'var(--border)'}`,
+                            borderRadius: '10px', cursor: 'pointer',
+                            color: copiedCode ? '#34d399' : 'var(--text)', fontSize: '0.75rem', fontWeight: 600,
+                          }}>
+                            {copiedCode ? <><CheckIcon size={12} color="#34d399" /> Copied</> : <><CopyIcon /> Copy</>}
+                          </button>
                         </div>
                       </div>
                     )}
@@ -863,14 +924,7 @@ export default function BuyNumbers() {
               <div style={{ position: 'relative' }}>
                 <div
                   className="service-grid"
-                  ref={el => {
-                    if (el) {
-                      el.onscroll = () => {
-                        const page = Math.round(el.scrollLeft / el.clientWidth)
-                        setServicePage(page)
-                      }
-                    }
-                  }}
+                  onScroll={handleServiceScroll}
                   style={{
                     display: 'grid', gridTemplateRows: 'repeat(2, 1fr)',
                     gridAutoFlow: 'column', gridAutoColumns: 'calc(25% - 0.38rem)',
@@ -912,7 +966,7 @@ export default function BuyNumbers() {
               {/* Page dots */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem', marginTop: '0.5rem' }}>
                 <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
-                  {[0, 1, 2, 3].map(i => (
+                  {Array.from({ length: servicePages }).map((_, i) => (
                     <div key={i} style={{
                       width: servicePage === i ? 16 : 6,
                       height: 6, borderRadius: 99,
@@ -922,14 +976,14 @@ export default function BuyNumbers() {
                   ))}
                 </div>
                 <span style={{ fontSize: '0.6rem', color: 'var(--muted)', letterSpacing: '0.04em' }}>
-                  Swipe to see more services →
+                  {servicePct > 0.98 ? 'That’s everything ←' : 'Swipe to see more services →'}
                 </span>
               </div>
             </div>
 
             {/* ── STEP 2: COUNTRY SELECTION ── */}
             {selectedService && (
-              <div style={{ marginBottom: '1.5rem', animation: 'fadeSlideIn 0.35s ease both' }}>
+              <div ref={step2Ref} style={{ marginBottom: '1.5rem', scrollMarginTop: 84, animation: 'fadeSlideIn 0.35s ease both' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', marginBottom: '0.85rem' }}>
                   <StepBadge n={2} done={!!selectedCountry} />
                   <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)' }}>
@@ -988,20 +1042,37 @@ export default function BuyNumbers() {
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     style={{
-                      width: '100%', padding: '0.7rem 1rem 0.7rem 2.4rem',
+                      width: '100%', padding: '0.7rem 2.4rem 0.7rem 2.4rem',
                       background: 'var(--card)', border: '1px solid var(--border)',
                       borderRadius: '12px', color: 'var(--text)', fontSize: '0.85rem',
                       outline: 'none', fontFamily: 'Inter, sans-serif',
                       transition: 'border-color 0.2s, box-shadow 0.2s',
                     }} />
+                  {search && (
+                    <button onClick={() => setSearch('')} aria-label="Clear search"
+                      style={{ position: 'absolute', right: '0.55rem', top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, borderRadius: '50%', border: 'none', background: 'var(--card2)', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', lineHeight: 1 }}>×</button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                  <span style={{ fontSize: '0.62rem', color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, marginRight: '0.2rem' }}>Sort</span>
+                  {[{ id: 'best', label: 'Best match' }, { id: 'cheap', label: 'Cheapest' }].map(o => {
+                    const on = sortMode === o.id
+                    return (
+                      <button key={o.id} onClick={() => setSortMode(o.id)} className="sort-btn" aria-pressed={on}
+                        style={{ padding: '0.35rem 0.8rem', borderRadius: 50, cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, background: on ? 'rgba(108,78,242,0.14)' : 'var(--card)', border: `1.5px solid ${on ? 'var(--purple)' : 'var(--border)'}`, color: on ? 'var(--purple2)' : 'var(--muted)' }}>
+                        {o.label}
+                      </button>
+                    )
+                  })}
+                  {!loadingCountries && countries.length > 0 && (
+                    <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--muted)' }}>{filtered.length} {filtered.length === 1 ? 'country' : 'countries'}</span>
+                  )}
                 </div>
 
                 {loadingCountries ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '2.5rem', color: 'var(--muted)', fontSize: '0.82rem' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                    </svg>
-                    Loading countries…
+                  <div className="country-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                    {Array.from({ length: 8 }).map((_, i) => <div key={i} className="skel" style={{ height: 54, borderRadius: 12 }} />)}
                   </div>
                 ) : (
                   <div className="country-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', maxHeight: 340, overflowY: 'auto', paddingRight: 2 }}>
@@ -1016,6 +1087,7 @@ export default function BuyNumbers() {
                             background: isSelected ? 'rgba(108,78,242,0.1)' : 'var(--card)',
                             border: `1.5px solid ${isSelected ? 'var(--purple)' : 'var(--border)'}`,
                             borderRadius: '12px', cursor: 'pointer', textAlign: 'left',
+                            boxShadow: isSelected ? '0 4px 16px rgba(108,78,242,0.18)' : 'none',
                             animation: mounted ? `fadeSlideIn 0.3s ease ${Math.min(i * 0.025, 0.25)}s both` : 'none',
                           }}>
                           <span style={{ fontSize: '1.3rem', lineHeight: 1, flexShrink: 0 }}>{c.flag}</span>
@@ -1025,6 +1097,9 @@ export default function BuyNumbers() {
                             </div>
                             <div style={{ fontSize: '0.67rem', color: 'var(--gold)', fontWeight: 700, marginTop: '0.1rem' }}>
                               ₦{c.price_ngn?.toLocaleString()}
+                              {isUSA(c) && sortMode === 'best' && (
+                                <span style={{ marginLeft: '0.4rem', fontSize: '0.55rem', fontWeight: 800, color: '#34d399', letterSpacing: '0.04em', textTransform: 'uppercase' }}>· Best success</span>
+                              )}
                               {c.provider === 'fleexa_sms6' && (
                                 <span style={{ marginLeft: '0.4rem', fontSize: '0.58rem', fontWeight: 600, color: 'var(--muted)' }}>· lower success rate</span>
                               )}
@@ -1048,7 +1123,7 @@ export default function BuyNumbers() {
 
             {/* ── ORDER SUMMARY + BUY ── */}
             {selectedCountry && selectedService && (
-              <div style={{ animation: 'scaleIn 0.3s ease both' }}>
+              <div ref={summaryRef} style={{ scrollMarginTop: 84, animation: 'scaleIn 0.3s ease both' }}>
                 <div style={{
                   background: 'var(--card)', border: '1px solid var(--border)',
                   borderRadius: '16px', padding: '1rem', marginBottom: '0.75rem',
@@ -1077,6 +1152,12 @@ export default function BuyNumbers() {
                         ₦{selectedCountry.price_ngn?.toLocaleString()}
                       </span>
                     </SummaryRow>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--border)', fontSize: '0.7rem', color: 'var(--muted)' }}>
+                    <span style={{ color: '#34d399', display: 'flex' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                    </span>
+                    Auto-refunded to your wallet if no SMS arrives.
                   </div>
                 </div>
 

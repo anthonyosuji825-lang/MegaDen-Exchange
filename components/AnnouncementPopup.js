@@ -57,6 +57,15 @@ const CSS = `
   .ann-x:hover { transform: scale(1.06); }
   .ann-btn:focus-visible, .ann-x:focus-visible { outline: 2px solid var(--purple); outline-offset: 2px; }
   .ann-skel { background: linear-gradient(90deg, var(--card2) 25%, var(--border) 50%, var(--card2) 75%); background-size: 200% 100%; animation: annShimmer 1.3s linear infinite; }
+  /* Phones: slightly smaller card and text. Desktop and tablets are unchanged. */
+  @media (max-width: 480px) {
+    .ann-card { max-width: 316px !important; border-radius: 22px !important; }
+    .ann-body { padding-left: 1.1rem !important; padding-right: 1.1rem !important; padding-bottom: 1.05rem !important; }
+    .ann-title { font-size: 1.1rem !important; margin-bottom: 0.4rem !important; }
+    .ann-msg { font-size: 0.8rem !important; line-height: 1.5 !important; margin-bottom: 0.55rem !important; }
+    .ann-primary { padding: 0.72rem !important; font-size: 0.86rem !important; border-radius: 12px !important; }
+    .ann-ghost { padding: 0.62rem !important; font-size: 0.8rem !important; border-radius: 12px !important; }
+  }
   @media (prefers-reduced-motion: reduce) { .ann-card, .ann-overlay, .ann-ring, .ann-skel { animation: none !important; } }
 `
 
@@ -64,8 +73,15 @@ const CSS = `
 export function AnnouncementCard({ a, onPrimary, onDismiss, onHide, preview = false }) {
   const hasPrimary = !!(a.primary_label && a.primary_url)
   const primaryRef = useRef(null)
-  const [img, setImg] = useState(a.image_url ? 'loading' : 'none') // loading | ok | error | none
-  useEffect(() => { setImg(a.image_url ? 'loading' : 'none') }, [a.image_url])
+  const [loadedUrl, setLoadedUrl] = useState(null)
+  const [failedUrl, setFailedUrl] = useState(null)
+  const imgRef = useRef(null)
+  const img = !a.image_url ? 'none' : failedUrl === a.image_url ? 'error' : loadedUrl === a.image_url ? 'ok' : 'loading'
+  // A preloaded/cached picture can finish before React attaches onLoad, so also check once on mount.
+  useEffect(() => {
+    const el = imgRef.current
+    if (el && el.complete && el.naturalWidth > 0) setLoadedUrl(a.image_url)
+  }, [a.image_url])
   useEffect(() => { if (!preview) primaryRef.current?.focus() }, [preview, a.id])
 
   const hasImage = !!a.image_url && img !== 'error'
@@ -84,8 +100,8 @@ export function AnnouncementCard({ a, onPrimary, onDismiss, onHide, preview = fa
       {hasImage && (
         <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', background: 'var(--card2)', overflow: 'hidden' }}>
           {img === 'loading' && <div className="ann-skel" style={{ position: 'absolute', inset: 0 }} />}
-          <img src={a.image_url} alt="" decoding="async" fetchPriority="high"
-            onLoad={() => setImg('ok')} onError={() => setImg('error')}
+          <img ref={imgRef} src={a.image_url} alt="" decoding="async" fetchPriority="high"
+            onLoad={() => setLoadedUrl(a.image_url)} onError={() => setFailedUrl(a.image_url)}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: img === 'ok' ? 1 : 0, transition: 'opacity 0.3s ease' }} />
           <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '40%', background: 'linear-gradient(to top, var(--card), transparent)', pointerEvents: 'none' }} />
         </div>
@@ -98,7 +114,7 @@ export function AnnouncementCard({ a, onPrimary, onDismiss, onHide, preview = fa
         </>
       )}
 
-      <div style={{ position: 'relative', zIndex: 1, padding: hasImage ? '0.4rem 1.5rem 1.4rem' : '1.9rem 1.5rem 1.4rem' }}>
+      <div className="ann-body" style={{ position: 'relative', zIndex: 1, padding: hasImage ? '0.4rem 1.5rem 1.4rem' : '1.9rem 1.5rem 1.4rem' }}>
         {!hasImage && (
           <div style={{ position: 'relative', width: 68, height: 68, margin: '0 auto 1.1rem' }}>
             <span className="ann-ring" style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(108,78,242,0.22)', animation: preview ? 'none' : 'annRing 1.8s ease-out infinite' }} />
@@ -108,11 +124,11 @@ export function AnnouncementCard({ a, onPrimary, onDismiss, onHide, preview = fa
           </div>
         )}
 
-        <h2 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.3rem', color: 'var(--text)', margin: '0 0 0.5rem', letterSpacing: '-0.02em', lineHeight: 1.25, wordBreak: 'break-word' }}>
+        <h2 className="ann-title" style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: '1.3rem', color: 'var(--text)', margin: '0 0 0.5rem', letterSpacing: '-0.02em', lineHeight: 1.25, wordBreak: 'break-word' }}>
           {a.title || 'Your title appears here'}
         </h2>
         {(a.message || preview) && (
-          <p style={{ fontSize: '0.88rem', color: 'var(--muted)', margin: '0 0 0.7rem', lineHeight: 1.6, whiteSpace: 'pre-line', wordBreak: 'break-word' }}>
+          <p className="ann-msg" style={{ fontSize: '0.88rem', color: 'var(--muted)', margin: '0 0 0.7rem', lineHeight: 1.6, whiteSpace: 'pre-line', wordBreak: 'break-word' }}>
             {a.message || 'Your message appears here.'}
           </p>
         )}

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import AdminSidebar from '@/components/AdminSidebar'
+import { AnnouncementCard } from '@/components/AnnouncementPopup'
 
 // Boosting packages — mirrors boosting page exactly
 // Prices stored in Supabase `boost_prices` table; fallback to these defaults
@@ -229,6 +230,19 @@ export default function AdminPanel() {
   const [broadcastResult, setBroadcastResult] = useState(null)
   const [confirmingBroadcast, setConfirmingBroadcast] = useState(false)
 
+  // Popup announcements
+  const [annList, setAnnList] = useState([])
+  const [annLoaded, setAnnLoaded] = useState(false)
+  const [annLoading, setAnnLoading] = useState(false)
+  const [annForm, setAnnForm] = useState(null) // null = closed, object = creating/editing
+  const [annSaving, setAnnSaving] = useState(false)
+  const [annError, setAnnError] = useState('')
+  const [annDeleteId, setAnnDeleteId] = useState(null)
+  const [annBusyId, setAnnBusyId] = useState(null)
+  const [annImgBusy, setAnnImgBusy] = useState('') // '' | 'Compressing…' | 'Uploading…'
+  const [annImgInfo, setAnnImgInfo] = useState('')
+  const annFileRef = useRef(null)
+
   useEffect(() => {
     setMounted(true)
     const load = async () => {
@@ -377,6 +391,145 @@ export default function AdminPanel() {
     }
     setSendingBroadcast(false)
     setConfirmingBroadcast(false)
+  }
+
+  // ── Popup announcements ──────────────────────────────────────────────
+  const annHeaders = async () => {
+    const { data: { session } } = await createClient().auth.getSession()
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` }
+  }
+  const loadAnnouncements = async () => {
+    setAnnLoading(true)
+    setAnnError('')
+    try {
+      const res = await fetch('/api/admin/announcements', { headers: await annHeaders() })
+      const data = await res.json()
+      if (!res.ok) setAnnError(data.error || 'Could not load popups.')
+      else { setAnnList(data.announcements || []); setAnnLoaded(true) }
+    } catch { setAnnError('Could not load popups — check your connection.') }
+    setAnnLoading(false)
+  }
+  useEffect(() => {
+    if (activeTab === 'popups' && !annLoaded && !annLoading) loadAnnouncements()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  const toLocalInput = (iso) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+  const emptyAnn = { id: null, title: '', message: '', icon: 'bell', image_url: '', primary_label: '', primary_url: '', allow_hide: true, is_active: true, starts_at: '', ends_at: '' }
+  const editAnn = (a) => {
+    setAnnError('')
+    setAnnImgInfo('')
+    setAnnForm({ id: a.id, title: a.title, message: a.message || '', icon: a.icon || 'bell', image_url: a.image_url || '', primary_label: a.primary_label || '', primary_url: a.primary_url || '', allow_hide: a.allow_hide !== false, is_active: !!a.is_active, starts_at: toLocalInput(a.starts_at), ends_at: toLocalInput(a.ends_at) })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  const saveAnnouncement = async () => {
+    if (!annForm) return
+    setAnnSaving(true)
+    setAnnError('')
+    try {
+      const body = {
+        ...annForm,
+        starts_at: annForm.starts_at ? new Date(annForm.starts_at).toISOString() : null,
+        ends_at: annForm.ends_at ? new Date(annForm.ends_at).toISOString() : null,
+      }
+      const res = await fetch('/api/admin/announcements', { method: annForm.id ? 'PATCH' : 'POST', headers: await annHeaders(), body: JSON.stringify(body) })
+      const data = await res.json()
+      if (!res.ok) { setAnnError(data.error || 'Could not save.'); setAnnSaving(false); return }
+      setAnnList((list) => annForm.id ? list.map((x) => (x.id === data.announcement.id ? data.announcement : x)) : [data.announcement, ...list])
+      setAnnForm(null)
+    } catch { setAnnError('Could not save — check your connection.') }
+    setAnnSaving(false)
+  }
+  const patchAnnouncement = async (id, body) => {
+    setAnnBusyId(id)
+    setAnnError('')
+    try {
+      const res = await fetch('/api/admin/announcements', { method: 'PATCH', headers: await annHeaders(), body: JSON.stringify({ id, ...body }) })
+      const data = await res.json()
+      if (!res.ok) setAnnError(data.error || 'Update failed.')
+      else setAnnList((list) => list.map((x) => (x.id === id ? data.announcement : x)))
+    } catch { setAnnError('Update failed — check your connection.') }
+    setAnnBusyId(null)
+  }
+  const deleteAnnouncement = async (id) => {
+    setAnnBusyId(id)
+    setAnnError('')
+    try {
+      const res = await fetch(`/api/admin/announcements?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers: await annHeaders() })
+      const data = await res.json()
+      if (!res.ok) setAnnError(data.error || 'Delete failed.')
+      else setAnnList((list) => list.filter((x) => x.id !== id))
+    } catch { setAnnError('Delete failed — check your connection.') }
+    setAnnBusyId(null)
+    setAnnDeleteId(null)
+  }
+  // Shrinks the picture in the browser (max 960px wide, WebP/JPEG, under ~250 KB) so the popup loads fast.
+  const compressImage = (file) => new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read that image.')) }
+    img.onload = async () => {
+      URL.revokeObjectURL(url)
+      const TARGET = 250 * 1024
+      let w = Math.min(img.naturalWidth, 960)
+      let q = 0.85
+      for (let attempt = 0; attempt < 7; attempt++) {
+        const h = Math.max(1, Math.round(img.naturalHeight * (w / img.naturalWidth)))
+        const c = document.createElement('canvas')
+        c.width = w; c.height = h
+        const ctx = c.getContext('2d')
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, w, h)
+        ctx.drawImage(img, 0, 0, w, h)
+        let blob = await new Promise((r) => c.toBlob(r, 'image/webp', q))
+        if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', q))
+        if (blob && blob.size <= TARGET) return resolve({ blob, w, h })
+        q = Math.max(0.5, q - 0.1)
+        if (attempt >= 2) w = Math.round(w * 0.85)
+      }
+      reject(new Error('Could not shrink that image enough. Try a simpler picture.'))
+    }
+    img.src = url
+  })
+
+  const uploadAnnImage = async (file) => {
+    if (!file) return
+    setAnnError('')
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { setAnnError('Please choose a PNG, JPG or WebP image (GIFs are not supported).'); return }
+    if (file.size > 5 * 1024 * 1024) { setAnnError('That image is over 5 MB. Please choose a smaller one.'); return }
+    try {
+      setAnnImgBusy('Compressing…')
+      const { blob, w, h } = await compressImage(file)
+      setAnnImgBusy('Uploading…')
+      const { data: { session } } = await createClient().auth.getSession()
+      const fd = new FormData()
+      fd.append('file', new File([blob], 'popup', { type: blob.type }))
+      const res = await fetch('/api/admin/announcements/upload', { method: 'POST', headers: { Authorization: `Bearer ${session?.access_token}` }, body: fd })
+      const data = await res.json()
+      if (!res.ok) setAnnError(data.error || 'Upload failed.')
+      else {
+        setAnnForm((f) => ({ ...f, image_url: data.url }))
+        setAnnImgInfo(`${Math.round(data.size / 1024)} KB · ${w}×${h}`)
+      }
+    } catch (e) {
+      setAnnError(e?.message || 'Upload failed — check your connection.')
+    }
+    setAnnImgBusy('')
+    if (annFileRef.current) annFileRef.current.value = ''
+  }
+
+  const annStatus = (a) => {
+    if (!a.is_active) return { t: 'Off', c: 'var(--muted)', bg: 'var(--card2)' }
+    const now = Date.now()
+    if (a.starts_at && new Date(a.starts_at).getTime() > now) return { t: 'Scheduled', c: '#f0b429', bg: 'rgba(240,180,41,0.12)' }
+    if (a.ends_at && new Date(a.ends_at).getTime() <= now) return { t: 'Expired', c: '#f43f5e', bg: 'rgba(244,63,94,0.1)' }
+    return { t: 'Live', c: '#34d399', bg: 'rgba(52,211,153,0.12)' }
   }
 
   const getPrice = (id) => editedPrices[id] ?? (DEFAULT_BOOST_PACKAGES.find(p => p.id === id)?.price || 0)
@@ -649,6 +802,7 @@ export default function AdminPanel() {
     { id: 'vpn',      label: 'VPN',       icon: <VpnIcon /> },
     { id: 'subs',     label: 'Subs',      icon: <SubsIcon /> },
     { id: 'notify',   label: 'Notify',    icon: <MailIcon /> },
+    { id: 'popups',   label: 'Popups',    icon: <BellIcon /> },
     { id: 'logs',     label: 'Logs',      icon: <LogsIcon /> },
     { id: 'settings', label: 'Settings',  icon: <SettingsIcon /> },
   ]
@@ -1350,6 +1504,180 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* POPUPS TAB */}
+        {activeTab === 'popups' && (
+          <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
+            <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'0.8rem', marginBottom:'1.1rem' }}>
+              <div>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)', marginBottom:'0.3rem' }}>Popup announcements</div>
+                <div style={{ fontSize:'0.72rem', color:'var(--muted)', lineHeight:1.5 }}>Write a popup, switch it on, and users see it when they open the dashboard.</div>
+              </div>
+              {!annForm && (
+                <button className="action-btn" onClick={() => { setAnnError(''); setAnnForm({ ...emptyAnn }) }}
+                  style={{ padding:'0.6rem 1rem', background:'var(--purple)', border:'none', borderRadius:'10px', color:'#fff', fontSize:'0.78rem', fontWeight:700, fontFamily:'Outfit, sans-serif', whiteSpace:'nowrap', flexShrink:0 }}>
+                  + New popup
+                </button>
+              )}
+            </div>
+
+            {annError && (
+              <div role="alert" style={{ background:'rgba(244,63,94,0.08)', border:'1px solid rgba(244,63,94,0.25)', borderRadius:'12px', padding:'0.75rem 1rem', marginBottom:'1rem', fontSize:'0.78rem', color:'#f43f5e' }}>{annError}</div>
+            )}
+
+            {annForm && (
+              <div style={{ display:'grid', gridTemplateColumns: isDesktop ? '1.1fr 0.9fr' : '1fr', gap:'1rem', marginBottom:'1.4rem', alignItems:'start' }}>
+                {/* FORM */}
+                <div style={{ background:'var(--card)', border:'1px solid rgba(108,78,242,0.3)', borderRadius:'16px', padding:'1.2rem' }}>
+                  <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)', marginBottom:'1rem' }}>{annForm.id ? 'Edit popup' : 'New popup'}</div>
+
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.35rem' }}>Image <span style={{ opacity:0.7 }}>(optional)</span></label>
+                  <input ref={annFileRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display:'none' }} onChange={e => uploadAnnImage(e.target.files?.[0])} />
+                  {annForm.image_url ? (
+                    <div style={{ marginBottom:'0.9rem' }}>
+                      <div style={{ position:'relative', width:'100%', aspectRatio:'16 / 9', borderRadius:'12px', overflow:'hidden', border:'1px solid var(--border)', background:'var(--navy)' }}>
+                        <img src={annForm.image_url} alt="Popup banner" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', opacity: annImgBusy ? 0.4 : 1 }} />
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', marginTop:'0.5rem', flexWrap:'wrap' }}>
+                        <button type="button" className="action-btn" disabled={!!annImgBusy} onClick={() => annFileRef.current?.click()} style={{ padding:'0.35rem 0.8rem', background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--text)', fontSize:'0.72rem', fontWeight:600 }}>{annImgBusy || 'Replace'}</button>
+                        <button type="button" className="action-btn" disabled={!!annImgBusy} onClick={() => { setAnnForm(f => ({ ...f, image_url: '' })); setAnnImgInfo('') }} style={{ padding:'0.35rem 0.8rem', background:'transparent', border:'1px solid rgba(244,63,94,0.3)', borderRadius:'8px', color:'#f43f5e', fontSize:'0.72rem', fontWeight:600 }}>Remove</button>
+                        {annImgInfo && <span style={{ fontSize:'0.68rem', color:'#34d399' }}>✓ {annImgInfo}</span>}
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button" disabled={!!annImgBusy} onClick={() => annFileRef.current?.click()}
+                      style={{ width:'100%', marginBottom:'0.9rem', padding:'1.1rem 0.8rem', background:'var(--navy)', border:'1.5px dashed var(--border)', borderRadius:'12px', color:'var(--muted)', cursor: annImgBusy ? 'wait' : 'pointer', textAlign:'center' }}>
+                      <div style={{ fontSize:'0.8rem', fontWeight:600, color:'var(--text)', marginBottom:'0.2rem' }}>{annImgBusy || '+ Add a banner image'}</div>
+                      <div style={{ fontSize:'0.66rem', lineHeight:1.5 }}>PNG, JPG or WebP · up to 5 MB · shrunk automatically to under 250 KB so it loads fast. Best at 1280×720 (16:9).</div>
+                    </button>
+                  )}
+
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.35rem' }}>Title <span style={{ opacity:0.7 }}>({annForm.title.length}/80)</span></label>
+                  <input value={annForm.title} maxLength={80} onChange={e => setAnnForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Travel eSIM is live!" style={{ ...inputStyle, marginBottom:'0.9rem' }} />
+
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.35rem' }}>Message <span style={{ opacity:0.7 }}>({annForm.message.length}/500)</span></label>
+                  <textarea value={annForm.message} maxLength={500} rows={4} onChange={e => setAnnForm(f => ({ ...f, message: e.target.value }))} placeholder="Tell people what's new…"
+                    style={{ ...inputStyle, resize:'vertical', lineHeight:1.6, marginBottom:'0.9rem' }} />
+
+                  <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.4rem' }}>Icon <span style={{ opacity:0.7 }}>{annForm.image_url ? '(hidden while a banner image is used)' : ''}</span></label>
+                  <div style={{ display:'flex', gap:'0.45rem', marginBottom:'0.9rem', flexWrap:'wrap' }}>
+                    {['bell','gift','rocket','alert','info'].map(ic => (
+                      <button key={ic} type="button" onClick={() => setAnnForm(f => ({ ...f, icon: ic }))} aria-pressed={annForm.icon === ic} aria-label={ic}
+                        style={{ padding:'0.5rem 0.85rem', borderRadius:'10px', cursor:'pointer', fontSize:'0.72rem', fontWeight:600, textTransform:'capitalize', background: annForm.icon === ic ? 'rgba(108,78,242,0.14)' : 'var(--navy)', border:`1px solid ${annForm.icon === ic ? 'var(--purple)' : 'var(--border)'}`, color: annForm.icon === ic ? 'var(--purple2)' : 'var(--muted)' }}>{ic}</button>
+                    ))}
+                  </div>
+
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.7rem', marginBottom:'0.35rem' }}>
+                    <div>
+                      <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.35rem' }}>Button text <span style={{ opacity:0.7 }}>(optional)</span></label>
+                      <input value={annForm.primary_label} maxLength={30} onChange={e => setAnnForm(f => ({ ...f, primary_label: e.target.value }))} placeholder="Read More" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.35rem' }}>Button link</label>
+                      <input value={annForm.primary_url} list="ann-links" onChange={e => setAnnForm(f => ({ ...f, primary_url: e.target.value }))} placeholder="/dashboard/esim" style={inputStyle} />
+                      <datalist id="ann-links">
+                        {['/dashboard/wallet','/dashboard/numbers','/dashboard/email','/dashboard/proxy','/dashboard/esim','/dashboard/boosting','/dashboard/bills','/dashboard/referral'].map(l => <option key={l} value={l} />)}
+                      </datalist>
+                    </div>
+                  </div>
+                  <div style={{ fontSize:'0.66rem', color:'var(--muted)', marginBottom:'0.9rem' }}>Link can be a page in your app (starts with /) or a full https:// address. Leave both empty for a simple “Got it” popup.</div>
+
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.7rem', marginBottom:'0.35rem' }}>
+                    <div>
+                      <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.35rem' }}>Show from <span style={{ opacity:0.7 }}>(optional)</span></label>
+                      <input type="datetime-local" value={annForm.starts_at} onChange={e => setAnnForm(f => ({ ...f, starts_at: e.target.value }))} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:'0.72rem', color:'var(--muted)', display:'block', marginBottom:'0.35rem' }}>Hide after <span style={{ opacity:0.7 }}>(optional)</span></label>
+                      <input type="datetime-local" value={annForm.ends_at} onChange={e => setAnnForm(f => ({ ...f, ends_at: e.target.value }))} style={inputStyle} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize:'0.66rem', color:'var(--muted)', marginBottom:'0.9rem' }}>Times use your current timezone. Leave empty to show straight away with no end date.</div>
+
+                  <label style={{ display:'flex', alignItems:'center', gap:'0.55rem', fontSize:'0.78rem', color:'var(--text)', marginBottom:'0.6rem', cursor:'pointer' }}>
+                    <input type="checkbox" checked={annForm.allow_hide} onChange={e => setAnnForm(f => ({ ...f, allow_hide: e.target.checked }))} />
+                    Let users tick “Don’t show this again”
+                  </label>
+                  <label style={{ display:'flex', alignItems:'center', gap:'0.55rem', fontSize:'0.78rem', color:'var(--text)', marginBottom:'1.1rem', cursor:'pointer' }}>
+                    <input type="checkbox" checked={annForm.is_active} onChange={e => setAnnForm(f => ({ ...f, is_active: e.target.checked }))} />
+                    Switch on now (users will see it)
+                  </label>
+
+                  <div style={{ display:'flex', gap:'0.6rem' }}>
+                    <button className="action-btn" onClick={() => { setAnnForm(null); setAnnError('') }} disabled={annSaving}
+                      style={{ flex:1, padding:'0.75rem', background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--muted)', fontSize:'0.8rem', fontWeight:600 }}>Cancel</button>
+                    <button className="action-btn" onClick={saveAnnouncement} disabled={annSaving || !!annImgBusy || !annForm.title.trim()}
+                      style={{ flex:1.4, padding:'0.75rem', background: annForm.title.trim() ? 'var(--purple)' : 'var(--card2)', border:'none', borderRadius:'10px', color: annForm.title.trim() ? '#fff' : 'var(--muted)', fontSize:'0.82rem', fontWeight:700, fontFamily:'Outfit, sans-serif', cursor: annForm.title.trim() ? 'pointer' : 'not-allowed' }}>
+                      {annSaving ? 'Saving…' : annForm.id ? 'Save changes' : annForm.is_active ? 'Publish popup' : 'Save (off)'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* LIVE PREVIEW */}
+                <div style={{ position: isDesktop ? 'sticky' : 'static', top:80 }}>
+                  <div style={{ fontSize:'0.68rem', color:'var(--muted)', letterSpacing:'0.1em', textTransform:'uppercase', fontWeight:700, marginBottom:'0.6rem' }}>Live preview</div>
+                  <div style={{ background:'rgba(5,5,20,0.45)', border:'1px dashed var(--border)', borderRadius:'16px', padding:'1.2rem 0.8rem', display:'flex', justifyContent:'center' }}>
+                    <AnnouncementCard preview a={{ ...annForm, created_at: new Date().toISOString() }} onPrimary={() => {}} onDismiss={() => {}} onHide={() => {}} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* LIST */}
+            <div style={{ fontSize:'0.68rem', color:'var(--muted)', letterSpacing:'0.1em', textTransform:'uppercase', fontWeight:700, marginBottom:'0.6rem' }}>Your popups</div>
+            {annLoading && !annLoaded ? (
+              <div style={{ textAlign:'center', padding:'2rem', color:'var(--muted)', fontSize:'0.82rem' }}>Loading popups…</div>
+            ) : annList.length === 0 ? (
+              <div style={{ background:'var(--card)', border:'1px dashed var(--border)', borderRadius:'16px', padding:'2rem 1rem', textAlign:'center', color:'var(--muted)', fontSize:'0.82rem' }}>
+                No popups yet. Tap “+ New popup” to create your first announcement.
+              </div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:'0.6rem' }}>
+                {annList.map(a => {
+                  const st = annStatus(a)
+                  const busy = annBusyId === a.id
+                  return (
+                    <div key={a.id} style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'14px', padding:'0.9rem 1rem', opacity: busy ? 0.6 : 1 }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'0.8rem' }}>
+                        <div style={{ minWidth:0 }}>
+                          {a.image_url && <img src={a.image_url} alt="" loading="lazy" style={{ width:112, aspectRatio:'16 / 9', objectFit:'cover', borderRadius:'8px', marginBottom:'0.5rem', display:'block', border:'1px solid var(--border)' }} />}
+                          <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', flexWrap:'wrap' }}>
+                            <span style={{ fontSize:'0.86rem', fontWeight:600, color:'var(--text)', wordBreak:'break-word' }}>{a.title}</span>
+                            <span style={{ padding:'0.12rem 0.6rem', borderRadius:'50px', background:st.bg, color:st.c, fontSize:'0.64rem', fontWeight:700 }}>{st.t}</span>
+                          </div>
+                          {a.message && <div style={{ fontSize:'0.74rem', color:'var(--muted)', marginTop:'0.25rem', overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{a.message}</div>}
+                          <div style={{ fontSize:'0.66rem', color:'var(--muted)', marginTop:'0.35rem' }}>
+                            Created {new Date(a.created_at).toLocaleDateString('en-NG', { day:'numeric', month:'short', year:'numeric' })}
+                            {a.starts_at && ` · from ${new Date(a.starts_at).toLocaleString('en-NG', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}`}
+                            {a.ends_at && ` · until ${new Date(a.ends_at).toLocaleString('en-NG', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}`}
+                          </div>
+                        </div>
+                        {/* ON / OFF switch */}
+                        <button onClick={() => patchAnnouncement(a.id, { is_active: !a.is_active })} disabled={busy} role="switch" aria-checked={!!a.is_active} aria-label={a.is_active ? 'Switch off' : 'Switch on'}
+                          style={{ width:44, height:26, borderRadius:99, border:'none', background: a.is_active ? '#34d399' : 'var(--card2)', position:'relative', cursor:'pointer', flexShrink:0, transition:'background 0.2s', boxShadow:'inset 0 0 0 1px var(--border)' }}>
+                          <span style={{ position:'absolute', top:3, left: a.is_active ? 21 : 3, width:20, height:20, borderRadius:'50%', background:'#fff', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.3)' }} />
+                        </button>
+                      </div>
+                      <div style={{ display:'flex', gap:'0.5rem', marginTop:'0.7rem', flexWrap:'wrap', alignItems:'center' }}>
+                        <button className="action-btn" onClick={() => editAnn(a)} disabled={busy} style={{ padding:'0.35rem 0.8rem', background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--text)', fontSize:'0.72rem', fontWeight:600 }}>Edit</button>
+                        <button className="action-btn" onClick={() => patchAnnouncement(a.id, { reshow: true })} disabled={busy} title="Show again to everyone who ticked “Don’t show again”" style={{ padding:'0.35rem 0.8rem', background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--text)', fontSize:'0.72rem', fontWeight:600 }}>Show again to everyone</button>
+                        {annDeleteId === a.id ? (
+                          <>
+                            <span style={{ fontSize:'0.72rem', color:'#f43f5e' }}>Delete for good?</span>
+                            <button className="action-btn" onClick={() => deleteAnnouncement(a.id)} disabled={busy} style={{ padding:'0.35rem 0.8rem', background:'#f43f5e', border:'none', borderRadius:'8px', color:'#fff', fontSize:'0.72rem', fontWeight:700 }}>Yes, delete</button>
+                            <button className="action-btn" onClick={() => setAnnDeleteId(null)} style={{ padding:'0.35rem 0.8rem', background:'transparent', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--muted)', fontSize:'0.72rem', fontWeight:600 }}>No</button>
+                          </>
+                        ) : (
+                          <button className="action-btn" onClick={() => setAnnDeleteId(a.id)} disabled={busy} style={{ padding:'0.35rem 0.8rem', background:'transparent', border:'1px solid rgba(244,63,94,0.3)', borderRadius:'8px', color:'#f43f5e', fontSize:'0.72rem', fontWeight:600 }}>Delete</button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* LOGS TAB */}
         {activeTab === 'logs' && (
           <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
@@ -1795,3 +2123,4 @@ function SubsIcon()    { return <svg width="20" height="20" viewBox="0 0 24 24" 
 function LogsIcon()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> }
 function MailIcon()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22 6 12 13 2 6"/></svg> }
 function SettingsIcon(){ return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> }
+function BellIcon()    { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> }

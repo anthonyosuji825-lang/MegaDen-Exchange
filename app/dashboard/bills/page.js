@@ -235,7 +235,25 @@ function serviceLabel(item) {
   return item.network_name || item.tv_name || item.provider_name || item.name || `#${item.service_id}`
 }
 
-function BrandTile({ brand, size = 44 }) {
+// Official logo files. Drop the image files into /public/logos/ (names below) and they are used
+// automatically; until a file exists (or if it fails to load) the wordmark tile above is shown.
+const LOGO_FILES = {
+  dstv: '/logos/dstv.png',
+  gotv: '/logos/gotv.png',
+  startimes: '/logos/startimes.png',
+  showmax: '/logos/showmax.png',
+}
+
+function BrandTile({ brand, size = 44, label }) {
+  const [failed, setFailed] = useState(false)
+  const file = LOGO_FILES[(label || '').toLowerCase().trim()]
+  if (file && !failed) {
+    return (
+      <div aria-hidden style={{ width: size, height: size, borderRadius: Math.round(size * 0.28), background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', padding: 4, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.12)' }}>
+        <img src={file} alt="" width={size - 8} height={size - 8} onError={() => setFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+      </div>
+    )
+  }
   return (
     <div aria-hidden style={{
       width: size, height: size, borderRadius: brand.shape === 'square' ? Math.round(size * 0.28) : '50%',
@@ -278,7 +296,7 @@ function LogoPicker({ options, value, onChange, subLabel, loading = false, noun 
   return (
     <div>
       <div className="bl-swipe" onScroll={handleScroll}
-        style={{ display: 'grid', gridTemplateRows: `repeat(${rows}, 1fr)`, gridAutoFlow: 'column', gridAutoColumns: 'calc(25% - 0.38rem)', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.3rem', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+        style={{ display: 'grid', gridTemplateRows: `repeat(${rows}, 1fr)`, gridAutoFlow: 'column', gridAutoColumns: 'calc(25% - 0.38rem)', justifyContent: cols <= 4 ? 'center' : 'start', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.3rem', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
         {options.map(opt => {
           const selected = String(value) === String(opt.idKey)
           const brand = brandFor(opt.label)
@@ -292,7 +310,7 @@ function LogoPicker({ options, value, onChange, subLabel, loading = false, noun 
                 boxShadow: selected ? `0 4px 16px ${brand.bg}33` : 'none',
               }}>
               <div style={{ filter: selected ? 'none' : 'grayscale(15%) opacity(0.92)', transition: 'filter 0.2s', display: 'flex' }}>
-                <BrandTile brand={brand} size={44} />
+                <BrandTile brand={brand} size={44} label={opt.label} />
               </div>
               <span style={{ fontSize: '0.68rem', fontWeight: 600, color: selected ? brand.bg : 'var(--text)', textAlign: 'center', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
                 {opt.label}

@@ -408,20 +408,20 @@ export default function ProxyPage() {
                         style={{ width: '100%', padding: '0.6rem 1rem 0.6rem 2.2rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text)', fontSize: '0.8rem', outline: 'none', fontFamily: 'Inter, sans-serif' }} />
                     </div>
                   )}
-                  <div className="px-scroll" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', maxHeight: 176, overflowY: 'auto', paddingRight: 2 }}>
+                  <div className="px-scroll" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))', gap: '0.45rem', maxHeight: 268, overflowY: 'auto', padding: '4px 6px 4px 4px', margin: '-4px' }}>
                     {(sq ? shownStates : ['Random', ...states]).map((s) => {
                       const sel = state === s
                       const isRandom = s === 'Random'
                       return (
                         <button key={s} className="px-chip" aria-pressed={sel} onClick={() => setState(s)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem', borderRadius: 50, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, background: sel ? 'rgba(108,78,242,0.14)' : 'var(--card)', border: `1.5px solid ${sel ? 'var(--purple)' : 'var(--border)'}`, color: sel ? 'var(--purple2)' : 'var(--text)' }}>
+                          style={{ gridColumn: isRandom ? '1 / -1' : 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', minWidth: 0, padding: '0.6rem 0.5rem', borderRadius: 12, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, background: sel ? 'rgba(108,78,242,0.14)' : 'var(--card)', border: `1.5px solid ${sel ? 'var(--purple)' : 'var(--border)'}`, color: sel ? 'var(--purple2)' : 'var(--text)', boxShadow: sel ? '0 0 0 3px rgba(108,78,242,0.12)' : 'none' }}>
                           {isRandom && <ShuffleIcon />}
-                          {isRandom ? 'Any (random)' : s}
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{isRandom ? 'Any state (random)' : s}</span>
                         </button>
                       )
                     })}
                     {sq && shownStates.length === 0 && (
-                      <div style={{ width: '100%', textAlign: 'center', padding: '1rem', color: 'var(--muted)', fontSize: '0.8rem' }}>No state found for “{stateSearch}”</div>
+                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '1rem', color: 'var(--muted)', fontSize: '0.8rem' }}>No state found for “{stateSearch}”</div>
                     )}
                   </div>
                 </div>

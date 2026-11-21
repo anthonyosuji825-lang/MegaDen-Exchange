@@ -108,6 +108,23 @@ const PROVIDERS = [
     }),
     extract: (d) => d?.data?.balance ?? d?.balance,
   },
+  {
+    // VTUGATE (bills): "Account Details" endpoint from their docs - POST
+    // /accountdetails with an empty body, Bearer key. The wallet balance
+    // (NGN) is at data.wallet_balance.
+    key: 'vtugate',
+    env: ['VTUGATE_API_KEY'],
+    request: () => fetch('https://api.vtugate.com/api/v1/accountdetails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.VTUGATE_API_KEY}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+      ...FETCH_OPTS(),
+    }),
+    extract: (d) => d?.data?.wallet_balance,
+  },
 ]
 
 // Never throws. Always returns { balance, error } — and `error` now says

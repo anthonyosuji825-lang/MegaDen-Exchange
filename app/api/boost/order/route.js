@@ -96,6 +96,8 @@ async function handleOrder(request, setUser) {
   if (!linkCheck.ok) {
     await log('info', 'boost', `Boost order refused: ${linkCheck.message}`, userId, userEmail, {
       serviceCode, platform: quote.platform, code: linkCheck.code,
+      // What the customer actually pasted, so you can see why it was refused.
+      pasted: String(rawLink ?? '').slice(0, 300),
     })
     return NextResponse.json({ error: linkCheck.message, code: linkCheck.code }, { status: 400 })
   }

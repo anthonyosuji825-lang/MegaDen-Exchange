@@ -272,6 +272,11 @@ export default function AdminPanel() {
   const [logs, setLogs] = useState([])
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsLastFetched, setLogsLastFetched] = useState(null)
+  const [psData, setPsData] = useState(null)
+  const [psLoading, setPsLoading] = useState(false)
+  const [psError, setPsError] = useState('')
+  const [psView, setPsView] = useState('transactions')
+  const [psOpenDay, setPsOpenDay] = useState(null)
   const [logLevelFilter, setLogLevelFilter] = useState('all')
   const [logCategoryFilter, setLogCategoryFilter] = useState('all')
   const [logSearch, setLogSearch] = useState('')
@@ -433,6 +438,22 @@ export default function AdminPanel() {
       console.error('Failed to fetch logs', e)
     }
     setLogsLoading(false)
+  }
+
+  const fetchPaystack = async () => {
+    setPsLoading(true)
+    setPsError('')
+    try {
+      const res = await fetch('/api/admin/paystack')
+      if (res.ok) {
+        setPsData(await res.json())
+      } else {
+        setPsError('Could not load Paystack data (' + res.status + ')')
+      }
+    } catch (e) {
+      setPsError('Could not load Paystack data')
+    }
+    setPsLoading(false)
   }
 
   const sendBroadcast = async () => {
@@ -869,6 +890,7 @@ export default function AdminPanel() {
     { id: 'subs',     label: 'Subs',      icon: <SubsIcon /> },
     { id: 'notify',   label: 'Notify',    icon: <MailIcon /> },
     { id: 'popups',   label: 'Popups',    icon: <BellIcon /> },
+    { id: 'paystack', label: 'Paystack',  icon: <MoneyIcon /> },
     { id: 'logs',     label: 'Logs',      icon: <LogsIcon /> },
     { id: 'settings', label: 'Settings',  icon: <SettingsIcon /> },
   ]
@@ -915,6 +937,7 @@ export default function AdminPanel() {
         <AdminSidebar tabs={tabs} activeTab={activeTab} onTabChange={(id) => {
           setActiveTab(id)
           if (id === 'logs' && logs.length === 0) fetchLogs()
+          if (id === 'paystack' && !psData) fetchPaystack()
         }} onLogout={handleLogout} />
       )}
 
@@ -1819,6 +1842,150 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* PAYSTACK TAB */}
+        {activeTab === 'paystack' && (() => {
+          const fmt = (n) => '₦' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 2 })
+          const when = (v) => v ? new Date(v).toLocaleString('en-NG', { timeZone:'Africa/Lagos', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '-'
+          const dayLabel = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-NG', { timeZone:'Africa/Lagos', weekday:'short', day:'numeric', month:'short', year:'numeric' })
+          const statusColor = (s) => s === 'success' ? '#34d399' : (s === 'failed' || s === 'abandoned' || s === 'reversed') ? '#f43f5e' : '#f0b429'
+          const d = psData
+          const errs = d?.errors || {}
+          const card = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:'12px', padding:'0.75rem' }
+          const lbl = { fontSize:'0.58rem', color:'var(--muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em' }
+          const val = { fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.05rem', color:'var(--text)', marginTop:'0.15rem' }
+          const empty = (t) => <div style={{ ...card, textAlign:'center', color:'var(--muted)', fontSize:'0.78rem' }}>{t}</div>
+          const secErr = (k) => errs[k] ? <div style={{ ...card, color:'#f43f5e', fontSize:'0.74rem', marginBottom:'0.5rem' }}>Paystack: {errs[k]}</div> : null
+          const views = [
+            { id:'transactions', label:'Transactions' },
+            { id:'payouts',      label:'Payouts' },
+            { id:'pending',      label:'Pending' },
+            { id:'daily',        label:'Daily payers' },
+          ]
+          return (
+          <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+              <div>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)' }}>Paystack</div>
+                <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.1rem' }}>
+                  {d?.fetchedAt ? 'Updated ' + new Date(d.fetchedAt).toLocaleTimeString('en-NG', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : 'Payments, payouts and who paid in'}
+                </div>
+              </div>
+              <button onClick={fetchPaystack} disabled={psLoading}
+                style={{ display:'flex', alignItems:'center', gap:'0.3rem', padding:'0.45rem 0.9rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--text)', fontSize:'0.72rem', fontWeight:600, cursor:'pointer' }}>
+                {psLoading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {psError && <div style={{ ...card, color:'#f43f5e', fontSize:'0.78rem', marginBottom:'0.75rem' }}>{psError}</div>}
+            {!d && !psError && empty(psLoading ? 'Loading Paystack data...' : 'No data yet')}
+
+            {d && (
+              <>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'0.5rem', marginBottom:'0.75rem' }}>
+                  <div style={card}><div style={lbl}>Available balance</div><div style={val}>{d.balance == null ? '-' : fmt(d.balance)}</div></div>
+                  <div style={card}><div style={lbl}>Pending payout</div><div style={val}>{fmt(d.pendingTotal)}</div></div>
+                  <div style={card}><div style={lbl}>Not credited</div><div style={{ ...val, color: d.notCredited?.length ? '#f43f5e' : '#34d399' }}>{d.notCredited?.length || 0}</div></div>
+                </div>
+                {secErr('balance')}
+
+                {d.notCredited?.length > 0 && (
+                  <div style={{ ...card, border:'1px solid #f43f5e', marginBottom:'0.75rem' }}>
+                    <div style={{ fontWeight:700, fontSize:'0.78rem', color:'#f43f5e', marginBottom:'0.35rem' }}>Paid on Paystack but not found in wallet credits</div>
+                    {d.notCredited.map(t => (
+                      <div key={t.id} style={{ fontSize:'0.72rem', color:'var(--text)', display:'flex', justifyContent:'space-between', gap:'0.5rem', padding:'0.2rem 0' }}>
+                        <span style={{ overflow:'hidden', textOverflow:'ellipsis' }}>{t.email || t.reference}</span>
+                        <span style={{ whiteSpace:'nowrap' }}>{fmt(t.amount)} · {when(t.paidAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display:'flex', gap:'0.4rem', marginBottom:'0.75rem', overflowX:'auto' }}>
+                  {views.map(v => (
+                    <button key={v.id} onClick={() => setPsView(v.id)}
+                      style={{ padding:'0.4rem 0.8rem', borderRadius:'10px', fontSize:'0.72rem', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', background: psView === v.id ? 'var(--purple2)' : 'var(--card)', color: psView === v.id ? '#fff' : 'var(--text)', border:'1px solid ' + (psView === v.id ? 'var(--purple2)' : 'var(--border)') }}>
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+
+                {psView === 'transactions' && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'0.4rem' }}>
+                    {secErr('transactions')}
+                    {d.transactions.length === 0 && empty('No transactions')}
+                    {d.transactions.map(t => (
+                      <div key={t.id} style={{ ...card, display:'flex', justifyContent:'space-between', alignItems:'center', gap:'0.5rem' }}>
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.email || t.reference}</div>
+                          <div style={{ fontSize:'0.64rem', color:'var(--muted)' }}>{when(t.paidAt)} · {t.channel || '-'}</div>
+                        </div>
+                        <div style={{ textAlign:'right', flexShrink:0 }}>
+                          <div style={{ fontWeight:700, fontSize:'0.82rem', color:'var(--text)' }}>{fmt(t.amount)}</div>
+                          <div style={{ fontSize:'0.62rem', fontWeight:700, color: statusColor(t.status) }}>
+                            {t.status}{t.status === 'success' ? (t.credited ? ' · credited' : ' · NOT credited') : ''}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(psView === 'payouts' || psView === 'pending') && (() => {
+                  const list = psView === 'payouts' ? d.payouts : d.pendingPayouts
+                  return (
+                    <div style={{ display:'flex', flexDirection:'column', gap:'0.4rem' }}>
+                      {secErr(psView === 'payouts' ? 'payouts' : 'pendingPayouts')}
+                      {list.length === 0 && empty(psView === 'payouts' ? 'No payouts yet' : 'No pending payouts')}
+                      {list.map(s => (
+                        <div key={s.id} style={{ ...card, display:'flex', justifyContent:'space-between', alignItems:'center', gap:'0.5rem' }}>
+                          <div>
+                            <div style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--text)' }}>{dayLabel(String(s.date).slice(0, 10))}</div>
+                            <div style={{ fontSize:'0.64rem', color:'var(--muted)' }}>Processed {fmt(s.processed)} · fees {fmt(s.fees)}</div>
+                          </div>
+                          <div style={{ textAlign:'right' }}>
+                            <div style={{ fontWeight:700, fontSize:'0.82rem', color:'var(--text)' }}>{fmt(s.effective)}</div>
+                            <div style={{ fontSize:'0.62rem', fontWeight:700, color: statusColor(s.status) }}>{s.status}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+
+                {psView === 'daily' && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'0.4rem' }}>
+                    {secErr('daily')}
+                    {d.daily.length === 0 && empty('No payments yet')}
+                    {d.daily.map(day => (
+                      <div key={day.date} style={card}>
+                        <div onClick={() => setPsOpenDay(psOpenDay === day.date ? null : day.date)}
+                          style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}>
+                          <div>
+                            <div style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--text)' }}>{dayLabel(day.date)}</div>
+                            <div style={{ fontSize:'0.64rem', color:'var(--muted)' }}>{day.payers} {day.payers === 1 ? 'user' : 'users'} · {day.count} {day.count === 1 ? 'payment' : 'payments'}</div>
+                          </div>
+                          <div style={{ fontWeight:700, fontSize:'0.85rem', color:'var(--text)' }}>{fmt(day.total)}</div>
+                        </div>
+                        {psOpenDay === day.date && (
+                          <div style={{ marginTop:'0.5rem', borderTop:'1px solid var(--border)', paddingTop:'0.4rem' }}>
+                            {day.users.map((u, i) => (
+                              <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:'0.5rem', fontSize:'0.72rem', color:'var(--text)', padding:'0.15rem 0' }}>
+                                <span style={{ overflow:'hidden', textOverflow:'ellipsis' }}>{u.email}</span>
+                                <span style={{ whiteSpace:'nowrap' }}>{fmt(u.total)}{u.count > 1 ? ' (' + u.count + 'x)' : ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          )
+        })()}
+
         {/* LOGS TAB */}
         {activeTab === 'logs' && (
           <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
@@ -2241,6 +2408,7 @@ export default function AdminPanel() {
             <button key={tab.id} className="tab-btn nav-tab-item" onClick={() => {
               setActiveTab(tab.id)
               if (tab.id === 'logs' && logs.length === 0) fetchLogs()
+              if (tab.id === 'paystack' && !psData) fetchPaystack()
             }}
               style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.22rem', background:'transparent', border:'none', padding:'0.3rem 0.5rem', borderRadius:'10px' }}>
               <div style={{ color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', transition:'color 0.15s' }}>{tab.icon}</div>

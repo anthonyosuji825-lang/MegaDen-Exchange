@@ -142,6 +142,57 @@ const PROVIDER_CARDS = [
   { key:'vtugate',  label:'VTUGATE',   emoji:'📶', color:'#6c4ef2', bg:'rgba(108,78,242,0.08)',  border:'rgba(108,78,242,0.2)',  currency:'₦' },
 ]
 
+// ── Overview money card helpers ──────────────────────────────────────────
+// All "days" are calendar days in Nigeria time (WAT, no daylight saving), as
+// 'YYYY-MM-DD'. A database timestamp with no timezone suffix is stored in UTC.
+const LAGOS_DAY_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' })
+function lagosDayKey(value) {
+  let d
+  if (value instanceof Date) {
+    d = value
+  } else {
+    const s = String(value)
+    d = new Date(/[zZ]$|[+-]\d\d(:?\d\d)?$/.test(s) ? s : s.replace(' ', 'T') + 'Z')
+  }
+  return LAGOS_DAY_FMT.format(d)
+}
+// Completed orders -> [{ date, total, count }]
+function dailyFromOrders(orders) {
+  const byDay = new Map()
+  for (const o of orders || []) {
+    if (o.status !== 'completed' || !o.created_at) continue
+    const key = lagosDayKey(o.created_at)
+    const b = byDay.get(key) || { total: 0, count: 0 }
+    b.total += Number(o.amount) || 0
+    b.count++
+    byDay.set(key, b)
+  }
+  return [...byDay.entries()].map(([date, v]) => ({ date, total: v.total, count: v.count }))
+}
+// [{ date, total, count }] -> totals for today / 7 days / this month / all time + a 14-day series
+function summarizeDaily(daily) {
+  const todayKey = lagosDayKey(new Date())
+  const dayMs = 86400000
+  const at = (key) => { const [y, m, d] = key.split('-').map(Number); return Date.UTC(y, m - 1, d) }
+  const todayMs = at(todayKey)
+  const out = { total: 0, count: 0, today: 0, week: 0, month: 0, series: [] }
+  const map = new Map()
+  for (const r of daily || []) {
+    map.set(r.date, r)
+    out.total += r.total
+    out.count += r.count
+    const age = Math.round((todayMs - at(r.date)) / dayMs)
+    if (age === 0) out.today += r.total
+    if (age >= 0 && age <= 6) out.week += r.total
+    if (r.date.slice(0, 7) === todayKey.slice(0, 7)) out.month += r.total
+  }
+  for (let i = 13; i >= 0; i--) {
+    const key = new Date(todayMs - i * dayMs).toISOString().slice(0, 10)
+    out.series.push({ date: key, total: map.get(key)?.total || 0 })
+  }
+  return out
+}
+
 export default function AdminPanel() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -165,6 +216,9 @@ export default function AdminPanel() {
 
   // Data
   const [stats, setStats] = useState({ users: 0, orders: 0, revenue: 0, pending: 0 })
+  const money = (n) => (n == null ? '—' : `₦${n.toLocaleString()}`)
+  const [revMode, setRevMode] = useState('paystack') // 'paystack' | 'purchases'
+  const [paystackDaily, setPaystackDaily] = useState(null) // null = not loaded / failed
   const [users, setUsers] = useState([])
   const [orders, setOrders] = useState([])
   const [vpnKeys, setVpnKeys] = useState([])
@@ -278,6 +332,18 @@ export default function AdminPanel() {
       // Count all profiles + any auth users without profiles
       const { count: authCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
 
+      // Revenue = money paid in through Paystack (see app/api/admin/revenue).
+      // null means "could not load" so the page shows a dash, never a wrong 0.
+      let paystackRevenue = null
+      try {
+        const revRes = await fetch('/api/admin/revenue')
+        if (revRes.ok) {
+          const rev = await revRes.json()
+          paystackRevenue = rev.total ?? null
+          setPaystackDaily(Array.isArray(rev.daily) ? rev.daily : null)
+        }
+      } catch { /* leave as null */ }
+
       setUsers(allUsers)
       setOrders(allOrders)
       setVpnKeys(allVpnKeys)
@@ -287,7 +353,7 @@ export default function AdminPanel() {
       setStats({
         users: authCount || allUsers.length,
         orders: allOrders.length,
-        revenue: allOrders.filter(o => o.status === 'completed').reduce((sum, o) => sum + (o.amount || 0), 0),
+        revenue: paystackRevenue,
         pending: allOrders.filter(o => o.status === 'pending' || o.status === 'processing').length,
       })
       setLoading(false)
@@ -857,7 +923,7 @@ export default function AdminPanel() {
       <div style={{ padding:'1rem 1.4rem', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100, background:'rgba(var(--navy-rgb,10,10,30),0.95)', backdropFilter:'blur(20px)', borderBottom:'1px solid var(--border)' }}>
         <div>
           <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.1rem', color:'var(--text)' }}>Mega<span style={{ color:'var(--gold)' }}>Den</span> <span style={{ color:'var(--purple2)' }}>Admin</span></div>
-          <div style={{ fontSize:'0.68rem', color:'var(--muted)' }}>Control Panel · {stats.users} users · ₦{stats.revenue.toLocaleString()} revenue</div>
+          <div style={{ fontSize:'0.68rem', color:'var(--muted)' }}>Control Panel · {stats.users} users · {money(stats.revenue)} revenue</div>
         </div>
         <a href="/dashboard" style={{ padding:'0.4rem 0.9rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'8px', color:'var(--muted)', fontSize:'0.75rem', textDecoration:'none', fontWeight:500 }}>← App</a>
       </div>
@@ -867,11 +933,86 @@ export default function AdminPanel() {
         {/* OVERVIEW */}
         {activeTab === 'overview' && (
           <div style={{ animation: mounted ? 'fadeSlideIn 0.4s ease' : 'none' }}>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'0.8rem', marginBottom:'1.5rem' }}>
+            {/* MONEY CARD: Paystack revenue <-> completed purchases */}
+            {(() => {
+              const isPaystack = revMode === 'paystack'
+              const summary = isPaystack
+                ? (paystackDaily ? summarizeDaily(paystackDaily) : null)
+                : summarizeDaily(dailyFromOrders(orders))
+              const accent = isPaystack ? '#34d399' : 'var(--gold)'
+              const noun = isPaystack ? 'payments' : 'orders'
+              const maxBar = summary ? Math.max(1, ...summary.series.map(s => s.total)) : 1
+              const dayLabel = (key) => new Date(key + 'T00:00:00Z').toLocaleDateString('en-NG', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+              return (
+                <div className="stat-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.2rem', marginBottom:'0.8rem', animation: mounted ? 'fadeSlideIn 0.35s ease both' : 'none' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'0.6rem', marginBottom:'1rem' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', color: accent }}>
+                      <span style={{ opacity:0.8, display:'flex' }}><MoneyIcon /></span>
+                      <span style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.75rem', letterSpacing:'0.07em', textTransform:'uppercase' }}>
+                        {isPaystack ? 'Revenue (Paystack)' : 'Completed purchases'}
+                      </span>
+                    </div>
+                    <div role="tablist" aria-label="Choose which total to show" style={{ display:'inline-flex', padding:'0.2rem', background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'10px' }}>
+                      {[['paystack', 'Paystack'], ['purchases', 'Purchases']].map(([id, label]) => (
+                        <button key={id} role="tab" aria-selected={revMode === id} className="tab-btn" onClick={() => setRevMode(id)}
+                          style={{ padding:'0.35rem 0.85rem', borderRadius:'8px', border:'none', fontSize:'0.74rem', fontWeight:600, fontFamily:'Outfit, sans-serif',
+                            background: revMode === id ? 'var(--card2)' : 'transparent', color: revMode === id ? 'var(--text)' : 'var(--muted)' }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'2rem', letterSpacing:'-0.02em', color: accent }}>
+                    {summary ? money(summary.total) : '—'}
+                  </div>
+                  <div style={{ fontSize:'0.72rem', color:'var(--muted)', marginTop:'0.25rem', lineHeight:1.5 }}>
+                    {isPaystack
+                      ? 'Money paid in through Paystack. Leaves out admin balance adjustments, refunds and wallet spending.'
+                      : 'Value of completed orders: what customers have spent from their wallets in the app.'}
+                  </div>
+
+                  {!summary ? (
+                    <div style={{ fontSize:'0.76rem', color:'#f0b429', marginTop:'0.9rem' }}>Could not load Paystack figures. Refresh the page to try again.</div>
+                  ) : (
+                    <>
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))', gap:'0.5rem', marginTop:'1rem' }}>
+                        {[
+                          { label:'Today',        value: money(summary.today) },
+                          { label:'Last 7 days',  value: money(summary.week) },
+                          { label:'This month',   value: money(summary.month) },
+                          { label: noun.charAt(0).toUpperCase() + noun.slice(1), value: summary.count.toLocaleString() },
+                        ].map(m => (
+                          <div key={m.label} style={{ background:'var(--navy)', border:'1px solid var(--border)', borderRadius:'12px', padding:'0.6rem 0.75rem' }}>
+                            <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.95rem', color:'var(--text)' }}>{m.value}</div>
+                            <div style={{ fontSize:'0.66rem', color:'var(--muted)', marginTop:'0.1rem' }}>{m.label}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ marginTop:'1rem' }}>
+                        <div style={{ display:'flex', alignItems:'flex-end', gap:'3px', height:56 }} role="img" aria-label="Daily totals for the last 14 days">
+                          {summary.series.map(s => (
+                            <div key={s.date} title={`${dayLabel(s.date)}: ${money(s.total)}`}
+                              style={{ flex:1, height: `${Math.max(s.total > 0 ? 6 : 2, (s.total / maxBar) * 100)}%`, background: accent, opacity: s.total > 0 ? 0.85 : 0.2, borderRadius:'3px 3px 0 0' }} />
+                          ))}
+                        </div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.62rem', color:'var(--muted)', marginTop:'0.3rem' }}>
+                          <span>{dayLabel(summary.series[0].date)}</span>
+                          <span>Last 14 days</span>
+                          <span>{dayLabel(summary.series[summary.series.length - 1].date)}</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            })()}
+
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'0.8rem', marginBottom:'1.5rem' }}>
               {[
                 { label:'Total Users',    value: stats.users,                         color:'var(--purple2)', icon:<UsersIcon /> },
                 { label:'Total Orders',   value: stats.orders,                        color:'var(--gold)',    icon:<PackageIcon /> },
-                { label:'Revenue',        value:`₦${stats.revenue.toLocaleString()}`, color:'#34d399',       icon:<MoneyIcon /> },
                 { label:'Pending Orders', value: stats.pending,                       color:'#f0b429',       icon:<ClockIcon /> },
               ].map((s, i) => (
                 <div key={s.label} className="stat-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'1.1rem', animation: mounted ? `fadeSlideIn 0.35s ease ${0.06*i}s both` : 'none' }}>

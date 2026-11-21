@@ -241,6 +241,7 @@ export default function Boosting() {
   const step2Ref = useRef(null)
   const step3Ref = useRef(null)
   const summaryRef = useRef(null)
+  const errorRef = useRef(null)
 
   const isTurbo = provider === 'turbo'
   const activeServices = provider ? platformsByTier[provider] : []
@@ -277,6 +278,11 @@ export default function Boosting() {
     const t = setTimeout(() => step3Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 160)
     return () => clearTimeout(t)
   }, [selectedPackage?.code, selectedPackage?.quantity])
+  // Bring a new error into view: it sits at the top of the form while the
+  // buy button is at the bottom, so people can miss it otherwise.
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [error])
   useEffect(() => {
     if (!hasLink) return
     const t = setTimeout(() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 160)
@@ -609,6 +615,9 @@ export default function Boosting() {
                 <button onClick={resetOrder} className="buy-btn" style={{ width:'100%', marginTop:'1rem', padding:'0.95rem', background:'var(--purple)', color:'#fff', border:'none', borderRadius:14, fontFamily:'Outfit, sans-serif', fontSize:'0.92rem', fontWeight:700 }}>
                   New Order
                 </button>
+                <Link href="/dashboard/orders" style={{ display:'block', textAlign:'center', marginTop:'0.6rem', padding:'0.75rem', borderRadius:12, border:'1px solid var(--purple)', color:'var(--purple2)', fontSize:'0.82rem', fontWeight:700, textDecoration:'none', fontFamily:'Outfit, sans-serif' }}>
+                  View my orders
+                </Link>
                 <Link href="/dashboard" style={{ display:'block', textAlign:'center', marginTop:'0.6rem', padding:'0.75rem', borderRadius:12, border:'1px solid var(--border)', color:'var(--muted)', fontSize:'0.82rem', fontWeight:600, textDecoration:'none', fontFamily:'Outfit, sans-serif' }}>
                   Back to dashboard
                 </Link>
@@ -616,7 +625,7 @@ export default function Boosting() {
             ) : (
               <div style={{ animation:'fadeSlideUp 0.35s ease both' }}>
                 {error && (
-                  <div style={{ background:'rgba(220,50,50,0.1)', border:'1px solid rgba(220,50,50,0.3)', color:'#ff6b6b', borderRadius:'12px', padding:'0.8rem 1rem', fontSize:'0.84rem', marginBottom:'1rem', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div ref={errorRef} style={{ background:'rgba(220,50,50,0.1)', border:'1px solid rgba(220,50,50,0.3)', color:'#ff6b6b', borderRadius:'12px', padding:'0.8rem 1rem', fontSize:'0.84rem', marginBottom:'1rem', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                     <span>{error}</span>
                     <button onClick={() => setError('')} style={{ background:'none', border:'none', color:'#ff6b6b', cursor:'pointer', fontSize:'1.1rem', lineHeight:1 }}>×</button>
                   </div>
@@ -732,8 +741,8 @@ export default function Boosting() {
                       </div>
                     </div>
                     <div style={{ fontSize:'0.7rem', color:'var(--muted)', marginTop:'0.4rem', lineHeight:1.5 }}>{LINK_HINTS[selectedPlatform.id]?.note || 'Make sure your account or post is public before ordering.'}</div>
-                    {link.trim() && !/^https?:\/\//i.test(link.trim()) && (
-                      <div style={{ fontSize:'0.7rem', color:'#f0b429', marginTop:'0.35rem' }}>This doesn’t look like a link — it should start with https://</div>
+                    {link.trim() && !/(https?:\/\/|[a-z0-9-]+\.[a-z]{2,})/i.test(link) && (
+                      <div style={{ fontSize:'0.7rem', color:'#f0b429', marginTop:'0.35rem' }}>This doesn’t look like a link — paste the full link from the app’s Share button</div>
                     )}
                   </div>
                 )}

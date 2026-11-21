@@ -43,9 +43,24 @@ export default function Orders() {
     load()
   }, [])
 
+  // While anything is still pending or processing, quietly re-check every 30
+  // seconds so a boost flips to Completed/Refunded without a manual refresh.
+  // Stops by itself once nothing is in flight.
+  useEffect(() => {
+    if (!orders.some(o => o.status === 'pending' || o.status === 'processing')) return
+    const t = setInterval(async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase.from('orders').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+      if (data) setOrders(data)
+    }, 30000)
+    return () => clearInterval(t)
+  }, [orders])
+
   // 'active' only appears once the user actually has an active rental, so people
-  // who never rent a number don't see an always-empty chip.
-  const filters = ['all', 'completed', 'pending', ...(orders.some(o => o.status === 'active') ? ['active'] : []), 'failed', ...(orders.some(o => o.status === 'unresolved_billing') ? ['unresolved_billing'] : [])]
+  // who never rent a number don't see an always-empty chip. Same for 'refunded'.
+  const filters = ['all', 'completed', 'pending', ...(orders.some(o => o.status === 'active') ? ['active'] : []), 'failed', ...(orders.some(o => o.status === 'refunded') ? ['refunded'] : []), ...(orders.some(o => o.status === 'unresolved_billing') ? ['unresolved_billing'] : [])]
 
   const q = query.trim().toLowerCase()
   const byStatus = activeFilter === 'all' ? orders : orders.filter(o => o.status === activeFilter)
@@ -53,10 +68,12 @@ export default function Orders() {
     ? byStatus.filter(o => `${o.product_name || ''} ${typeLabel(o.product_type)}`.toLowerCase().includes(q))
     : byStatus
 
+  const isBoostType = (type) => type === 'boosting' || type === 'boost' || type === 'standard_boost'
+
   const categoryIcon = (type) => {
     if (type === 'number') return <PhoneIcon />
     if (type === 'log') return <LogIcon />
-    if (type === 'boosting') return <BoostIcon />
+    if (isBoostType(type)) return <BoostIcon />
     if (type === 'number_rental') return <CalendarIcon />
     if (type === 'email_otp') return <MailIcon />
     if (type === 'proxy') return <GlobeIcon />
@@ -67,7 +84,7 @@ export default function Orders() {
   const categoryColor = (type) => {
     if (type === 'number') return 'var(--purple)'
     if (type === 'log') return '#f0b429'
-    if (type === 'boosting') return '#1d9e75'
+    if (isBoostType(type)) return '#1d9e75'
     if (type === 'number_rental') return '#2dd4bf'
     if (type === 'email_otp') return '#4687ff'
     if (type === 'proxy') return '#2dd4bf'
@@ -81,6 +98,7 @@ export default function Orders() {
     if (status === 'failed') return { bg: 'rgba(244,63,94,0.12)', color: '#f43f5e' }
     if (status === 'active') return { bg: 'rgba(29,158,117,0.12)', color: '#34d399' }
     if (status === 'unresolved_billing') return { bg: 'rgba(240,180,41,0.12)', color: '#f0b429' }
+    if (status === 'refunded') return { bg: 'rgba(96,165,250,0.12)', color: '#60a5fa' }
     return { bg: 'var(--card2)', color: 'var(--muted)' }
   }
 
@@ -313,6 +331,8 @@ export default function Orders() {
 
 // Raw type codes shouldn't leak into the UI ("Number_rental").
 function typeLabel(type) {
+  if (type === 'boost') return 'Turbo boost'
+  if (type === 'standard_boost') return 'Standard boost'
   return type === 'number_rental' ? 'Number rental' : type === 'email_otp' ? 'Email OTP' : type === 'proxy' ? 'Residential proxy' : type === 'esim' ? 'Travel eSIM' : (type || 'Service')
 }
 

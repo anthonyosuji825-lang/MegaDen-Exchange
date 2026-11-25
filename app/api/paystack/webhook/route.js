@@ -31,6 +31,13 @@ export async function POST(request) {
       const amount = data.amount / 100
       const reference = data.reference
 
+      // This Paystack account is shared with other projects (e.g. MindStark membership payments).
+      // Only credit a wallet for payments MegaDen itself started: the wallet page always uses a
+      // `WALLET-` reference (see app/dashboard/wallet/page.js). Anything else is not ours.
+      if (!String(reference || '').startsWith('WALLET-')) {
+        return NextResponse.json({ message: 'Not a MegaDen wallet top-up, ignored' }, { status: 200 })
+      }
+
       // Check for duplicate transaction
       const { data: existing } = await supabase
         .from('transactions')

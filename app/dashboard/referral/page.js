@@ -55,7 +55,8 @@ export default function Referral() {
     load()
   }, [])
 
-  const referralLink = `https://megaden-exchange.vercel.app/signup?ref=${profile?.referral_code}`
+  const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://megaden.megad.name.ng').replace(/\/+$/, '')
+  const referralLink = `${SITE_URL}/signup?ref=${profile?.referral_code}`
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralLink)

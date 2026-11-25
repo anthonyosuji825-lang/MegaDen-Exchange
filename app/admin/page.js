@@ -272,6 +272,11 @@ export default function AdminPanel() {
   const [logs, setLogs] = useState([])
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsLastFetched, setLogsLastFetched] = useState(null)
+  const [histUser, setHistUser] = useState(null)
+  const [histData, setHistData] = useState(null)
+  const [histLoading, setHistLoading] = useState(false)
+  const [histError, setHistError] = useState('')
+  const [histFilter, setHistFilter] = useState('all')
   const [psData, setPsData] = useState(null)
   const [psLoading, setPsLoading] = useState(false)
   const [psError, setPsError] = useState('')
@@ -438,6 +443,22 @@ export default function AdminPanel() {
       console.error('Failed to fetch logs', e)
     }
     setLogsLoading(false)
+  }
+
+  const openHistory = async (user) => {
+    setHistUser(user)
+    setHistData(null)
+    setHistError('')
+    setHistFilter('all')
+    setHistLoading(true)
+    try {
+      const res = await fetch('/api/admin/user-history?userId=' + encodeURIComponent(user.id))
+      if (res.ok) setHistData(await res.json())
+      else setHistError('Could not load history (' + res.status + ')')
+    } catch (e) {
+      setHistError('Could not load history')
+    }
+    setHistLoading(false)
   }
 
   const fetchPaystack = async () => {
@@ -1253,6 +1274,10 @@ export default function AdminPanel() {
                       {user.is_banned ? 'Unban' : 'Ban User'}
                     </button>
                   </div>
+                  <button className="action-btn" onClick={() => openHistory(user)}
+                    style={{ width:'100%', marginTop:'0.5rem', padding:'0.5rem', background:'rgba(108,78,242,0.1)', border:'1px solid rgba(108,78,242,0.3)', borderRadius:'8px', color:'var(--purple2)', fontSize:'0.72rem', fontWeight:600 }}>
+                    View History
+                  </button>
                 </div>
               ))}
               {users.length === 0 && <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:'16px', padding:'2rem', textAlign:'center', color:'var(--muted)', fontSize:'0.82rem' }}>No users yet</div>}
@@ -1841,6 +1866,128 @@ export default function AdminPanel() {
             )}
           </div>
         )}
+
+        {/* USER HISTORY PANEL */}
+        {histUser && (() => {
+          const fmt = (n) => '₦' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 2 })
+          const lagosDate = (iso) => new Date(iso).toLocaleDateString('en-NG', { timeZone:'Africa/Lagos', weekday:'long', day:'numeric', month:'long', year:'numeric' })
+          const lagosTime = (iso) => new Date(iso).toLocaleTimeString('en-NG', { timeZone:'Africa/Lagos', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true })
+          const dayKey = (iso) => new Date(iso).toLocaleDateString('en-CA', { timeZone:'Africa/Lagos' })
+          const meta = {
+            signup:     { icon:'★', color:'#a78bfa' },
+            funding:    { icon:'↑', color:'#34d399' },
+            refund:     { icon:'↩', color:'#34d399' },
+            adjustment: { icon:'✎', color:'#f0b429' },
+            credit:     { icon:'↑', color:'#34d399' },
+            spend:      { icon:'↓', color:'#f43f5e' },
+            order:      { icon:'▣', color:'#60a5fa' },
+            boost:      { icon:'⚡', color:'#f0b429' },
+            referral:   { icon:'♥', color:'#f472b6' },
+            log:        { icon:'•', color:'var(--muted)' },
+          }
+          const statusColor = (s) => ['completed','success'].includes(s) ? '#34d399' : ['refunded','failed','canceled','cancelled'].includes(s) ? '#f43f5e' : '#f0b429'
+          const filters = [
+            { id:'all', label:'All' },
+            { id:'wallet', label:'Wallet' },
+            { id:'orders', label:'Orders' },
+            { id:'activity', label:'Activity' },
+          ]
+          const events = (histData?.events || []).filter(e => histFilter === 'all' || e.group === histFilter)
+          const groups = []
+          for (const e of events) {
+            const k = dayKey(e.at)
+            if (!groups.length || groups[groups.length - 1].key !== k) groups.push({ key: k, at: e.at, items: [] })
+            groups[groups.length - 1].items.push(e)
+          }
+          const s = histData?.summary
+          const tile = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:'12px', padding:'0.6rem 0.7rem' }
+          const tl = { fontSize:'0.56rem', color:'var(--muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em' }
+          const tv = { fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'0.95rem', color:'var(--text)', marginTop:'0.1rem' }
+          const close = () => { setHistUser(null); setHistData(null) }
+          return (
+            <div onClick={close} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:300, display:'flex', justifyContent:'flex-end' }}>
+              <div onClick={e => e.stopPropagation()} style={{ width:'100%', maxWidth:520, height:'100%', background:'var(--navy)', borderLeft:'1px solid var(--border)', display:'flex', flexDirection:'column', animation:'fadeSlideIn 0.25s ease' }}>
+                <div style={{ padding:'1rem 1.1rem', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:'0.8rem' }}>
+                  <div style={{ width:40, height:40, borderRadius:'50%', background:'linear-gradient(135deg, var(--purple), var(--gold))', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Outfit, sans-serif', fontWeight:800, color:'#fff', flexShrink:0 }}>
+                    {histUser.full_name?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.92rem', color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{histUser.full_name || 'User'}</div>
+                    <div style={{ fontSize:'0.7rem', color:'var(--muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{histUser.email}</div>
+                  </div>
+                  <button onClick={close} aria-label="Close history"
+                    style={{ width:30, height:30, borderRadius:'50%', background:'var(--card)', border:'1px solid var(--border)', color:'var(--muted)', cursor:'pointer' }}>{'✕'}</button>
+                </div>
+
+                <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.1rem 2rem' }}>
+                  {histLoading && <div style={{ textAlign:'center', color:'var(--muted)', fontSize:'0.8rem', padding:'2rem 0' }}>Loading history...</div>}
+                  {histError && <div style={{ ...tile, color:'#f43f5e', fontSize:'0.78rem' }}>{histError}</div>}
+
+                  {histData && (
+                    <>
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'0.5rem', marginBottom:'0.9rem' }}>
+                        <div style={tile}><div style={tl}>Wallet now</div><div style={{ ...tv, color:'var(--gold)' }}>{fmt(histData.profile.wallet)}</div></div>
+                        <div style={tile}><div style={tl}>Paid in (Paystack)</div><div style={tv}>{fmt(s.funded)}</div></div>
+                        <div style={tile}><div style={tl}>Spent</div><div style={tv}>{fmt(s.spent)}</div></div>
+                        <div style={tile}><div style={tl}>Orders</div><div style={tv}>{s.orders}</div></div>
+                      </div>
+                      <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginBottom:'0.9rem' }}>
+                        Joined {histData.profile.joined ? lagosDate(histData.profile.joined) : '-'}
+                        {s.lastActive ? ' · Last activity ' + lagosDate(s.lastActive) + ', ' + lagosTime(s.lastActive) : ''}
+                        {histData.profile.phone ? ' · ' + histData.profile.phone : ''}
+                      </div>
+
+                      <div style={{ display:'flex', gap:'0.4rem', marginBottom:'1rem', overflowX:'auto' }}>
+                        {filters.map(f => (
+                          <button key={f.id} onClick={() => setHistFilter(f.id)}
+                            style={{ padding:'0.4rem 0.85rem', borderRadius:'10px', fontSize:'0.72rem', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', background: histFilter === f.id ? 'var(--purple2)' : 'var(--card)', color: histFilter === f.id ? '#fff' : 'var(--text)', border:'1px solid ' + (histFilter === f.id ? 'var(--purple2)' : 'var(--border)') }}>
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {groups.length === 0 && <div style={{ ...tile, textAlign:'center', color:'var(--muted)', fontSize:'0.78rem' }}>No history yet</div>}
+
+                      {groups.map(g => (
+                        <div key={g.key} style={{ marginBottom:'1.1rem' }}>
+                          <div style={{ fontSize:'0.68rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'0.5rem' }}>{lagosDate(g.at)}</div>
+                          <div style={{ borderLeft:'2px solid var(--border)', marginLeft:'0.9rem', paddingLeft:'1rem', display:'flex', flexDirection:'column', gap:'0.5rem' }}>
+                            {g.items.map(e => {
+                              const m = meta[e.kind] || meta.log
+                              return (
+                                <div key={e.id} style={{ position:'relative', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'12px', padding:'0.6rem 0.75rem' }}>
+                                  <div style={{ position:'absolute', left:'-1.95rem', top:'0.55rem', width:22, height:22, borderRadius:'50%', background:'var(--navy)', border:'2px solid ' + m.color, color:m.color, fontSize:'0.65rem', display:'flex', alignItems:'center', justifyContent:'center' }}>{m.icon}</div>
+                                  <div style={{ display:'flex', justifyContent:'space-between', gap:'0.6rem', alignItems:'flex-start' }}>
+                                    <div style={{ minWidth:0 }}>
+                                      <div style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--text)', wordBreak:'break-word' }}>{e.title}</div>
+                                      {e.detail && <div style={{ fontSize:'0.64rem', color:'var(--muted)', marginTop:'0.1rem', wordBreak:'break-all' }}>{e.detail}</div>}
+                                    </div>
+                                    {e.amount != null && (
+                                      <div style={{ textAlign:'right', flexShrink:0 }}>
+                                        <div style={{ fontWeight:700, fontSize:'0.82rem', color: e.sign === '+' ? '#34d399' : e.sign === '-' ? '#f43f5e' : 'var(--text)' }}>{e.sign || ''}{fmt(e.amount)}</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div style={{ display:'flex', justifyContent:'space-between', marginTop:'0.35rem', fontSize:'0.62rem' }}>
+                                    <span style={{ color:'var(--muted)' }}>{lagosTime(e.at)}</span>
+                                    {e.status && <span style={{ fontWeight:700, color: statusColor(e.status) }}>{e.status}</span>}
+                                    {!e.status && e.level && e.level !== 'info' && <span style={{ fontWeight:700, color: e.level === 'error' ? '#f43f5e' : '#f0b429' }}>{e.level}</span>}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+
+                      {histData.truncated && <div style={{ fontSize:'0.66rem', color:'var(--muted)', textAlign:'center' }}>Showing the most recent records only.</div>}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* PAYSTACK TAB */}
         {activeTab === 'paystack' && (() => {

@@ -272,6 +272,15 @@ export default function AdminPanel() {
   const [logs, setLogs] = useState([])
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsLastFetched, setLogsLastFetched] = useState(null)
+  const [profitData, setProfitData] = useState(null)
+  const [profitLoading, setProfitLoading] = useState(false)
+  const [profitError, setProfitError] = useState('')
+  const [profitProvider, setProfitProvider] = useState('fleexa')
+  const [showFundForm, setShowFundForm] = useState(false)
+  const [profitLogFilter, setProfitLogFilter] = useState('all')
+  const [fundForm, setFundForm] = useState({ amount:'', paidNgn:'', balanceAfter:'', note:'' })
+  const [fundSaving, setFundSaving] = useState(false)
+  const [fundMsg, setFundMsg] = useState('')
   const [histUser, setHistUser] = useState(null)
   const [histData, setHistData] = useState(null)
   const [histLoading, setHistLoading] = useState(false)
@@ -443,6 +452,50 @@ export default function AdminPanel() {
       console.error('Failed to fetch logs', e)
     }
     setLogsLoading(false)
+  }
+
+  const fetchProfit = async () => {
+    setProfitLoading(true)
+    setProfitError('')
+    try {
+      const res = await fetch('/api/admin/provider-profit')
+      if (res.ok) setProfitData(await res.json())
+      else setProfitError('Could not load profit data (' + res.status + ')')
+    } catch (e) {
+      setProfitError('Could not load profit data')
+    }
+    setProfitLoading(false)
+  }
+
+  const submitFunding = async () => {
+    setFundSaving(true)
+    setFundMsg('')
+    try {
+      const res = await fetch('/api/admin/provider-profit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: profitProvider, ...fundForm }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setShowFundForm(false)
+        setFundForm({ amount:'', paidNgn:'', balanceAfter:'', note:'' })
+        await fetchProfit()
+      } else {
+        setFundMsg(data.error || 'Could not save')
+      }
+    } catch (e) {
+      setFundMsg('Could not save')
+    }
+    setFundSaving(false)
+  }
+
+  const deleteFunding = async (id) => {
+    if (!window.confirm('Delete this funding entry? Profit history for this provider will be recalculated.')) return
+    try {
+      await fetch('/api/admin/provider-profit?id=' + encodeURIComponent(id), { method: 'DELETE' })
+    } catch (e) {}
+    await fetchProfit()
   }
 
   const openHistory = async (user) => {
@@ -912,6 +965,7 @@ export default function AdminPanel() {
     { id: 'notify',   label: 'Notify',    icon: <MailIcon /> },
     { id: 'popups',   label: 'Popups',    icon: <BellIcon /> },
     { id: 'paystack', label: 'Paystack',  icon: <MoneyIcon /> },
+    { id: 'profit',   label: 'Profit',    icon: <MoneyIcon /> },
     { id: 'logs',     label: 'Logs',      icon: <LogsIcon /> },
     { id: 'settings', label: 'Settings',  icon: <SettingsIcon /> },
   ]
@@ -959,6 +1013,7 @@ export default function AdminPanel() {
           setActiveTab(id)
           if (id === 'logs' && logs.length === 0) fetchLogs()
           if (id === 'paystack' && !psData) fetchPaystack()
+          if (id === 'profit' && !profitData) fetchProfit()
         }} onLogout={handleLogout} />
       )}
 
@@ -1989,6 +2044,352 @@ export default function AdminPanel() {
           )
         })()}
 
+        {/* PROFIT TAB */}
+        {activeTab === 'profit' && (() => {
+          const fmt = (n) => '₦' + Math.round(Number(n || 0)).toLocaleString('en-NG')
+          const signed = (n) => (n > 0 ? '+' : n < 0 ? '-' : '') + fmt(Math.abs(n))
+          const when = (v) => v ? new Date(v).toLocaleString('en-NG', { timeZone:'Africa/Lagos', day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : 'now'
+          const short = (v) => v ? new Date(v).toLocaleDateString('en-NG', { timeZone:'Africa/Lagos', day:'numeric', month:'short' }) : 'now'
+          const card = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:'14px', padding:'0.8rem' }
+          const lbl = { fontSize:'0.58rem', color:'var(--muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }
+          const good = '#34d399', bad = '#f43f5e'
+          const pc = (n) => n > 0 ? good : n < 0 ? bad : 'var(--text)'
+          const d = profitData
+          const prov = d?.providers?.[profitProvider]
+          const cur = prov?.currency === 'USD' ? '$' : '₦'
+          const num = (n) => n == null ? '-' : cur + Number(n).toLocaleString('en-NG', { maximumFractionDigits: 2 })
+          const inputS = { ...inputStyle, padding:'0.55rem 0.75rem' }
+          const provOrder = ['fleexa','jap','exo','fivesim','smspool']
+          const brand = (k) => PROVIDER_CARDS.find(x => x.key === k) || { color:'var(--purple2)', emoji:'', bg:'var(--card)' }
+          const bc = brand(profitProvider)
+          const wins = prov ? prov.windows : []
+          const live = wins.find(w => w.open)
+          const closed = wins.filter(w => !w.open)
+          const chrono = wins.slice().reverse().filter(w => w.profit != null).slice(-10)
+          const maxAbs = Math.max(1, ...chrono.map(w => Math.abs(w.profit)))
+          const margin = prov && prov.totalRevenue > 0 ? (prov.totalProfit / prov.totalRevenue) * 100 : null
+          const pill = (txt, color) => <span style={{ display:'inline-block', padding:'0.15rem 0.55rem', borderRadius:'50px', fontSize:'0.6rem', fontWeight:800, letterSpacing:'0.04em', color, background:'rgba(255,255,255,0.06)', border:'1px solid ' + color }}>{txt}</span>
+          return (
+          <div style={{ animation:'fadeSlideIn 0.4s ease' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+              <div>
+                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.05rem', color:'var(--text)' }}>Provider Profit</div>
+                <div style={{ fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.1rem' }}>Profit or loss on every top-up you make</div>
+              </div>
+              <button onClick={fetchProfit} disabled={profitLoading}
+                style={{ padding:'0.45rem 0.9rem', background:'var(--card)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--text)', fontSize:'0.72rem', fontWeight:600, cursor:'pointer' }}>
+                {profitLoading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {profitError && <div style={{ ...card, color:bad, fontSize:'0.78rem', marginBottom:'0.75rem' }}>{profitError}</div>}
+            {!d && !profitError && <div style={{ ...card, textAlign:'center', color:'var(--muted)', fontSize:'0.78rem' }}>{profitLoading ? 'Loading...' : 'No data yet'}</div>}
+
+            {d && (
+              <>
+                {/* Provider picker */}
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(118px, 1fr))', gap:'0.5rem', marginBottom:'1rem' }}>
+                  {provOrder.map(k => {
+                    const pv = d.providers[k]
+                    const b = brand(k)
+                    const active = profitProvider === k
+                    return (
+                      <button key={k} onClick={() => { setProfitProvider(k); setShowFundForm(false); setFundMsg(''); setProfitLogFilter('all') }}
+                        style={{ position:'relative', overflow:'hidden', textAlign:'left', padding:'0.65rem 0.7rem 0.6rem', borderRadius:'12px', cursor:'pointer', background: active ? b.bg : 'var(--card)', border:'1px solid ' + (active ? b.color : 'var(--border)'), transition:'all 0.15s' }}>
+                        <div style={{ position:'absolute', left:0, top:0, bottom:0, width:3, background:b.color, opacity: active ? 1 : 0.35 }} />
+                        <div style={{ display:'flex', alignItems:'center', gap:'0.35rem', fontSize:'0.74rem', fontWeight:700, color:'var(--text)' }}><span>{b.emoji}</span>{pv.label}</div>
+                        <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'0.88rem', marginTop:'0.25rem', color: pv.windows.length ? pc(pv.totalProfit) : 'var(--muted)' }}>{pv.windows.length ? signed(pv.totalProfit) : 'No fundings'}</div>
+                        <div style={{ fontSize:'0.58rem', color:'var(--muted)', marginTop:'0.05rem' }}>{pv.windows.length} {pv.windows.length === 1 ? 'funding' : 'fundings'}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {prov && (
+                  <>
+                    {/* Hero */}
+                    <div style={{ position:'relative', overflow:'hidden', borderRadius:'18px', padding:'1.1rem 1.1rem 1rem', marginBottom:'0.9rem', background:'linear-gradient(135deg, rgba(108,78,242,0.22), rgba(240,180,41,0.08) 60%, var(--card))', border:'1px solid ' + bc.border }}>
+                      <div style={{ position:'absolute', right:-40, top:-40, width:160, height:160, borderRadius:'50%', background:bc.color, opacity:0.08 }} />
+                      <div style={{ display:'flex', justifyContent:'space-between', gap:'1rem', flexWrap:'wrap', position:'relative' }}>
+                        <div style={{ minWidth:180 }}>
+                          <div style={lbl}>{bc.emoji} {prov.label} {'·'} all-time result</div>
+                          <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'2rem', lineHeight:1.15, marginTop:'0.25rem', color: pc(prov.totalProfit) }}>{signed(prov.totalProfit)}</div>
+                          <div style={{ marginTop:'0.4rem', display:'flex', gap:'0.4rem', alignItems:'center', flexWrap:'wrap' }}>
+                            {wins.length > 0 && pill(prov.totalProfit >= 0 ? 'PROFIT' : 'LOSS', pc(prov.totalProfit))}
+                            {margin != null && <span style={{ fontSize:'0.68rem', color:'var(--muted)' }}>{margin.toFixed(1)}% margin</span>}
+                          </div>
+                          <div style={{ fontSize:'0.66rem', color:'var(--muted)', marginTop:'0.5rem', lineHeight:1.5 }}>
+                            Customers paid {fmt(prov.totalRevenue)} {'·'} provider used {fmt(prov.totalCost)}
+                          </div>
+                        </div>
+                        {chrono.length > 0 && (
+                          <div style={{ flex:1, minWidth:200, maxWidth:320 }}>
+                            <div style={{ ...lbl, marginBottom:'0.3rem' }}>Result per funding</div>
+                            <svg viewBox="0 0 200 70" width="100%" height="70" preserveAspectRatio="none" role="img" aria-label="Profit or loss for each funding">
+                              <line x1="0" y1="35" x2="200" y2="35" stroke="var(--border)" strokeWidth="1" />
+                              {chrono.map((w, i) => {
+                                const slot = 200 / chrono.length
+                                const bw = Math.min(slot * 0.62, 26)
+                                const h = Math.max(2, (Math.abs(w.profit) / maxAbs) * 32)
+                                const x = i * slot + (slot - bw) / 2
+                                const y = w.profit >= 0 ? 35 - h : 35
+                                return <rect key={w.id} x={x} y={y} width={bw} height={h} rx="2" fill={w.profit >= 0 ? good : bad} opacity={w.open ? 0.55 : 0.95} />
+                              })}
+                            </svg>
+                            <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.56rem', color:'var(--muted)' }}>
+                              <span>{short(chrono[0].fundedAt)}</span><span>{chrono.length > 1 ? short(chrono[chrono.length - 1].fundedAt) : ''}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stat tiles */}
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'0.5rem', marginBottom:'0.9rem' }}>
+                      {[
+                        { l:'Balance now', v: num(prov.liveBalance), c:'var(--gold)' },
+                        { l:'Fundings', v: String(wins.length), c:'var(--text)' },
+                        { l:'Best / worst', v: closed.some(w => w.profit != null) ? signed(Math.max(...closed.filter(w => w.profit != null).map(w => w.profit))) + ' / ' + signed(Math.min(...closed.filter(w => w.profit != null).map(w => w.profit))) : '-', c:'var(--text)', small:true },
+                      ].map(t => (
+                        <div key={t.l} style={card}>
+                          <div style={lbl}>{t.l}</div>
+                          <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize: t.small ? '0.72rem' : '1.05rem', marginTop:'0.2rem', color:t.c, wordBreak:'break-word' }}>{t.v}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Live funding */}
+                    {live && (() => {
+                      const left = live.startBalance > 0 && live.endBalance != null ? Math.max(0, Math.min(100, (live.endBalance / live.startBalance) * 100)) : null
+                      const barMax = Math.max(live.revenue, live.cost || 0, 1)
+                      return (
+                        <div style={{ ...card, marginBottom:'0.9rem', border:'1px solid ' + bc.border, background:'linear-gradient(180deg, ' + bc.bg + ', var(--card))' }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'0.6rem' }}>
+                            <div>
+                              <div style={{ display:'flex', alignItems:'center', gap:'0.4rem' }}>
+                                <span style={{ width:8, height:8, borderRadius:'50%', background:good, boxShadow:'0 0 0 4px rgba(52,211,153,0.2)' }} />
+                                <span style={{ fontWeight:800, fontSize:'0.82rem', color:'var(--text)' }}>Current funding</span>
+                              </div>
+                              <div style={{ fontSize:'0.66rem', color:'var(--muted)', marginTop:'0.25rem' }}>Funded {num(live.amount)}{live.paidNgn ? ' (paid ' + fmt(live.paidNgn) + ')' : ''} {'·'} since {when(live.fundedAt)}</div>
+                            </div>
+                            <div style={{ textAlign:'right' }}>
+                              <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.3rem', color: live.profit == null ? 'var(--muted)' : pc(live.profit) }}>{live.profit == null ? 'n/a' : signed(live.profit)}</div>
+                              <div style={{ fontSize:'0.58rem', color:'var(--muted)' }}>so far</div>
+                            </div>
+                          </div>
+                          {left != null && (
+                            <div style={{ marginTop:'0.8rem' }}>
+                              <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.62rem', color:'var(--muted)', marginBottom:'0.25rem' }}>
+                                <span>Balance left {num(live.endBalance)}</span><span>{left.toFixed(0)}% of {num(live.startBalance)}</span>
+                              </div>
+                              <div style={{ height:8, borderRadius:8, background:'var(--navy)', overflow:'hidden', border:'1px solid var(--border)' }}>
+                                <div style={{ width:left + '%', height:'100%', borderRadius:8, background: left < 15 ? bad : left < 40 ? '#f0b429' : bc.color, transition:'width 0.4s' }} />
+                              </div>
+                              {left < 15 && <div style={{ fontSize:'0.62rem', color:bad, marginTop:'0.3rem', fontWeight:600 }}>Running low. Log your next top-up straight after you fund.</div>}
+                            </div>
+                          )}
+                          <div style={{ marginTop:'0.8rem', display:'flex', flexDirection:'column', gap:'0.35rem' }}>
+                            {[{ l:'Customers paid', v:live.revenue, c:good }, { l:'Provider used', v:live.cost, c:'#f0b429' }].map(r => (
+                              <div key={r.l}>
+                                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.64rem', color:'var(--muted)' }}><span>{r.l}</span><span style={{ color:'var(--text)', fontWeight:700 }}>{r.v == null ? '-' : fmt(r.v)}</span></div>
+                                <div style={{ height:5, borderRadius:5, background:'var(--navy)', marginTop:'0.15rem' }}><div style={{ width: r.v == null ? 0 : Math.max(2, (r.v / barMax) * 100) + '%', height:'100%', borderRadius:5, background:r.c }} /></div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ fontSize:'0.62rem', color:'var(--muted)', marginTop:'0.55rem' }}>{live.orders} orders so far{live.beforeBalance != null ? ' · balance before top-up ' + num(live.beforeBalance) : ''}</div>
+                        </div>
+                      )
+                    })()}
+
+                    {!showFundForm ? (
+                      <button onClick={() => { setShowFundForm(true); setFundMsg('') }}
+                        style={{ width:'100%', padding:'0.75rem', marginBottom:'1rem', background:'linear-gradient(90deg, var(--purple), var(--purple2))', border:'none', borderRadius:'12px', color:'#fff', fontSize:'0.82rem', fontWeight:800, cursor:'pointer', boxShadow:'0 6px 18px rgba(108,78,242,0.3)' }}>
+                        + Log a {prov.label} funding
+                      </button>
+                    ) : (
+                      <div style={{ ...card, marginBottom:'1rem', display:'flex', flexDirection:'column', gap:'0.65rem', border:'1px solid var(--purple2)' }}>
+                        <div style={{ fontWeight:800, fontSize:'0.86rem', color:'var(--text)' }}>Log a {prov.label} funding</div>
+                        <div style={{ fontSize:'0.66rem', color:'var(--muted)', lineHeight:1.5 }}>Log it right after you fund, before any new orders use it, so the starting balance is correct.</div>
+                        <div>
+                          <div style={lbl}>Amount you funded ({prov.currency === 'USD' ? 'dollars' : 'naira'})</div>
+                          <input type="number" value={fundForm.amount} onChange={e => setFundForm({ ...fundForm, amount: e.target.value })} placeholder={prov.currency === 'USD' ? 'e.g. 15' : 'e.g. 20000'} style={{ ...inputS, marginTop:'0.25rem' }} />
+                        </div>
+                        {prov.currency === 'USD' && (
+                          <div>
+                            <div style={lbl}>Naira you actually paid (optional, makes profit exact)</div>
+                            <input type="number" value={fundForm.paidNgn} onChange={e => setFundForm({ ...fundForm, paidNgn: e.target.value })} placeholder={d.usdRate ? 'Blank = use rate ₦' + d.usdRate + '/$' : 'e.g. 24000'} style={{ ...inputS, marginTop:'0.25rem' }} />
+                          </div>
+                        )}
+                        <div>
+                          <div style={lbl}>Provider balance now (blank = read automatically)</div>
+                          <input type="number" value={fundForm.balanceAfter} onChange={e => setFundForm({ ...fundForm, balanceAfter: e.target.value })} placeholder="Auto" style={{ ...inputS, marginTop:'0.25rem' }} />
+                        </div>
+                        <div>
+                          <div style={lbl}>Note (optional)</div>
+                          <input type="text" value={fundForm.note} onChange={e => setFundForm({ ...fundForm, note: e.target.value })} maxLength={200} style={{ ...inputS, marginTop:'0.25rem' }} />
+                        </div>
+                        {fundMsg && <div style={{ color:bad, fontSize:'0.74rem' }}>{fundMsg}</div>}
+                        <div style={{ display:'flex', gap:'0.5rem' }}>
+                          <button onClick={submitFunding} disabled={fundSaving}
+                            style={{ flex:1, padding:'0.65rem', background:'var(--purple2)', border:'none', borderRadius:'10px', color:'#fff', fontSize:'0.8rem', fontWeight:800, cursor:'pointer' }}>{fundSaving ? 'Saving...' : 'Save funding'}</button>
+                          <button onClick={() => { setShowFundForm(false); setFundMsg('') }}
+                            style={{ padding:'0.65rem 1.1rem', background:'var(--card2)', border:'1px solid var(--border)', borderRadius:'10px', color:'var(--muted)', fontSize:'0.8rem', cursor:'pointer' }}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {wins.length === 0 && (
+                      <div style={{ ...card, textAlign:'center', color:'var(--muted)', fontSize:'0.78rem', padding:'1.4rem' }}>No fundings logged for {prov.label} yet. Log your next top-up to start tracking profit.</div>
+                    )}
+
+                    {/* Past fundings */}
+                    {closed.length > 0 && (
+                      <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)', marginBottom:'0.5rem' }}>Past fundings</div>
+                    )}
+                    <div style={{ display:'flex', flexDirection:'column', gap:'0.6rem' }}>
+                      {closed.map(w => {
+                        const known = w.profit != null
+                        const col = known ? pc(w.profit) : 'var(--muted)'
+                        const mx = Math.max(w.revenue, w.cost || 0, 1)
+                        return (
+                          <div key={w.id} style={{ ...card, position:'relative', overflow:'hidden', paddingLeft:'1rem' }}>
+                            <div style={{ position:'absolute', left:0, top:0, bottom:0, width:4, background:col }} />
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'0.5rem' }}>
+                              <div>
+                                <div style={{ fontWeight:800, fontSize:'0.86rem', color:'var(--text)' }}>Funded {num(w.amount)}{w.paidNgn ? <span style={{ fontWeight:500, color:'var(--muted)' }}> {'·'} paid {fmt(w.paidNgn)}</span> : null}</div>
+                                <div style={{ fontSize:'0.64rem', color:'var(--muted)', marginTop:'0.15rem' }}>{when(w.fundedAt)} {'→'} {when(w.endedAt)}</div>
+                                {w.beforeBalance != null && <div style={{ fontSize:'0.62rem', color:'var(--muted)', marginTop:'0.1rem' }}>Balance {num(w.beforeBalance)} {'→'} {num(w.startBalance)} on top-up</div>}
+                                {w.note && <div style={{ fontSize:'0.64rem', color:'var(--muted)', marginTop:'0.1rem' }}>{w.note}</div>}
+                              </div>
+                              <div style={{ textAlign:'right', flexShrink:0 }}>
+                                <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:800, fontSize:'1.1rem', color:col }}>{known ? signed(w.profit) : 'n/a'}</div>
+                                <div style={{ marginTop:'0.2rem' }}>{known ? pill((w.profit >= 0 ? 'PROFIT' : 'LOSS') + (w.marginPct != null ? ' ' + w.marginPct.toFixed(1) + '%' : ''), col) : pill('BALANCE MISSING', 'var(--muted)')}</div>
+                              </div>
+                            </div>
+                            <div style={{ display:'flex', flexDirection:'column', gap:'0.35rem', marginTop:'0.7rem' }}>
+                              {[{ l:'Customers paid (' + w.orders + ' orders)', v:w.revenue, c:good }, { l:'Provider used', v:w.cost, c:'#f0b429' }].map(r => (
+                                <div key={r.l}>
+                                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.62rem', color:'var(--muted)' }}><span>{r.l}</span><span style={{ color:'var(--text)', fontWeight:700 }}>{r.v == null ? '-' : fmt(r.v)}</span></div>
+                                  <div style={{ height:5, borderRadius:5, background:'var(--navy)', marginTop:'0.15rem' }}><div style={{ width: r.v == null ? 0 : Math.max(2, (r.v / mx) * 100) + '%', height:'100%', borderRadius:5, background:r.c }} /></div>
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'0.6rem', paddingTop:'0.5rem', borderTop:'1px solid var(--border)' }}>
+                              <span style={{ fontSize:'0.6rem', color:'var(--muted)' }}>Ended with {num(w.endBalance)}{w.frozen ? ' · record saved' : ''}</span>
+                              <button onClick={() => deleteFunding(w.id)} style={{ background:'transparent', border:'none', color:'var(--muted)', fontSize:'0.6rem', cursor:'pointer', textDecoration:'underline' }}>Delete entry</button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {live && (
+                      <div style={{ textAlign:'right', marginTop:'0.4rem' }}>
+                        <button onClick={() => deleteFunding(live.id)} style={{ background:'transparent', border:'none', color:'var(--muted)', fontSize:'0.6rem', cursor:'pointer', textDecoration:'underline' }}>Delete current funding entry</button>
+                      </div>
+                    )}
+
+                    {prov.events && prov.events.length > 0 && (() => {
+                      const evs = prov.events.filter(e => profitLogFilter === 'all' || e.type === profitLogFilter)
+                      const dayKey = (iso) => new Date(iso).toLocaleDateString('en-CA', { timeZone:'Africa/Lagos' })
+                      const dayLab = (iso) => new Date(iso).toLocaleDateString('en-NG', { timeZone:'Africa/Lagos', weekday:'long', day:'numeric', month:'long', year:'numeric' })
+                      const tm = (iso) => new Date(iso).toLocaleTimeString('en-NG', { timeZone:'Africa/Lagos', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true })
+                      const groups = []
+                      for (const e of evs) {
+                        const k = dayKey(e.at)
+                        if (!groups.length || groups[groups.length - 1].key !== k) groups.push({ key:k, at:e.at, items:[] })
+                        groups[groups.length - 1].items.push(e)
+                      }
+                      const mt = {
+                        funding: { icon:'↑', color:'#a78bfa' },
+                        closed:  { icon:'✓', color:'#34d399' },
+                        orders:  { icon:'▣', color:'#60a5fa' },
+                        balance: { icon:'•', color:'var(--muted)' },
+                      }
+                      const lf = [
+                        { id:'all', label:'All' }, { id:'funding', label:'Fundings' }, { id:'closed', label:'Results' },
+                        { id:'orders', label:'Orders' }, { id:'balance', label:'Balance' },
+                      ]
+                      return (
+                        <div style={{ marginTop:'1.4rem' }}>
+                          <div style={{ fontFamily:'Outfit, sans-serif', fontWeight:700, fontSize:'0.88rem', color:'var(--text)', marginBottom:'0.15rem' }}>{prov.label} log</div>
+                          <div style={{ fontSize:'0.66rem', color:'var(--muted)', marginBottom:'0.7rem' }}>Every funding, result, day of orders and balance change, with Lagos time stamps.</div>
+                          <div style={{ display:'flex', gap:'0.4rem', marginBottom:'0.9rem', overflowX:'auto' }}>
+                            {lf.map(f => (
+                              <button key={f.id} onClick={() => setProfitLogFilter(f.id)}
+                                style={{ padding:'0.38rem 0.8rem', borderRadius:'10px', fontSize:'0.7rem', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', background: profitLogFilter === f.id ? 'var(--purple2)' : 'var(--card)', color: profitLogFilter === f.id ? '#fff' : 'var(--text)', border:'1px solid ' + (profitLogFilter === f.id ? 'var(--purple2)' : 'var(--border)') }}>{f.label}</button>
+                            ))}
+                          </div>
+                          {groups.length === 0 && <div style={{ ...card, textAlign:'center', color:'var(--muted)', fontSize:'0.76rem' }}>Nothing here yet</div>}
+                          {groups.map(g => (
+                            <div key={g.key} style={{ marginBottom:'1rem' }}>
+                              <div style={{ fontSize:'0.66rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:'0.45rem' }}>{dayLab(g.at)}</div>
+                              <div style={{ borderLeft:'2px solid var(--border)', marginLeft:'0.9rem', paddingLeft:'1rem', display:'flex', flexDirection:'column', gap:'0.45rem' }}>
+                                {g.items.map(e => {
+                                  const m = mt[e.type] || mt.balance
+                                  const dot = e.type === 'closed' ? (e.profit >= 0 ? good : bad) : m.color
+                                  return (
+                                    <div key={e.id} style={{ position:'relative', ...card, padding:'0.55rem 0.7rem' }}>
+                                      <div style={{ position:'absolute', left:'-1.95rem', top:'0.5rem', width:22, height:22, borderRadius:'50%', background:'var(--navy)', border:'2px solid ' + dot, color:dot, fontSize:'0.65rem', display:'flex', alignItems:'center', justifyContent:'center' }}>{m.icon}</div>
+                                      {e.type === 'funding' && (
+                                        <>
+                                          <div style={{ display:'flex', justifyContent:'space-between', gap:'0.5rem' }}>
+                                            <div style={{ fontSize:'0.78rem', fontWeight:700, color:'var(--text)' }}>Funding logged: {num(e.amount)}</div>
+                                            {e.paidNgn ? <div style={{ fontSize:'0.7rem', color:'var(--muted)' }}>paid {fmt(e.paidNgn)}</div> : null}
+                                          </div>
+                                          <div style={{ fontSize:'0.66rem', color:'var(--muted)', marginTop:'0.15rem' }}>
+                                            Balance {num(e.beforeBalance)} {'→'} {num(e.afterBalance)}
+                                            {e.carried != null ? ' · carried over ' + num(e.carried) + ' from the previous funding' : ''}
+                                            {e.rate ? ' · rate ' + fmt(e.rate) + '/$' : ''}
+                                          </div>
+                                          {e.note && <div style={{ fontSize:'0.64rem', color:'var(--muted)', marginTop:'0.1rem' }}>{e.note}</div>}
+                                        </>
+                                      )}
+                                      {e.type === 'closed' && (
+                                        <>
+                                          <div style={{ display:'flex', justifyContent:'space-between', gap:'0.5rem' }}>
+                                            <div style={{ fontSize:'0.78rem', fontWeight:700, color:'var(--text)' }}>Funding closed: {e.profit >= 0 ? 'profit' : 'loss'}</div>
+                                            <div style={{ fontSize:'0.82rem', fontWeight:800, color: pc(e.profit) }}>{signed(e.profit)}{e.marginPct != null ? ' (' + e.marginPct.toFixed(1) + '%)' : ''}</div>
+                                          </div>
+                                          <div style={{ fontSize:'0.66rem', color:'var(--muted)', marginTop:'0.15rem' }}>
+                                            Funded {when(e.fundedAt)} {'·'} {e.orders} orders {'·'} customers paid {fmt(e.revenue)} {'·'} provider used {fmt(e.cost)} {'·'} ended with {num(e.endBalance)}
+                                          </div>
+                                        </>
+                                      )}
+                                      {e.type === 'orders' && (
+                                        <div style={{ display:'flex', justifyContent:'space-between', gap:'0.5rem' }}>
+                                          <div style={{ fontSize:'0.76rem', fontWeight:600, color:'var(--text)' }}>{e.orders} {e.orders === 1 ? 'order' : 'orders'} completed that day</div>
+                                          <div style={{ fontSize:'0.76rem', fontWeight:700, color:'var(--text)' }}>{fmt(e.revenue)}</div>
+                                        </div>
+                                      )}
+                                      {e.type === 'balance' && (
+                                        <div style={{ display:'flex', justifyContent:'space-between', gap:'0.5rem' }}>
+                                          <div style={{ fontSize:'0.74rem', color:'var(--text)' }}>Balance checked: {num(e.balance)}</div>
+                                          {e.change != null && <div style={{ fontSize:'0.72rem', fontWeight:700, color: e.change >= 0 ? good : bad }}>{e.change >= 0 ? '+' : '-'}{num(Math.abs(e.change))}</div>}
+                                        </div>
+                                      )}
+                                      <div style={{ fontSize:'0.6rem', color:'var(--muted)', marginTop:'0.3rem' }}>{tm(e.at)}</div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+
+
+                    <div style={{ fontSize:'0.64rem', color:'var(--muted)', marginTop:'0.9rem', lineHeight:1.5 }}>
+                      Profit = what customers paid for this provider's completed orders, minus the provider balance used, between one funding and the next. A cancelled or refunded order counts as nothing on both sides.
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          )
+        })()}
+
         {/* PAYSTACK TAB */}
         {activeTab === 'paystack' && (() => {
           const fmt = (n) => '₦' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 2 })
@@ -2556,6 +2957,7 @@ export default function AdminPanel() {
               setActiveTab(tab.id)
               if (tab.id === 'logs' && logs.length === 0) fetchLogs()
               if (tab.id === 'paystack' && !psData) fetchPaystack()
+              if (tab.id === 'profit' && !profitData) fetchProfit()
             }}
               style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.22rem', background:'transparent', border:'none', padding:'0.3rem 0.5rem', borderRadius:'10px' }}>
               <div style={{ color: activeTab === tab.id ? 'var(--purple2)' : 'var(--muted)', transition:'color 0.15s' }}>{tab.icon}</div>

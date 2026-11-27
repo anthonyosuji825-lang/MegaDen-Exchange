@@ -12,6 +12,9 @@ export default function AdminSidebar({ tabs, activeTab, onTabChange, onLogout })
       <style>{`
         .admin-navitem:hover { background: var(--card2) !important; color: var(--text) !important; }
         .admin-logout:hover { background: var(--card2) !important; color: var(--text) !important; }
+        /* Still scrolls with wheel/touch/keyboard, but the scrollbar itself is hidden. */
+        .admin-nav { scrollbar-width: none; -ms-overflow-style: none; }
+        .admin-nav::-webkit-scrollbar { display: none; }
       `}</style>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 0.4rem', marginBottom: '1.8rem' }}>
@@ -22,7 +25,7 @@ export default function AdminSidebar({ tabs, activeTab, onTabChange, onLogout })
       </div>
 
       <div style={{ fontSize: '0.63rem', fontWeight: 700, letterSpacing: '0.5px', color: 'var(--muted)', padding: '0 0.6rem', marginBottom: '0.5rem' }}>SECTIONS</div>
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', flex: 1, overflowY: 'auto' }}>
+      <nav className="admin-nav" style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', flex: 1, overflowY: 'auto' }}>
         {tabs.map(tab => {
           const active = activeTab === tab.id
           return (
